@@ -228,13 +228,14 @@ def _ensure_quality_checklists_seeded() -> None:
         db.close()
 
 
-@app.on_event("startup")
-async def startup_event():
-    try:
-        ensure_local_schema_compatibility()
-    except Exception:
-        logger.exception("Startup schema compatibility check failed; continuing without local schema patching")
-    # J1 safety net: auto-seed training templates if empty
+def _run_startup_seed_tasks() -> None:
+    """
+    Run non-critical seed/repair tasks outside the FastAPI startup critical path.
+
+    Railway marks the service unhealthy if the app takes too long to start
+    serving ``/health``. These tasks are helpful, but they should not block
+    the HTTP server from booting.
+    """
     try:
         _ensure_training_templates_seeded()
     except Exception:
@@ -247,12 +248,30 @@ async def startup_event():
         _ensure_quality_checklists_seeded()
     except Exception:
         logger.exception("Quality checklist auto-seed wrapper crashed; continuing")
+
+
+async def _startup_seed_background_task() -> None:
+    logger.info("Startup background seed tasks scheduled")
+    await asyncio.to_thread(_run_startup_seed_tasks)
+    logger.info("Startup background seed tasks completed")
+
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        ensure_local_schema_compatibility()
+    except Exception:
+        logger.exception("Startup schema compatibility check failed; continuing without local schema patching")
+    app.state.startup_seed_task = asyncio.create_task(_startup_seed_background_task())
     app.state.idempotency_cleanup_task = asyncio.create_task(_idempotency_cleanup_loop())
     start_scheduler(app)
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    seed_task = getattr(app.state, "startup_seed_task", None)
+    if seed_task and not seed_task.done():
+        seed_task.cancel()
     task = getattr(app.state, "idempotency_cleanup_task", None)
     if task:
         task.cancel()
