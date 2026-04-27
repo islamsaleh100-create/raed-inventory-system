@@ -1,0 +1,53 @@
+# docker-compose.prod.yml
+# Production overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This file overrides/extends docker-compose.yml for production:
+#   - Removes hot-reload volume mount
+#   - Disables DEBUG
+#   - Tightens rate limits
+#   - Removes pgAdmin service
+#   - Adds restart policy and resource limits
+
+version: "3.9"
+
+services:
+
+  api:
+    restart: always
+    environment:
+      DEBUG: "false"
+      ENVIRONMENT: production
+      RATE_LIMIT_DEFAULT: "100/minute"
+      RATE_LIMIT_AUTH: "10/minute"
+      AUDIT_LOG_ENABLED: "true"
+    volumes: []          # remove hot-reload bind mount in production
+    command: >
+      sh -c "
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting production server...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+
+  db:
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-raed_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required in production}
+      POSTGRES_DB: ${DB_NAME:-raed_inventory}
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  # Disable pgAdmin in production
+  pgadmin:
+    profiles:
+      - disabled

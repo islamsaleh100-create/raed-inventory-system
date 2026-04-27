@@ -1,0 +1,64 @@
+# Global OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*.tmp
+*.bak
+*.orig
+
+# Local env / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+
+# Python / Node caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+node_modules/
+dist/
+build/
+.vite/
+
+# Local databases and journals
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Runtime logs
+*.log
+*.log.*
+*.err.log
+*.out.log
+*_live.log
+
+# Playwright artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+
+# Temp / generated folders at workspace root
+pytest-cache-files-*/
+screenshots/
+mnt/
+unpacked_design/
+write_test.txt
+
+# Office temp / lock files
+~$*
+.~lock.*

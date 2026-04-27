@@ -1,0 +1,54 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: raed_db
+    environment:
+      POSTGRES_DB: raed_inventory
+      POSTGRES_USER: raed_user
+      POSTGRES_PASSWORD: raed_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - raed_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raed_user -d raed_inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: raed_backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://raed_user:raed_pass@db:5432/raed_inventory
+      SECRET_KEY: raed-production-secret-key-2025-change-me
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: >
+      sh -c "python seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: raed_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:8000
+      BACKEND_ORIGIN: http://backend:8000
+
+volumes:
+  raed_pgdata:

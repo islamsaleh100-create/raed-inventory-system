@@ -1,0 +1,23 @@
+# Avoid baking local dev artifacts into the Railway image.
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+htmlcov
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+.env
+.env.local
+.env.*.local
+.venv
+venv
+node_modules
+.git
+.idea
+.vscode
+.mypy_cache
+.ruff_cache
+*.log

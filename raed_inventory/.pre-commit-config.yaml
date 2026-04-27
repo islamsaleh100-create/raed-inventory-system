@@ -1,0 +1,54 @@
+# Pre-commit hooks — راجع https://pre-commit.com
+# تثبيت:
+#   pip install pre-commit
+#   pre-commit install
+#
+# تشغيل يدوي على كل الملفات:
+#   pre-commit run --all-files
+
+repos:
+  # ─── Sanity ──────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # ─── Python ──────────────────────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+        files: ^backend/
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff-format
+        files: ^backend/
+
+  # ─── Secret scan (قبل الـ commit، حتى لا تصل لـ CI) ────────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.2
+    hooks:
+      - id: gitleaks
+
+  # ─── Local: alembic migrations must have a down_revision ────────────────
+  - repo: local
+    hooks:
+      - id: alembic-down-revision
+        name: alembic-down-revision check
+        entry: python backend/scripts/check_alembic_chain.py
+        language: system
+        files: ^backend/alembic/versions/.*\.py$
+        pass_filenames: false

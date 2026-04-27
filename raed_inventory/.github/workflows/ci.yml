@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENV_FILE: .env.test
+      DATABASE_URL: "sqlite:///./ci_test.db"
+      SECRET_KEY: "ci-test-secret-key-do-not-use-in-prod"
+      ENVIRONMENT: "local"
+      RATE_LIMIT_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov ruff
+
+      - name: Write .env.test
+        run: |
+          cat > .env.test <<'EOF'
+          DATABASE_URL=sqlite:///./ci_test.db
+          SECRET_KEY=ci-test-secret-key-do-not-use-in-prod
+          ENVIRONMENT=local
+          RATE_LIMIT_ENABLED=false
+          ADMIN_PASSWORD=Admin@2025
+          EOF
+
+      - name: Lint (ruff — non-blocking)
+        run: ruff check app || true
+
+      - name: Run migrations (alembic upgrade head)
+        run: alembic upgrade head
+
+      - name: Run tests (pytest)
+        run: pytest --tb=short -q --maxfail=20
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs-py${{ matrix.python-version }}
+          path: |
+            backend/*.log
+            backend/.pytest_cache/
+          retention-days: 7
+
+  frontend:
+    name: Frontend (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20.x"]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
+
+  docker-build:
+    name: Docker build (smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [backend, frontend]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: raed-inventory-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: raed-inventory-frontend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

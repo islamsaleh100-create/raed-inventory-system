@@ -1,0 +1,77 @@
+# ─── Global ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.pid
+*.swp
+*.swo
+*.bak
+*.tmp
+*.orig
+
+# ─── Secrets & env ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+*.pem
+*.key
+credentials.json
+
+# ─── Editors / IDE ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.sublime-*
+.history/
+
+# ─── Python / Backend ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+venv/
+.venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# ─── Local DB artifacts ────────────────────────────────────────────────
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+raed_inventory_local.db*
+
+# ─── Node / Frontend ───────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+.vite/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Live process logs (لا تُحفظ في الـ repo) ──────────────────────────
+*.run.log
+*.run.err.log
+*_live.log
+backend.log
+backend.err.log
+frontend.log
+frontend.err.log
+
+# ─── Uploads / تصدير ───────────────────────────────────────────────────
+uploads/
+exports/
+backups/
+tmp/
