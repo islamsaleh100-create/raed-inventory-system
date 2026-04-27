@@ -51,6 +51,16 @@ playwright-report/
 blob-report/
 playwright/.cache/
 playwright/.auth/
+raed_inventory/frontend/.playwright-predeploy-results/
+raed_inventory/frontend/auditor-cross-results/
+raed_inventory/frontend/test-results*/
+raed_inventory/frontend/test-results-run*/
+raed_inventory/frontend/test-results-secondary-surfaces-*/
+raed_inventory/frontend/test-results-a11y-*/
+raed_inventory/frontend/test-results-deep-flows-*/
+
+# Audit / performance generated reports
+raed_inventory/frontend/lighthouse-reports/
 
 # Temp / generated folders at workspace root
 pytest-cache-files-*/
