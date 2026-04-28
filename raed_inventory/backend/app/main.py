@@ -18,12 +18,13 @@ from app.core.security import decode_access_token
 from app.core.request_context import RequestIdMiddleware
 from app.core.sentry_init import init_sentry
 from app.database import SessionLocal, get_db
-from app.models import Role, User, UserRole
+from app.models import Role, RoleName, User, UserRole
 from app.routers import auth, users, master, inventory, orders, dashboard, stock, ledger, reports, alerts, export, audit, audit_findings, import_data, quality, training, delivery_analytics, notifications, documents, settings as settings_router, sales_channels, branch_requests, production_orders, warehouse_lines, delivery_orders, supply_chain, evaluations, procurement, branch_employees
 from app.core.tenant import TenantMiddleware
 from app.services.idempotency_service import cleanup_expired_idempotency_requests
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from app.startup_schema import ensure_local_schema_compatibility
+from app.core.security import get_password_hash
 
 # Initialise logging before any other module emits log records
 setup_logging()
@@ -250,6 +251,66 @@ def _run_startup_seed_tasks() -> None:
         logger.exception("Quality checklist auto-seed wrapper crashed; continuing")
 
 
+def _ensure_deployment_admin_user() -> None:
+    """
+    Ensure a usable admin login exists in deployed environments.
+
+    Railway databases start empty, and the manual seed scripts are not part of
+    the normal container startup. Without this bootstrap, the frontend can be
+    fully online while every login attempt fails because no users exist yet.
+    """
+    db = SessionLocal()
+    try:
+        super_admin_role = db.query(Role).filter(Role.name == RoleName.super_admin).first()
+        if not super_admin_role:
+            super_admin_role = Role(
+                name=RoleName.super_admin,
+                display_name="Super Administrator",
+                description="Full system access",
+            )
+            db.add(super_admin_role)
+            db.flush()
+
+        admin_user = db.query(User).filter(User.username == settings.ADMIN_USERNAME).first()
+        if not admin_user:
+            admin_user = User(
+                username=settings.ADMIN_USERNAME,
+                email=settings.ADMIN_EMAIL,
+                full_name="System Administrator",
+                hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
+                status="active",
+                is_deleted=False,
+            )
+            db.add(admin_user)
+            db.flush()
+            logger.info("Deployment admin user created: %s", settings.ADMIN_USERNAME)
+        else:
+            admin_user.email = settings.ADMIN_EMAIL
+            admin_user.full_name = admin_user.full_name or "System Administrator"
+            admin_user.status = "active"
+            admin_user.is_deleted = False
+            admin_user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
+            logger.info("Deployment admin user refreshed: %s", settings.ADMIN_USERNAME)
+
+        existing_link = (
+            db.query(UserRole)
+            .filter(
+                UserRole.user_id == admin_user.id,
+                UserRole.role_id == super_admin_role.id,
+            )
+            .first()
+        )
+        if not existing_link:
+            db.add(UserRole(user_id=admin_user.id, role_id=super_admin_role.id))
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Deployment admin bootstrap failed; continuing startup")
+    finally:
+        db.close()
+
+
 async def _startup_seed_background_task() -> None:
     logger.info("Startup background seed tasks scheduled")
     await asyncio.to_thread(_run_startup_seed_tasks)
@@ -262,6 +323,10 @@ async def startup_event():
         ensure_local_schema_compatibility()
     except Exception:
         logger.exception("Startup schema compatibility check failed; continuing without local schema patching")
+    try:
+        await asyncio.to_thread(_ensure_deployment_admin_user)
+    except Exception:
+        logger.exception("Deployment admin bootstrap wrapper crashed; continuing")
     app.state.startup_seed_task = asyncio.create_task(_startup_seed_background_task())
     app.state.idempotency_cleanup_task = asyncio.create_task(_idempotency_cleanup_loop())
     start_scheduler(app)
