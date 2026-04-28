@@ -68,33 +68,43 @@ ROLE_META: dict[RoleName, tuple[str, str | None]] = {
 
 
 BRANCH_NAME_TO_CODE: dict[str, str] = {
-    "onda 1 - arkan": "BR-DM-ON-ARKAN",
-    "onda 13 - al malqa": "BR-RY-ON-MALQA",
-    "onda 14 - hassa": "BR-DM-ON-HASSA",
-    "onda 16 - najmah": "BR-DM-ON-NAJMA",
-    "onda 18 - al midra gym": "BR-DM-ON-MIDRA",
-    "onda 2 - hoqail": "BR-DM-ON-HOQAI",
-    "onda 4 - sefarat": "BR-RY-ON-SEFAR",
-    "onda 5 - muowasat": "BR-DM-ON-MUOWA",
-    "onda 9 - ras tanura": "BR-DM-ON-RASTN",
-    "onda dau university": "BR-DM-ON-DAU",
-    "pizza 1 - al khobar": "BR-DM-RN-KHOBR",
-    "pizza 10 - mazaar": "BR-DM-RN-MAZAR",
-    "pizza 15 - ras tanura": "BR-DM-RN-RASTN",
-    "pizza 3 - arkan": "BR-DM-RN-ARKAN",
-    "pizza 4 - riyadh takhasosy": "BR-RY-RN-TAKHS",
-    "pizza 5 - al ulaya": "BR-RY-RN-ULAYA",
-    "pizza 6 - riyadh nada": "BR-RY-RN-NADA",
-    "pizza 7 - aramco": "BR-DM-RN-ARAMC",
-    "pizza 9 - al azizia": "BR-DM-RN-AZIZI",
-    "ronaldos dau university": "BR-DM-RN-DAU",
-    "shawerma 1 - khobar": "BR-DM-SH-KHOBR",
-    "shawarma 1 - khobar": "BR-DM-SH-KHOBR",
-    "shawerma 4 - arkan": "BR-DM-SH-ARKAN",
-    "shawarma 4 - arkan": "BR-DM-SH-ARKAN",
-    "shawerma - olaya": "BR-RY-SH-OLAYA",
-    "shawarma - olaya": "BR-RY-SH-OLAYA",
+    "onda 1 - arkan": "BR-DMM-04",
+    "onda 13 - al malqa": "BR-RYD-06",
+    "onda 14 - hassa": "BR-HSA-01",
+    "onda 16 - najmah": "BR-DMM-05",
+    "onda 18 - al midra gym": "BR-DMM-06",
+    "onda 2 - hoqail": "BR-DMM-07",
+    "onda 4 - sefarat": "BR-RYD-07",
+    "onda 5 - muowasat": "BR-DMM-08",
+    "onda 9 - ras tanura": "BR-RTN-01",
+    "onda dau university": "BR-DMM-09",
+    "pizza 1 - al khobar": "BR-KHB-02",
+    "pizza 10 - mazaar": "BR-DMM-10",
+    "pizza 15 - ras tanura": "BR-RTN-02",
+    "pizza 3 - arkan": "BR-DMM-11",
+    "pizza 4 - riyadh takhasosy": "BR-RYD-08",
+    "pizza 5 - al ulaya": "BR-RYD-09",
+    "pizza 6 - riyadh nada": "BR-RYD-10",
+    "pizza 7 - aramco": "BR-DMM-12",
+    "pizza 9 - al azizia": "BR-KHB-03",
+    "ronaldos dau university": "BR-DMM-13",
+    "shawerma 1 - khobar": "BR-KHB-04",
+    "shawarma 1 - khobar": "BR-KHB-04",
+    "shawerma 4 - arkan": "BR-DMM-14",
+    "shawarma 4 - arkan": "BR-DMM-14",
+    "shawerma - olaya": "BR-RYD-11",
+    "shawarma - olaya": "BR-RYD-11",
 }
+
+BRAND_ALIASES: dict[str, str] = {
+    "Ronaldos": "Ronaldos Pizza",
+}
+
+REQUIRED_KITCHEN_SECTIONS: tuple[str, ...] = (
+    "Meat & Chicken",
+    "Bakery & Sweets",
+    "Pizza",
+)
 
 
 def normalize(value: str | None) -> str:
@@ -136,7 +146,7 @@ def get_or_create_user(db, *, username: str, full_name: str, email: str, status:
         db.flush()
     user.email = email
     user.full_name = full_name
-            user.hashed_password = get_password_hash(matrix_seed_password())
+    user.hashed_password = get_password_hash(matrix_seed_password())
     user.status = status
     user.is_deleted = False
     ensure_user_roles(db, user, roles)
@@ -151,17 +161,17 @@ def get_branch_by_name(db, entity_name: str) -> Branch | None:
 
 
 def get_brand(db, name: str) -> Brand | None:
-    return db.query(Brand).filter(Brand.name == name).first()
+    return db.query(Brand).filter(Brand.name == BRAND_ALIASES.get(name, name)).first()
 
 
 def get_warehouse(db, city: str) -> Warehouse | None:
     normalized = normalize(city)
     if normalized == "riyadh":
-        row = db.query(Warehouse).filter(Warehouse.warehouse_code == "WH-RY-1", Warehouse.is_deleted == False).first()
+        row = db.query(Warehouse).filter(Warehouse.warehouse_code.in_(["WH-RYD", "WH-RY-1"]), Warehouse.is_deleted == False).first()
         if row:
             return row
     if normalized == "dammam":
-        row = db.query(Warehouse).filter(Warehouse.warehouse_code == "WH-DM-1", Warehouse.is_deleted == False).first()
+        row = db.query(Warehouse).filter(Warehouse.warehouse_code.in_(["WH-DMM", "WH-DM-1"]), Warehouse.is_deleted == False).first()
         if row:
             return row
     return db.query(Warehouse).filter(Warehouse.is_deleted == False, Warehouse.active == True).order_by(Warehouse.id.asc()).first()
@@ -176,6 +186,19 @@ def get_section(section_label: str) -> str | None:
     if "pizza" in lower:
         return "Pizza"
     return None
+
+
+def ensure_required_kitchen_sections(db) -> int:
+    created = 0
+    for section_name in REQUIRED_KITCHEN_SECTIONS:
+        row = db.query(KitchenSection).filter(KitchenSection.name == section_name).first()
+        if row:
+            row.active = True
+            continue
+        db.add(KitchenSection(name=section_name, active=True))
+        created += 1
+    db.flush()
+    return created
 
 
 def ensure_area_assignment(db, user: User, city: str, brand_name: str) -> None:
@@ -267,6 +290,7 @@ def main() -> int:
     db = SessionLocal()
     try:
         rows = iter_matrix_rows(wb_path)
+        sections_created = ensure_required_kitchen_sections(db)
         created = 0
         updated = 0
         warnings: list[str] = []
@@ -326,6 +350,7 @@ def main() -> int:
         print(f"matrix_users_total={len(rows)}")
         print(f"users_created={created}")
         print(f"users_updated={updated}")
+        print(f"kitchen_sections_created={sections_created}")
         print(f"warnings_count={len(warnings)}")
         for line in warnings:
             print(f"WARNING: {line}")
