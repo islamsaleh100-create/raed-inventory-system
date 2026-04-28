@@ -3,15 +3,12 @@ Raed Branch Daily Inventory & Auto Replenishment System
 FastAPI Application Entry Point
 """
 import asyncio
-import os
 import logging
-import subprocess
 from pathlib import Path
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 import time
 from app.config import settings
 from app.core.logging_config import setup_logging
@@ -361,81 +358,6 @@ app.include_router(branch_employees.router)
 app.include_router(notifications.router)
 app.include_router(documents.router)
 app.include_router(settings_router.router)
-
-
-DIAG_TOKEN = os.getenv("DEBUG_DIAGNOSTIC_TOKEN")
-
-
-def _check_diag_token(x_diag_token: str = Header(default="")):
-    if not DIAG_TOKEN or x_diag_token != DIAG_TOKEN:
-        raise HTTPException(404, "Not Found")
-    return True
-
-
-if DIAG_TOKEN:
-    @app.get("/__diag/version")
-    def diag_version(_: bool = Depends(_check_diag_token)):
-        try:
-            sha = subprocess.check_output(
-                ["git", "rev-parse", "--short", "HEAD"],
-                cwd="/app",
-            ).decode().strip()
-        except Exception as e:
-            sha = f"unknown ({e})"
-        return {
-            "sha": sha,
-            "ALLOWED_ORIGINS": os.getenv("ALLOWED_ORIGINS"),
-            "ADMIN_USERNAME": os.getenv("ADMIN_USERNAME"),
-            "ADMIN_PASSWORD_set": bool(os.getenv("ADMIN_PASSWORD")),
-            "ADMIN_PASSWORD_len": len(os.getenv("ADMIN_PASSWORD") or ""),
-            "DATABASE_URL_host": (os.getenv("DATABASE_URL") or "").split("@")[-1].split("/")[0],
-        }
-
-    @app.get("/__diag/admin")
-    def diag_admin(_: bool = Depends(_check_diag_token), db: Session = Depends(get_db)):
-        rows = []
-        for u in db.query(User).filter(User.username.in_(["admin", "super.admin"])).all():
-            roles = [
-                ur.role.name.value if hasattr(ur.role.name, "value") else str(ur.role.name)
-                for ur in u.user_roles
-            ]
-            rows.append({
-                "id": u.id,
-                "username": u.username,
-                "email": u.email,
-                "status": str(u.status),
-                "is_deleted": bool(u.is_deleted),
-                "no_password": u.hashed_password is None,
-                "hash_len": len(u.hashed_password or ""),
-                "hash_prefix": (u.hashed_password or "")[:7],
-                "roles": roles,
-            })
-        return {"users": rows, "total_users_in_db": db.query(User).count()}
-
-    @app.post("/__diag/login_trace")
-    def diag_login_trace(
-        payload: dict,
-        _: bool = Depends(_check_diag_token),
-        db: Session = Depends(get_db),
-    ):
-        from app.core.security import verify_password
-
-        username = payload.get("username", "")
-        password = payload.get("password", "")
-        u = db.query(User).filter(User.username == username).first()
-        if not u:
-            return {"step": "user_lookup", "found": False, "username_searched": username}
-        return {
-            "step": "user_lookup",
-            "found": True,
-            "id": u.id,
-            "username": u.username,
-            "status": str(u.status),
-            "status_type": type(u.status).__name__,
-            "is_deleted": bool(u.is_deleted),
-            "password_match": verify_password(password, u.hashed_password) if u.hashed_password else False,
-            "hash_present": u.hashed_password is not None,
-        }
 
 
 @app.get("/", include_in_schema=False)
