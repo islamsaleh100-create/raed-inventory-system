@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import text
+from sqlalchemy import or_, text
 import time
 from app.config import settings
 from app.core.logging_config import setup_logging
@@ -271,7 +271,16 @@ def _ensure_deployment_admin_user() -> None:
             db.add(super_admin_role)
             db.flush()
 
-        admin_user = db.query(User).filter(User.username == settings.ADMIN_USERNAME).first()
+        admin_user = (
+            db.query(User)
+            .filter(
+                or_(
+                    User.username == settings.ADMIN_USERNAME,
+                    User.email == settings.ADMIN_EMAIL,
+                )
+            )
+            .first()
+        )
         if not admin_user:
             admin_user = User(
                 username=settings.ADMIN_USERNAME,
@@ -285,6 +294,7 @@ def _ensure_deployment_admin_user() -> None:
             db.flush()
             logger.info("Deployment admin user created: %s", settings.ADMIN_USERNAME)
         else:
+            admin_user.username = settings.ADMIN_USERNAME
             admin_user.email = settings.ADMIN_EMAIL
             admin_user.full_name = admin_user.full_name or "System Administrator"
             admin_user.status = "active"
