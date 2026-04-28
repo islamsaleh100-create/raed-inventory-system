@@ -18,20 +18,20 @@ depends_on = None
 
 
 def _enum(*values, name: str):
+    # Must be called from within upgrade()/downgrade() — op.get_bind()
+    # is only valid after Alembic's Operations proxy is established.
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
         return postgresql.ENUM(*values, name=name, create_type=False)
     return sa.Enum(*values, name=name)
 
 
-source_type_enum = _enum("WAREHOUSE", "KITCHEN", "BOTH", name="supplysourcetype")
-default_source_enum = _enum("WAREHOUSE", "KITCHEN", name="supplydefaultsource")
-request_status_enum = _enum("DRAFT", "SUBMITTED", "AREA_APPROVED", "AREA_REJECTED", name="branchrequeststatus")
-line_status_enum = _enum("DRAFT", "SUBMITTED", "APPROVED", "REJECTED", name="branchrequestlinestatus")
-
-
 def upgrade() -> None:
     bind = op.get_bind()
+    source_type_enum = _enum("WAREHOUSE", "KITCHEN", "BOTH", name="supplysourcetype")
+    default_source_enum = _enum("WAREHOUSE", "KITCHEN", name="supplydefaultsource")
+    request_status_enum = _enum("DRAFT", "SUBMITTED", "AREA_APPROVED", "AREA_REJECTED", name="branchrequeststatus")
+    line_status_enum = _enum("DRAFT", "SUBMITTED", "APPROVED", "REJECTED", name="branchrequestlinestatus")
     for enum in (source_type_enum, default_source_enum, request_status_enum, line_status_enum):
         enum.create(bind, checkfirst=True)
 
@@ -151,5 +151,9 @@ def downgrade() -> None:
     op.drop_table("brands")
 
     bind = op.get_bind()
+    line_status_enum = _enum("DRAFT", "SUBMITTED", "APPROVED", "REJECTED", name="branchrequestlinestatus")
+    request_status_enum = _enum("DRAFT", "SUBMITTED", "AREA_APPROVED", "AREA_REJECTED", name="branchrequeststatus")
+    default_source_enum = _enum("WAREHOUSE", "KITCHEN", name="supplydefaultsource")
+    source_type_enum = _enum("WAREHOUSE", "KITCHEN", "BOTH", name="supplysourcetype")
     for enum in (line_status_enum, request_status_enum, default_source_enum, source_type_enum):
         enum.drop(bind, checkfirst=True)

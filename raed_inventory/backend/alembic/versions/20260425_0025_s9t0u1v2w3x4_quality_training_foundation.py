@@ -23,13 +23,6 @@ def _enum(*values, name: str):
     return sa.Enum(*values, name=name)
 
 
-quality_visit_status = _enum("draft", "submitted", "reviewed", "closed", name="qualityvisitstatus")
-quality_response_status = _enum("yes", "no", "na", name="qualityresponsestatus")
-training_role_type = _enum("branch_employee", "branch_manager", name="trainingroletype")
-assessment_status = _enum("draft", "submitted", "approved", "certified", "needs_reeval", name="assessmentstatus")
-assessment_verdict = _enum("passed", "conditional", "failed", name="assessmentverdict")
-
-
 def _insp():
     return sa.inspect(op.get_bind())
 
@@ -54,6 +47,11 @@ def _ensure_index(name: str, table: str, columns) -> None:
 
 
 def upgrade() -> None:
+    quality_visit_status = _enum("draft", "submitted", "reviewed", "closed", name="qualityvisitstatus")
+    quality_response_status = _enum("yes", "no", "na", name="qualityresponsestatus")
+    training_role_type = _enum("branch_employee", "branch_manager", name="trainingroletype")
+    assessment_status = _enum("draft", "submitted", "approved", "certified", "needs_reeval", name="assessmentstatus")
+    assessment_verdict = _enum("passed", "conditional", "failed", name="assessmentverdict")
     bind = op.get_bind()
     for enum_type in (
         quality_visit_status,
@@ -247,6 +245,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    quality_visit_status = _enum("draft", "submitted", "reviewed", "closed", name="qualityvisitstatus")
+    quality_response_status = _enum("yes", "no", "na", name="qualityresponsestatus")
+    training_role_type = _enum("branch_employee", "branch_manager", name="trainingroletype")
+    assessment_status = _enum("draft", "submitted", "approved", "certified", "needs_reeval", name="assessmentstatus")
+    assessment_verdict = _enum("passed", "conditional", "failed", name="assessmentverdict")
     for table, indexes in [
         ("training_assessments", ["ix_train_branch_date", "ix_train_trainee"]),
         ("quality_visit_responses", ["ix_qv_responses_visit"]),

@@ -23,10 +23,8 @@ def _enum(*values, name: str):
     return sa.Enum(*values, name=name)
 
 
-purchase_request_status_enum = _enum("DRAFT", "SUBMITTED", name="purchaserequeststatus")
-
-
 def upgrade() -> None:
+    purchase_request_status_enum = _enum("DRAFT", "SUBMITTED", name="purchaserequeststatus")
     bind = op.get_bind()
     purchase_request_status_enum.create(bind, checkfirst=True)
 
@@ -77,6 +75,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    purchase_request_status_enum = _enum("DRAFT", "SUBMITTED", name="purchaserequeststatus")
     with op.batch_alter_table("branch_request_lines") as batch_op:
         batch_op.drop_column("unit_code_snapshot")
         batch_op.drop_column("item_code_snapshot")

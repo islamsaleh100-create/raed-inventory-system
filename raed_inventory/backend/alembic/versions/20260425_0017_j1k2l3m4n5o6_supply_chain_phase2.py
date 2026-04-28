@@ -23,20 +23,18 @@ def _enum(*values, name: str):
     return sa.Enum(*values, name=name)
 
 
-production_status_enum = _enum(
-    "PENDING", "IN_PROGRESS", "WAITING_FOR_MATERIALS", "PARTIAL_READY", "READY", "SENT_TO_WAREHOUSE",
-    name="productionorderstatus",
-)
-material_status_enum = _enum("PENDING", "APPROVED", "ISSUED", "REJECTED", name="kitchenmaterialrequeststatus")
-warehouse_source_enum = _enum(
-    "BRANCH_REQUEST", "KITCHEN_OUTPUT", "KITCHEN_MATERIAL_REQUEST", name="warehouselinesourcetype",
-)
-warehouse_status_enum = _enum(
-    "PENDING", "AVAILABLE", "PARTIAL", "BACKORDER", "READY_FOR_DISPATCH", name="warehouselinestatus",
-)
-
-
 def upgrade() -> None:
+    production_status_enum = _enum(
+        "PENDING", "IN_PROGRESS", "WAITING_FOR_MATERIALS", "PARTIAL_READY", "READY", "SENT_TO_WAREHOUSE",
+        name="productionorderstatus",
+    )
+    material_status_enum = _enum("PENDING", "APPROVED", "ISSUED", "REJECTED", name="kitchenmaterialrequeststatus")
+    warehouse_source_enum = _enum(
+        "BRANCH_REQUEST", "KITCHEN_OUTPUT", "KITCHEN_MATERIAL_REQUEST", name="warehouselinesourcetype",
+    )
+    warehouse_status_enum = _enum(
+        "PENDING", "AVAILABLE", "PARTIAL", "BACKORDER", "READY_FOR_DISPATCH", name="warehouselinestatus",
+    )
     bind = op.get_bind()
     for enum in (production_status_enum, material_status_enum, warehouse_source_enum, warehouse_status_enum):
         enum.create(bind, checkfirst=True)
@@ -109,6 +107,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    production_status_enum = _enum(
+        "PENDING", "IN_PROGRESS", "WAITING_FOR_MATERIALS", "PARTIAL_READY", "READY", "SENT_TO_WAREHOUSE",
+        name="productionorderstatus",
+    )
+    material_status_enum = _enum("PENDING", "APPROVED", "ISSUED", "REJECTED", name="kitchenmaterialrequeststatus")
+    warehouse_source_enum = _enum(
+        "BRANCH_REQUEST", "KITCHEN_OUTPUT", "KITCHEN_MATERIAL_REQUEST", name="warehouselinesourcetype",
+    )
+    warehouse_status_enum = _enum(
+        "PENDING", "AVAILABLE", "PARTIAL", "BACKORDER", "READY_FOR_DISPATCH", name="warehouselinestatus",
+    )
     op.drop_index("ix_warehouse_lines_status", table_name="warehouse_lines")
     op.drop_index("ix_warehouse_lines_source_request_line_id", table_name="warehouse_lines")
     op.drop_index("ix_warehouse_lines_source_request_id", table_name="warehouse_lines")

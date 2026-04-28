@@ -23,13 +23,11 @@ def _enum(*values, name: str):
     return sa.Enum(*values, name=name)
 
 
-delivery_order_status = _enum("READY", "OUT_FOR_DELIVERY", "DELIVERED", name="deliveryorderstatus")
-delivery_order_line_status = _enum(
-    "READY", "OUT_FOR_DELIVERY", "DELIVERED", "PARTIAL_DELIVERED", name="deliveryorderlinestatus"
-)
-
-
 def upgrade() -> None:
+    delivery_order_status = _enum("READY", "OUT_FOR_DELIVERY", "DELIVERED", name="deliveryorderstatus")
+    delivery_order_line_status = _enum(
+        "READY", "OUT_FOR_DELIVERY", "DELIVERED", "PARTIAL_DELIVERED", name="deliveryorderlinestatus"
+    )
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
         delivery_order_status.create(bind, checkfirst=True)
@@ -74,6 +72,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    delivery_order_status = _enum("READY", "OUT_FOR_DELIVERY", "DELIVERED", name="deliveryorderstatus")
+    delivery_order_line_status = _enum(
+        "READY", "OUT_FOR_DELIVERY", "DELIVERED", "PARTIAL_DELIVERED", name="deliveryorderlinestatus"
+    )
     op.drop_index("ix_delivery_order_lines_status", table_name="delivery_order_lines")
     op.drop_index("ix_delivery_order_lines_warehouse_line_id", table_name="delivery_order_lines")
     op.drop_index("ix_delivery_order_lines_delivery_order_id", table_name="delivery_order_lines")
