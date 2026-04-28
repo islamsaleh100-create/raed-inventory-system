@@ -25,6 +25,7 @@ from app.services.idempotency_service import cleanup_expired_idempotency_request
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from app.startup_schema import ensure_local_schema_compatibility
 from app.services.deployment_admin_service import ensure_deployment_admin_user
+from app.services.deployment_internal_auditor_service import ensure_deployment_internal_auditor_user
 
 # Initialise logging before any other module emits log records
 setup_logging()
@@ -266,6 +267,17 @@ def _ensure_deployment_admin_user() -> None:
         db.close()
 
 
+def _ensure_deployment_internal_auditor_user() -> None:
+    """
+    Ensure the production internal auditor login exists on deployed databases.
+    """
+    db = SessionLocal()
+    try:
+        ensure_deployment_internal_auditor_user(db)
+    finally:
+        db.close()
+
+
 async def _startup_seed_background_task() -> None:
     logger.info("Startup background seed tasks scheduled")
     await asyncio.to_thread(_run_startup_seed_tasks)
@@ -282,6 +294,10 @@ async def startup_event():
         await asyncio.to_thread(_ensure_deployment_admin_user)
     except Exception:
         logger.exception("Deployment admin bootstrap wrapper crashed; continuing")
+    try:
+        await asyncio.to_thread(_ensure_deployment_internal_auditor_user)
+    except Exception:
+        logger.exception("Deployment internal auditor bootstrap wrapper crashed; continuing")
     app.state.startup_seed_task = asyncio.create_task(_startup_seed_background_task())
     app.state.idempotency_cleanup_task = asyncio.create_task(_idempotency_cleanup_loop())
     start_scheduler(app)
