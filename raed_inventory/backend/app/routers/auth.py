@@ -6,12 +6,18 @@ from app.database import get_db
 from app.core.security import verify_password, create_access_token
 from app.core.auth import get_current_active_user
 from app.core.limiter import limit as rate_limit
-from app.models import User
+from app.models import User, UserStatus
 from app.schemas import Token, LoginRequest
 from app.config import settings
 from app.services.deployment_admin_service import ensure_deployment_admin_user
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
+
+
+def _user_status_value(user: User) -> str:
+    """Normalize SQLAlchemy enum/string user status values for auth checks."""
+    status_value = getattr(user, "status", None)
+    return getattr(status_value, "value", status_value)
 
 
 def authenticate_user(db: Session, username: str, password: str):
@@ -48,7 +54,7 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password"
         )
-    if user.status != "active":
+    if _user_status_value(user) != UserStatus.active.value:
         raise HTTPException(status_code=403, detail="Account is not active")
 
     access_token = create_access_token(

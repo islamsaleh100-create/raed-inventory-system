@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from app.database import get_db
 from app.core.security import decode_access_token
-from app.models import User, UserRole, Role, RolePermission, Permission, Branch
+from app.models import User, UserRole, Role, RolePermission, Permission, Branch, UserStatus
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -46,6 +46,12 @@ ROLE_PERMISSIONS = {
 }
 
 
+def _user_status_value(user: User) -> str:
+    """Normalize SQLAlchemy enum/string user status values for auth checks."""
+    status_value = getattr(user, "status", None)
+    return getattr(status_value, "value", status_value)
+
+
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
@@ -66,13 +72,13 @@ def get_current_user(
     user = db.query(User).options(
         joinedload(User.user_roles).joinedload(UserRole.role)
     ).filter(User.id == int(user_id), User.is_deleted == False).first()
-    if not user or user.status != "active":
+    if not user or _user_status_value(user) != UserStatus.active.value:
         raise credentials_exception
     return user
 
 
 def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.status != "active":
+    if _user_status_value(current_user) != UserStatus.active.value:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
