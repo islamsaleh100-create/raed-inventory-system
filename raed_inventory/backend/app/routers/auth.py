@@ -9,6 +9,7 @@ from app.core.limiter import limit as rate_limit
 from app.models import User
 from app.schemas import Token, LoginRequest
 from app.config import settings
+from app.services.deployment_admin_service import ensure_deployment_admin_user
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
@@ -19,6 +20,19 @@ def authenticate_user(db: Session, username: str, password: str):
         User.is_deleted == False
     ).first()
     if not user or not verify_password(password, user.hashed_password):
+        is_deployment_admin_attempt = settings.is_deployment_env and username in {
+            settings.ADMIN_USERNAME,
+            settings.ADMIN_EMAIL,
+        }
+        if is_deployment_admin_attempt:
+            repaired_user = ensure_deployment_admin_user(db)
+            if repaired_user:
+                user = db.query(User).filter(
+                    (User.username == username) | (User.email == username),
+                    User.is_deleted == False
+                ).first()
+                if user and verify_password(password, user.hashed_password):
+                    return user
         return None
     return user
 

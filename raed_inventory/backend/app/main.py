@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import or_, text
+from sqlalchemy import text
 import time
 from app.config import settings
 from app.core.logging_config import setup_logging
@@ -24,7 +24,7 @@ from app.core.tenant import TenantMiddleware
 from app.services.idempotency_service import cleanup_expired_idempotency_requests
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from app.startup_schema import ensure_local_schema_compatibility
-from app.core.security import get_password_hash
+from app.services.deployment_admin_service import ensure_deployment_admin_user
 
 # Initialise logging before any other module emits log records
 setup_logging()
@@ -261,62 +261,7 @@ def _ensure_deployment_admin_user() -> None:
     """
     db = SessionLocal()
     try:
-        super_admin_role = db.query(Role).filter(Role.name == RoleName.super_admin).first()
-        if not super_admin_role:
-            super_admin_role = Role(
-                name=RoleName.super_admin,
-                display_name="Super Administrator",
-                description="Full system access",
-            )
-            db.add(super_admin_role)
-            db.flush()
-
-        admin_user = (
-            db.query(User)
-            .filter(
-                or_(
-                    User.username == settings.ADMIN_USERNAME,
-                    User.email == settings.ADMIN_EMAIL,
-                )
-            )
-            .first()
-        )
-        if not admin_user:
-            admin_user = User(
-                username=settings.ADMIN_USERNAME,
-                email=settings.ADMIN_EMAIL,
-                full_name="System Administrator",
-                hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
-                status="active",
-                is_deleted=False,
-            )
-            db.add(admin_user)
-            db.flush()
-            logger.info("Deployment admin user created: %s", settings.ADMIN_USERNAME)
-        else:
-            admin_user.username = settings.ADMIN_USERNAME
-            admin_user.email = settings.ADMIN_EMAIL
-            admin_user.full_name = admin_user.full_name or "System Administrator"
-            admin_user.status = "active"
-            admin_user.is_deleted = False
-            admin_user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
-            logger.info("Deployment admin user refreshed: %s", settings.ADMIN_USERNAME)
-
-        existing_link = (
-            db.query(UserRole)
-            .filter(
-                UserRole.user_id == admin_user.id,
-                UserRole.role_id == super_admin_role.id,
-            )
-            .first()
-        )
-        if not existing_link:
-            db.add(UserRole(user_id=admin_user.id, role_id=super_admin_role.id))
-
-        db.commit()
-    except Exception:
-        db.rollback()
-        logger.exception("Deployment admin bootstrap failed; continuing startup")
+        ensure_deployment_admin_user(db)
     finally:
         db.close()
 
