@@ -386,4 +386,8 @@ export const supplyChainApi = {
 export const assistantApi = {
   status: () => api.get('/assistant/status'),
   ask: (question) => api.post('/assistant/ask', { question }),
+  // Admin endpoints:
+  listSuggestions: (params = {}) => api.get('/assistant/suggestions', { params }),
+  updateSuggestion: (id, data) => api.patch(`/assistant/suggestions/${id}`, data),
+  suggestionsStats: () => api.get('/assistant/suggestions/stats'),
 }
