@@ -382,3 +382,12 @@ export const supplyChainApi = {
   // Server returns HTMLResponse (browser-print) — no JSON wrapper needed.
   deliveryLabelsUrl: (id) => `/api/v1/delivery-orders/${id}/labels`,
 }
+
+export const assistantApi = {
+  status: () => api.get('/assistant/status'),
+  ask: (question) => api.post('/assistant/ask', { question }),
+  // Admin endpoints:
+  listSuggestions: (params = {}) => api.get('/assistant/suggestions', { params }),
+  updateSuggestion: (id, data) => api.patch(`/assistant/suggestions/${id}`, data),
+  suggestionsStats: () => api.get('/assistant/suggestions/stats'),
+}

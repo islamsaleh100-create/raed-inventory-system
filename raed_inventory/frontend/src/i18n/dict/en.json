@@ -1,4 +1,4 @@
-﻿{
+{
   "app": {
     "name": "Raed",
     "tagline": "Inventory System"
@@ -1203,7 +1203,8 @@
     "warehouses": "Warehouses",
     "kitchens": "Kitchen sites",
     "items": "Items",
-    "settings": "Settings"
+    "settings": "Settings",
+    "assistant_suggestions": "Assistant Suggestions"
   },
   "roles": {
     "super_admin": "Super admin",
@@ -1446,5 +1447,68 @@
     "alerts_pending_inv": "Pending inventory approvals",
     "alerts_missing_today": "Missing inventory today",
     "alerts_overdue_orders": "Overdue replenishment orders"
+  },
+  "assistant": {
+    "title": "AI Assistant",
+    "open_button": "Assistant",
+    "placeholder": "Ask about anything in the system...",
+    "send": "Send",
+    "thinking": "Thinking...",
+    "error": "Something went wrong, please try again",
+    "unavailable": "Assistant is currently unavailable",
+    "welcome": "Hi! I'm the Raed system assistant. Ask me anything about the system and I'll try to help.",
+    "clear": "Clear conversation",
+    "close": "Close",
+    "rate_limit": "Too many requests, wait a moment and try again.",
+    "suggestions": {
+      "page_title": "Employee Suggestions",
+      "page_subtitle": "All suggestions and reports captured by the AI Assistant.",
+      "stats_total": "Total",
+      "stats_pending": "Pending review",
+      "stats_by_category": "By category",
+      "stats_by_priority": "By priority",
+      "filter_status": "Status",
+      "filter_category": "Category",
+      "filter_priority": "Priority",
+      "filter_all": "All",
+      "col_id": "ID",
+      "col_user": "User",
+      "col_role": "Role",
+      "col_branch": "Branch",
+      "col_text": "Suggestion",
+      "col_category": "Category",
+      "col_priority": "Priority",
+      "col_status": "Status",
+      "col_date": "Date",
+      "col_actions": "Actions",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "admin_note": "Admin note",
+      "admin_note_placeholder": "Write your note here...",
+      "saved": "Saved",
+      "save_error": "Save failed",
+      "load_error": "Failed to load list",
+      "empty": "No suggestions yet.",
+      "category": {
+        "ui": "UI",
+        "workflow": "Workflow",
+        "bug": "Bug",
+        "feature": "Feature",
+        "other": "Other"
+      },
+      "priority": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "status_label": {
+        "pending": "Pending",
+        "reviewed": "Reviewed",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "implemented": "Implemented"
+      }
+    }
   }
 }

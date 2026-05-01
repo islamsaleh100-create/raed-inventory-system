@@ -5,11 +5,12 @@ import {
   LayoutDashboard, ClipboardList, Package, Truck, BarChart3,
   Users, Settings, LogOut, Menu, X,
   Warehouse, Building2, FileText, ArrowLeftRight,
-  Star, GraduationCap, Bike, Globe, AlertCircle, TrendingUp, ChefHat, ShieldCheck, Flag, History
+  Star, GraduationCap, Bike, Globe, AlertCircle, TrendingUp, ChefHat, ShieldCheck, Flag, History, Lightbulb
 } from 'lucide-react'
 import { logout, selectUser, selectUserRoles, selectSidebarOpen, toggleSidebar } from '../../store'
 import NotificationBell from '../common/NotificationBell'
 import { useT, useLanguage } from '../../i18n'
+import AssistantWidget from '../assistant/AssistantWidget'
 
 // Navigation uses i18n keys (sectionKey / labelKey) that are translated at render time.
 const NAVIGATION = [
@@ -133,6 +134,7 @@ const NAVIGATION = [
       { to: '/admin/warehouses', icon: Warehouse, labelKey: 'nav.warehouses', roles: ['admin', 'super_admin'] },
       { to: '/admin/kitchens', icon: ChefHat, labelKey: 'nav.kitchens', roles: ['admin', 'super_admin'] },
       { to: '/admin/items', icon: Package, labelKey: 'nav.items', roles: ['admin', 'super_admin'] },
+      { to: '/admin/suggestions', icon: Lightbulb, labelKey: 'nav.assistant_suggestions', roles: ['admin', 'super_admin'] },
       { to: '/admin/settings', icon: Settings, labelKey: 'nav.settings', roles: ['admin', 'super_admin'] },
     ]
   },
@@ -310,6 +312,7 @@ export default function AppLayoutV2({ children }) {
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
+      <AssistantWidget />
     </div>
   )
 }

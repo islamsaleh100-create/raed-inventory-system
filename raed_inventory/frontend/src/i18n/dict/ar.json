@@ -1203,7 +1203,8 @@
     "warehouses": "المستودعات",
     "kitchens": "مواقع المطابخ",
     "items": "الأصناف",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "assistant_suggestions": "اقتراحات المساعد"
   },
   "roles": {
     "super_admin": "مدير النظام",
@@ -1446,5 +1447,68 @@
     "alerts_pending_inv": "جرد بانتظار الاعتماد",
     "alerts_missing_today": "فروع بدون جرد اليوم",
     "alerts_overdue_orders": "طلبيات توريد متأخرة"
+  },
+  "assistant": {
+    "title": "المساعد الذكي",
+    "open_button": "المساعد",
+    "placeholder": "اسأل عن أي شيء في النظام...",
+    "send": "إرسال",
+    "thinking": "جاري التفكير...",
+    "error": "حدث خطأ، حاول مرة أخرى",
+    "unavailable": "المساعد غير متاح حاليًا",
+    "welcome": "مرحبًا! أنا مساعد نظام Raed. اسألني عن أي شيء في النظام و سأحاول مساعدتك.",
+    "clear": "مسح المحادثة",
+    "close": "إغلاق",
+    "rate_limit": "أرسلت طلبات كثيرة، انتظر قليلًا و حاول مرة أخرى.",
+    "suggestions": {
+      "page_title": "اقتراحات الموظفين",
+      "page_subtitle": "كل الاقتراحات و البلاغات اللي وصلت من المساعد الذكي.",
+      "stats_total": "الإجمالي",
+      "stats_pending": "قيد المراجعة",
+      "stats_by_category": "حسب التصنيف",
+      "stats_by_priority": "حسب الأولوية",
+      "filter_status": "الحالة",
+      "filter_category": "التصنيف",
+      "filter_priority": "الأولوية",
+      "filter_all": "الكل",
+      "col_id": "الرقم",
+      "col_user": "المستخدم",
+      "col_role": "الدور",
+      "col_branch": "الفرع",
+      "col_text": "الاقتراح",
+      "col_category": "التصنيف",
+      "col_priority": "الأولوية",
+      "col_status": "الحالة",
+      "col_date": "التاريخ",
+      "col_actions": "الإجراءات",
+      "edit": "تعديل",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "admin_note": "ملاحظة الإدارة",
+      "admin_note_placeholder": "اكتب ملاحظتك هنا...",
+      "saved": "تم الحفظ",
+      "save_error": "تعذر الحفظ",
+      "load_error": "تعذر تحميل القائمة",
+      "empty": "لا توجد اقتراحات حالياً.",
+      "category": {
+        "ui": "واجهة",
+        "workflow": "سير عمل",
+        "bug": "خلل",
+        "feature": "ميزة جديدة",
+        "other": "أخرى"
+      },
+      "priority": {
+        "low": "منخفضة",
+        "medium": "متوسطة",
+        "high": "عالية"
+      },
+      "status_label": {
+        "pending": "قيد المراجعة",
+        "reviewed": "تمت المراجعة",
+        "approved": "موافَق عليها",
+        "rejected": "مرفوضة",
+        "implemented": "تم التنفيذ"
+      }
+    }
   }
 }

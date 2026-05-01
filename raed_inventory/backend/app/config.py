@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_DEFAULT: str = "200/minute"
     RATE_LIMIT_AUTH: str = "20/minute"
 
+    # ─── AI Assistant ────────────────────────────────────────────────────────
+    OPENAI_API_KEY: str = ""                # يُحقَن عبر env var على Railway
+    OPENAI_MODEL: str = "gpt-4o-mini"       # نموذج اقتصادي و سريع للـ MVP
+    ASSISTANT_ENABLED: bool = True          # يقدر admin يطفّيه من env vars
+    ASSISTANT_MAX_TOKENS: int = 800
+    ASSISTANT_TEMPERATURE: float = 0.3      # قليل عشان ميختلقش حاجات
+
     # ─── Features ────────────────────────────────────────────────────────────
     AUDIT_LOG_ENABLED: bool = True
     DEFAULT_TENANT_ID: int = 1
