@@ -10,6 +10,7 @@ import {
 import { logout, selectUser, selectUserRoles, selectSidebarOpen, toggleSidebar } from '../../store'
 import NotificationBell from '../common/NotificationBell'
 import { useT, useLanguage } from '../../i18n'
+import AssistantWidget from '../assistant/AssistantWidget'
 
 // Navigation uses i18n keys (sectionKey / labelKey) that are translated at render time.
 const NAVIGATION = [
@@ -310,6 +311,7 @@ export default function AppLayoutV2({ children }) {
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
+      <AssistantWidget />
     </div>
   )
 }

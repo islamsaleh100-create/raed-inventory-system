@@ -1,4 +1,4 @@
-﻿{
+{
   "app": {
     "name": "Raed",
     "tagline": "Inventory System"
@@ -1446,5 +1446,18 @@
     "alerts_pending_inv": "Pending inventory approvals",
     "alerts_missing_today": "Missing inventory today",
     "alerts_overdue_orders": "Overdue replenishment orders"
+  },
+  "assistant": {
+    "title": "AI Assistant",
+    "open_button": "Assistant",
+    "placeholder": "Ask about anything in the system...",
+    "send": "Send",
+    "thinking": "Thinking...",
+    "error": "Something went wrong, please try again",
+    "unavailable": "Assistant is currently unavailable",
+    "welcome": "Hi! I'm the Raed system assistant. Ask me anything about the system and I'll try to help.",
+    "clear": "Clear conversation",
+    "close": "Close",
+    "rate_limit": "Too many requests, wait a moment and try again."
   }
 }
