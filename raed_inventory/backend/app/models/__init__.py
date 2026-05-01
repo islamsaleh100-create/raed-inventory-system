@@ -1681,3 +1681,78 @@ from app.models.sales_channels import (  # noqa: E402,F401
     MonthlyClosure,
     ReconciliationSnapshot,
 )
+
+# ─────────────────────────────────────────────
+# AI Assistant — User Suggestions
+# ─────────────────────────────────────────────
+
+
+class SuggestionCategory(str, enum.Enum):
+    ui = "ui"
+    workflow = "workflow"
+    bug = "bug"
+    feature = "feature"
+    other = "other"
+
+
+class SuggestionPriority(str, enum.Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+
+class SuggestionStatus(str, enum.Enum):
+    pending = "pending"
+    reviewed = "reviewed"
+    approved = "approved"
+    rejected = "rejected"
+    implemented = "implemented"
+
+
+class UserSuggestion(Base):
+    """
+    Captures improvement suggestions detected by the AI assistant.
+
+    The assistant tags its replies with [SUGGESTION:category:priority]
+    when it senses a feature request, bug report, or workflow concern.
+    The router parses the tag, persists this row, and strips it from
+    the answer before responding to the frontend.
+    """
+
+    __tablename__ = "user_suggestions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    role_at_creation = Column(String(50), nullable=False)  # snapshot of role name
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True, index=True)
+    suggestion_text = Column(Text, nullable=False)
+    category = Column(
+        SAEnum(SuggestionCategory, name="suggestion_category"),
+        nullable=False,
+        default=SuggestionCategory.other,
+        index=True,
+    )
+    priority = Column(
+        SAEnum(SuggestionPriority, name="suggestion_priority"),
+        nullable=False,
+        default=SuggestionPriority.medium,
+        index=True,
+    )
+    status = Column(
+        SAEnum(SuggestionStatus, name="suggestion_status"),
+        nullable=False,
+        default=SuggestionStatus.pending,
+        index=True,
+    )
+    admin_note = Column(Text, nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+    branch = relationship("Branch", foreign_keys=[branch_id])
+
+    __table_args__ = (
+        Index("idx_user_suggestions_status_created", "status", "created_at"),
+    )

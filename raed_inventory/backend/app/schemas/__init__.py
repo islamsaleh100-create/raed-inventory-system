@@ -23,6 +23,9 @@ from app.schemas.assistant import (
     AssistantAskRequest,
     AssistantAskResponse,
     AssistantStatusResponse,
+    SuggestionListItem,
+    SuggestionStatsResponse,
+    SuggestionUpdateRequest,
 )
 
 
