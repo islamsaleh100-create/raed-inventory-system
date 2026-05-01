@@ -19,6 +19,11 @@ from app.models import (
     EvaluationType, EvaluationTargetMode, EvaluationTemplateVersionStatus,
     EvaluationStatus, EvaluationFinalRating,
 )
+from app.schemas.assistant import (
+    AssistantAskRequest,
+    AssistantAskResponse,
+    AssistantStatusResponse,
+)
 
 
 # ─── Shared ───────────────────────────────────
