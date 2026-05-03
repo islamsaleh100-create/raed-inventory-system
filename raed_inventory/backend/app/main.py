@@ -113,6 +113,10 @@ async def block_writes_for_internal_auditor(request: Request, call_next):
         return await call_next(request)
     if path.startswith("/api/v1/audit/findings"):
         return await call_next(request)
+    # AI Assistant: questions are conversational, not business writes.
+    # Internal auditors can ask for help and submit feedback like everyone else.
+    if path == "/api/v1/assistant/ask":
+        return await call_next(request)
 
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
