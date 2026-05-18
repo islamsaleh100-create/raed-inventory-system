@@ -55,6 +55,25 @@ class WarehouseAdjustmentRequest(BaseModel):
         return v
 
 
+class WarehouseBulkAdjustmentLine(BaseModel):
+    item_id: int
+    qty: Decimal
+
+    @field_validator("qty")
+    @classmethod
+    def qty_non_negative(cls, v):
+        if v < 0:
+            raise ValueError("qty must be >= 0")
+        return v
+
+
+class WarehouseBulkAdjustmentRequest(BaseModel):
+    lines: list[WarehouseBulkAdjustmentLine]
+    adjustment_type: str = "set"
+    reason: str = "Warehouse stock bulk update"
+    reference_no: Optional[str] = None
+
+
 class TransferWHToBranchRequest(BaseModel):
     item_id: int
     qty: Decimal
@@ -139,6 +158,44 @@ def adjust_warehouse_stock(
         reference_no=payload.reference_no,
         current_user=current_user,
     )
+
+
+@router.post("/warehouses/{warehouse_id}/bulk-adjust")
+def bulk_adjust_warehouse_stock(
+    warehouse_id: int,
+    payload: WarehouseBulkAdjustmentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*_WH_ROLES)),
+):
+    """Bulk set/increase/decrease warehouse stock for Excel imports."""
+    if payload.adjustment_type not in ("increase", "decrease", "set"):
+        from app.core.errors import AppError
+        raise AppError(
+            status_code=400,
+            error_code="stock.invalid_adjustment_type",
+            message="adjustment_type must be 'increase', 'decrease', or 'set'",
+            detail={"adjustment_type": payload.adjustment_type},
+        )
+
+    updated = 0
+    errors = []
+    for line in payload.lines:
+        try:
+            stock_adjustment_service.adjust_warehouse_stock(
+                db,
+                warehouse_id=warehouse_id,
+                item_id=line.item_id,
+                adjustment_type=payload.adjustment_type,
+                qty=line.qty,
+                reason=payload.reason,
+                reference_no=payload.reference_no,
+                current_user=current_user,
+            )
+            updated += 1
+        except Exception as exc:
+            errors.append({"item_id": line.item_id, "message": str(exc)})
+
+    return {"warehouse_id": warehouse_id, "updated": updated, "errors": errors}
 
 
 @router.post("/transfer/warehouse-to-branch")

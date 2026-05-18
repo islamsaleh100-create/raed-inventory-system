@@ -9,7 +9,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.audit_permissions import can_acknowledge_audit_finding, can_create_audit_finding
-from app.core.auth import get_user_roles, require_roles
+from app.core.auth import (
+    can_access_branch,
+    can_access_warehouse,
+    get_user_roles,
+    require_roles,
+)
 from app.database import get_db
 from app.models import (
     AuditFinding,
@@ -20,6 +25,7 @@ from app.models import (
     Item,
     ProductionOrder,
     ProductionOrderStatus,
+    ReplenishmentOrder,
     User,
     WarehouseLine,
     WarehouseLineStatus,
@@ -31,6 +37,7 @@ from app.services import audit_service
 router = APIRouter(prefix="/api/v1/audit/findings", tags=["Audit Findings"])
 
 _READ_ROLES = ("internal_auditor", "admin", "super_admin", "operations_manager", "area_manager")
+_ENTITY_READ_ROLES = _READ_ROLES + ("branch_user", "branch_manager", "warehouse_user", "warehouse_manager")
 
 
 def _finding_to_dict(db: Session, row: AuditFinding) -> dict:
@@ -68,6 +75,31 @@ def _audit_ip(request: Request) -> Optional[str]:
 
 def _base_query(db: Session):
     return db.query(AuditFinding)
+
+
+def _ensure_entity_findings_read_access(db: Session, current_user: User, entity_type: str, entity_id: int) -> None:
+    roles = get_user_roles(current_user)
+    if any(role in roles for role in _READ_ROLES):
+        return
+
+    if entity_type == "replenishment_order":
+        order = db.query(ReplenishmentOrder).filter(ReplenishmentOrder.id == entity_id).first()
+        if order and (
+            can_access_branch(current_user, order.branch_id, db)
+            or can_access_warehouse(current_user, order.warehouse_id)
+        ):
+            return
+
+    if entity_type == "branch_request":
+        request = db.query(BranchRequest).filter(BranchRequest.id == entity_id).first()
+        if request and can_access_branch(current_user, request.branch_id, db):
+            return
+
+    if entity_type == "warehouse_stock":
+        if any(role in roles for role in ("warehouse_user", "warehouse_manager")) and current_user.warehouse_id:
+            return
+
+    raise HTTPException(status_code=403, detail="Access denied for this audit finding entity")
 
 
 @router.get("")
@@ -288,7 +320,7 @@ def acknowledge_finding(
     payload: AuditFindingAcknowledge,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*_READ_ROLES)),
+    current_user: User = Depends(require_roles(*_ENTITY_READ_ROLES)),
 ):
     roles = get_user_roles(current_user)
     if not can_acknowledge_audit_finding(roles):
@@ -296,6 +328,7 @@ def acknowledge_finding(
     row = db.query(AuditFinding).filter(AuditFinding.id == finding_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Audit finding not found")
+    _ensure_entity_findings_read_access(db, current_user, row.entity_type, row.entity_id)
     row.acknowledged_by = current_user.id
     row.acknowledged_at = datetime.utcnow()
     row.response_text = payload.response_text.strip()
@@ -320,8 +353,9 @@ def findings_by_entity(
     entity_type: str,
     entity_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(*_READ_ROLES)),
+    current_user: User = Depends(require_roles(*_ENTITY_READ_ROLES)),
 ):
+    _ensure_entity_findings_read_access(db, current_user, entity_type, entity_id)
     rows = (
         db.query(AuditFinding)
         .filter(AuditFinding.entity_type == entity_type, AuditFinding.entity_id == entity_id)

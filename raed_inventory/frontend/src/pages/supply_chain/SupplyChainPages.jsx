@@ -587,14 +587,287 @@ export function SupplyChainKitchenPage() {
   const roles = useSelector(selectUserRoles)
   const isAuditor = roles.includes('internal_auditor')
   const [loading, setLoading] = React.useState(true)
+  const [dailyOrders, setDailyOrders] = React.useState([])
+  const [productionOrders, setProductionOrders] = React.useState([])
+  const [selectedDaily, setSelectedDaily] = React.useState(null)
+  const [partialQty, setPartialQty] = React.useState({})
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const [productionRes, dailyOrdersRes] = await Promise.all([
+        supplyChainApi.listProductionOrders(),
+        supplyChainApi.listDailyKitchenOrders(),
+      ])
+      setProductionOrders(Array.isArray(productionRes.data) ? productionRes.data : [])
+      const nextDaily = Array.isArray(dailyOrdersRes.data) ? dailyOrdersRes.data : []
+      setDailyOrders(nextDaily)
+      setSelectedDaily((current) => current ? nextDaily.find((row) => row.id === current.id) || null : null)
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر تحميل أوامر المطبخ')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => { load() }, [load])
+
+  const action = async (runner, success) => {
+    try {
+      await runner()
+      toast.success(success)
+      await load()
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر تنفيذ الإجراء')
+    }
+  }
+
+  const kitchenStatusLabel = {
+    picking: 'بانتظار استلام المطبخ',
+    approved: 'بانتظار استلام المطبخ',
+    kitchen_received: 'استلم المطبخ',
+    kitchen_in_progress: 'قيد التجهيز',
+    kitchen_ready: 'جاهز للإرسال',
+    kitchen_sent_to_warehouse: 'أرسل للمستودع',
+  }
+
+  const dailyStep = (status) => {
+    if (status === 'kitchen_sent_to_warehouse') return 4
+    if (status === 'kitchen_ready') return 3
+    if (status === 'kitchen_in_progress') return 2
+    if (status === 'kitchen_received') return 1
+    return 0
+  }
+
+  const printDailyPdf = async (id) => {
+    const win = window.open('', '_blank')
+    try {
+      const res = await supplyChainApi.dailyKitchenOrderPdf(id)
+      if (win) {
+        win.document.open()
+        win.document.write(res.data)
+        win.document.close()
+      } else {
+        toast.error('المتصفح منع فتح صفحة الطباعة')
+      }
+    } catch (error) {
+      if (win) win.close()
+      toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر فتح ملف PDF')
+    }
+  }
+
+  const dailyActions = (order) => (
+    <div className="flex flex-wrap gap-2">
+      <button type="button" className="btn-secondary text-xs" onClick={() => setSelectedDaily(order)}>عرض</button>
+      <button type="button" className="btn-secondary text-xs" onClick={() => printDailyPdf(order.id)}>PDF</button>
+      {!isAuditor && (
+        <>
+          <button
+            type="button"
+            disabled={dailyStep(order.kitchen_status) !== 0}
+            className={`${dailyStep(order.kitchen_status) === 0 ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'} text-xs`}
+            onClick={() => action(() => supplyChainApi.receiveDailyKitchenOrder(order.id), 'تم استلام الطلبية في المطبخ')}
+          >
+            استلام
+          </button>
+          <button
+            type="button"
+            disabled={dailyStep(order.kitchen_status) !== 1}
+            className={`${dailyStep(order.kitchen_status) === 1 ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'} text-xs`}
+            onClick={() => action(() => supplyChainApi.startDailyKitchenOrder(order.id), 'تم بدء التجهيز')}
+          >
+            بدء تجهيز
+          </button>
+          <button
+            type="button"
+            disabled={dailyStep(order.kitchen_status) !== 2}
+            className={`${dailyStep(order.kitchen_status) === 2 ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'} text-xs`}
+            onClick={() => action(() => supplyChainApi.markDailyKitchenOrderReady(order.id), 'تم تجهيز الطلبية')}
+          >
+            جاهز
+          </button>
+          <button
+            type="button"
+            disabled={dailyStep(order.kitchen_status) !== 3}
+            className={`${dailyStep(order.kitchen_status) === 3 ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'} text-xs`}
+            onClick={() => action(() => supplyChainApi.sendDailyKitchenOrderToWarehouse(order.id), 'تم إرسال الطلبية للمستودع')}
+          >
+            إرسال للمستودع
+          </button>
+        </>
+      )}
+    </div>
+  )
+
+  if (selectedDaily) {
+    return (
+      <PageShell
+        title={`طلبية مطبخ - ${selectedDaily.order_no}`}
+        subtitle={`الفرع: ${selectedDaily.branch_name}`}
+        actions={<button type="button" className="btn-secondary" onClick={() => setSelectedDaily(null)}>رجوع</button>}
+      >
+        {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يرى الطلبية فقط ولا يمكنه تنفيذ إجراءات تشغيلية." />}
+        <div className="card p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+            <div className="space-y-1">
+              <div className="font-semibold">{selectedDaily.branch_name}</div>
+              <div className="text-sm text-gray-500">{selectedDaily.order_no}</div>
+              <StatusBadge status={selectedDaily.kitchen_status} />
+            </div>
+            {dailyActions(selectedDaily)}
+        </div>
+          <div className="mb-4 grid grid-cols-4 gap-2 text-center text-xs">
+            {[
+              ['استلام', 1],
+              ['بدء تجهيز', 2],
+              ['جاهز', 3],
+              ['أرسل للمستودع', 4],
+            ].map(([label, step]) => (
+              <div
+                key={label}
+                className={`rounded border px-2 py-2 ${
+                  dailyStep(selectedDaily.kitchen_status) >= step
+                    ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold'
+                    : 'border-gray-200 bg-gray-50 text-gray-400'
+                }`}
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>الصنف</th>
+                  <th>الكود</th>
+                  <th>المطلوب</th>
+                  <th>الجاهز</th>
+                  <th>المرسل للمستودع</th>
+                  <th>الحالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedDaily.lines.map((line) => (
+                  <tr key={line.id}>
+                    <td>{itemLabel(line.item)}</td>
+                    <td className="font-mono text-xs text-gray-500">{line.item?.item_code}</td>
+                    <td>{numberValue(line.qty_requested)}</td>
+                    <td>{numberValue(line.qty_ready)}</td>
+                    <td>{numberValue(line.qty_sent_to_warehouse)}</td>
+                    <td>{kitchenStatusLabel[line.line_status] || line.line_status || kitchenStatusLabel[selectedDaily.kitchen_status] || selectedDaily.kitchen_status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </PageShell>
+    )
+  }
+
+  return (
+    <PageShell title="أوامر أقسام المطبخ" subtitle="الطلبات مجمعة حسب الفرع ورقم الطلبية">
+      {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يرى أوامر الإنتاج وحالاتها فقط." />}
+      <div className="card table-container">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>رقم الطلبية</th>
+              <th>الفرع</th>
+              <th>عدد الأصناف</th>
+              <th>الجاهز</th>
+              <th>المرسل للمستودع</th>
+              <th>الحالة</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={7} className="text-center py-8 text-gray-400">جاري التحميل...</td></tr>
+            ) : dailyOrders.length === 0 && productionOrders.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-8 text-gray-400">لا توجد أوامر لهذا القسم</td></tr>
+            ) : (
+              <>
+                {dailyOrders.map((order) => (
+                  <tr key={`daily-${order.id}`}>
+                    <td className="font-mono text-sm font-semibold">{order.order_no}</td>
+                    <td>{order.branch_name}</td>
+                    <td>{order.items_count}</td>
+                    <td>{numberValue(order.qty_ready_total)}</td>
+                    <td>{numberValue(order.qty_sent_total)}</td>
+                    <td><StatusBadge status={order.kitchen_status} /></td>
+                    <td>{dailyActions(order)}</td>
+                  </tr>
+                ))}
+                {productionOrders.map((order) => (
+                  <tr key={`production-${order.id}`}>
+                    <td className="font-medium">PO-{order.id}</td>
+                    <td>{order.destination_branch?.branch_name || order.destination_branch?.branch_name_ar || order.destination_branch_id}</td>
+                    <td>1</td>
+                    <td>{numberValue(order.qty_ready)}</td>
+                    <td>{numberValue(order.qty_sent_to_warehouse || 0)}</td>
+                    <td><StatusBadge status={order.status} /></td>
+                    <td>
+                      {isAuditor ? (
+                        <span className="text-sm text-gray-500">قراءة فقط</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" className="btn-secondary text-xs" onClick={() => action(() => supplyChainApi.startProductionOrder(order.id), 'تم بدء التنفيذ')}>بدء</button>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={partialQty[order.id] || ''}
+                              onChange={(e) => setPartialQty((prev) => ({ ...prev, [order.id]: e.target.value }))}
+                              className="input-field w-24 text-xs"
+                              placeholder="جزئي"
+                            />
+                            <button
+                              type="button"
+                              className="btn-secondary text-xs"
+                              onClick={() => action(
+                                () => supplyChainApi.markProductionPartialReady(order.id, { qty_ready: Number(partialQty[order.id] || 0) }),
+                                'تم تسجيل جاهزية جزئية',
+                              )}
+                            >
+                              جاهز جزئيًا
+                            </button>
+                          </div>
+                          <button type="button" className="btn-secondary text-xs" onClick={() => action(() => supplyChainApi.markProductionReady(order.id), 'تم تعليم الأمر جاهزًا')}>جاهز</button>
+                          <button type="button" className="btn-primary text-xs" onClick={() => action(() => supplyChainApi.sendProductionToWarehouse(order.id), 'تم إرسال الكمية للمستودع')}>إرسال للمستودع</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </PageShell>
+  )
+}
+
+function LegacySupplyChainKitchenPage() {
+  const roles = useSelector(selectUserRoles)
+  const isAuditor = roles.includes('internal_auditor')
+  const [loading, setLoading] = React.useState(true)
   const [orders, setOrders] = React.useState([])
   const [partialQty, setPartialQty] = React.useState({})
 
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
-      const res = await supplyChainApi.listProductionOrders()
-      setOrders(Array.isArray(res.data) ? res.data : [])
+      const [productionRes, dailyRes] = await Promise.all([
+        supplyChainApi.listProductionOrders(),
+        supplyChainApi.listDailyKitchenLines(),
+      ])
+      const productionOrders = Array.isArray(productionRes.data) ? productionRes.data : []
+      const dailyKitchenLines = Array.isArray(dailyRes.data) ? dailyRes.data : []
+      setOrders([...dailyKitchenLines, ...productionOrders])
     } catch (error) {
       toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر تحميل أوامر الإنتاج')
     } finally {
@@ -643,11 +916,15 @@ export function SupplyChainKitchenPage() {
                 <td>{order.destination_branch?.branch_name || order.destination_branch?.branch_name_ar || order.destination_branch_id}</td>
                 <td>{numberValue(order.qty_requested)}</td>
                 <td>{numberValue(order.qty_ready)}</td>
-                <td className="max-w-56 whitespace-pre-wrap text-sm text-gray-600">{order.notes || '—'}</td>
+                <td className="max-w-56 whitespace-pre-wrap text-sm text-gray-600">
+                  {order.legacy_daily ? `طلبية يومية: ${order.source_order_no}` : (order.notes || '—')}
+                </td>
                 <td><StatusBadge status={order.status} /></td>
                 <td>
                   {isAuditor ? (
                     <span className="text-sm text-gray-500">قراءة فقط</span>
+                  ) : order.legacy_daily ? (
+                    <span className="text-sm text-gray-500">من طلبية يومية</span>
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       <button type="button" className="btn-secondary text-xs" onClick={() => action(() => supplyChainApi.startProductionOrder(order.id), 'تم بدء التنفيذ')}>بدء</button>
@@ -772,7 +1049,9 @@ export function SupplyChainWarehousePage() {
                 <td>{line.source_type}</td>
                 <td>{numberValue(line.requested_qty)}</td>
                 <td>{numberValue(line.pending_qty)}</td>
-                <td className="max-w-56 whitespace-pre-wrap text-sm text-gray-600">{line.delay_reason || line.notes || '—'}</td>
+                <td className="max-w-56 whitespace-pre-wrap text-sm text-gray-600">
+                  {String(line.delay_reason || '').startsWith('daily_order:') ? 'من طلبية يومية' : (line.delay_reason || line.notes || '—')}
+                </td>
                 <td><StatusBadge status={line.status} /></td>
                 <td>
                   {isAuditor ? (
@@ -1659,15 +1938,6 @@ export function SupplyChainControlDashboard() {
             </div>
           )}
 
-          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-            <p className="font-semibold text-gray-800 mb-1">{t('supply_chain_control_page.legacy_title')}</p>
-            <p className="mb-3">{t('supply_chain_control_page.legacy_body')}</p>
-            <div className="flex flex-wrap gap-3">
-              <Link to="/inventory" className="text-primary-600 hover:underline">{t('supply_chain_control_page.legacy_inventory')}</Link>
-              <Link to="/orders" className="text-primary-600 hover:underline">{t('supply_chain_control_page.legacy_orders')}</Link>
-              <Link to="/operations" className="text-primary-600 hover:underline">{t('supply_chain_control_page.legacy_operations')}</Link>
-            </div>
-          </div>
         </div>
       )}
     </PageShell>

@@ -1380,6 +1380,8 @@ class OrderSummaryOut(BaseModel):
     id: int
     order_no: str
     branch_id: int
+    branch_name: Optional[str] = None
+    branch_name_ar: Optional[str] = None
     warehouse_id: int
     order_type: OrderType
     status: OrderStatus

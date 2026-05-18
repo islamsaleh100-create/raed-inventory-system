@@ -1,7 +1,7 @@
 import React from 'react'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
-import { auditApi } from '../../services/api'
+import { auditApi, getApiErrorMessage } from '../../services/api'
 import { selectUserRoles } from '../../store'
 import { useT } from '../../i18n'
 
@@ -42,7 +42,8 @@ export default function InlineAuditFindingsPanel({
   const t = useT()
   const roles = useSelector(selectUserRoles)
   const canCreate = roles.some((role) => ['internal_auditor', 'admin', 'super_admin'].includes(role))
-  const canAcknowledge = roles.some((role) => ['area_manager', 'operations_manager', 'admin', 'super_admin'].includes(role))
+  const canAcknowledge = roles.some((role) => ['branch_user', 'branch_manager', 'warehouse_user', 'warehouse_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'].includes(role))
+  const canOpenFindingsPage = roles.some((role) => ['internal_auditor', 'admin', 'super_admin', 'area_manager', 'operations_manager'].includes(role))
   const [loading, setLoading] = React.useState(true)
   const [rows, setRows] = React.useState([])
   const [showCreate, setShowCreate] = React.useState(false)
@@ -64,7 +65,7 @@ export default function InlineAuditFindingsPanel({
       const res = await auditApi.findingsByEntity(entityType, entityId)
       setRows(Array.isArray(res.data) ? res.data : [])
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to load audit findings')
+      toast.error(getApiErrorMessage(error, 'Failed to load audit findings'))
     } finally {
       setLoading(false)
     }
@@ -74,20 +75,29 @@ export default function InlineAuditFindingsPanel({
 
   const handleCreate = async (e) => {
     e.preventDefault()
+    const entityNumber = Number(entityId)
+    if (!entityType || !Number.isInteger(entityNumber) || entityNumber <= 0) {
+      toast.error('لا يمكن ربط الملاحظة بهذا العنصر')
+      return
+    }
+    if (!form.title.trim() || !form.description.trim()) {
+      toast.error('اكتب عنوان ووصف الملاحظة')
+      return
+    }
     try {
       await auditApi.createFinding({
         entity_type: entityType,
-        entity_id: Number(entityId),
+        entity_id: entityNumber,
         severity: form.severity,
-        title: form.title,
-        description: form.description,
+        title: form.title.trim(),
+        description: form.description.trim(),
       })
       toast.success(t('audit.finding_created'))
       setForm({ severity: 'warning', title: '', description: '' })
       setShowCreate(false)
       load()
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to create finding')
+      toast.error(getApiErrorMessage(error, 'Failed to create finding'))
     }
   }
 
@@ -103,7 +113,7 @@ export default function InlineAuditFindingsPanel({
       setAckById((prev) => ({ ...prev, [findingId]: '' }))
       load()
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to acknowledge finding')
+      toast.error(getApiErrorMessage(error, 'Failed to acknowledge finding'))
     }
   }
 
@@ -113,6 +123,11 @@ export default function InlineAuditFindingsPanel({
         <div>
           <h2 className="font-semibold text-gray-900">{title || t('nav.audit_findings')}</h2>
           <p className="text-sm text-gray-500 mt-1">{entityType} #{entityId}</p>
+          {!loading && rows.some((row) => row.status === 'open') ? (
+            <p className="mt-2 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+              توجد ملاحظات مفتوحة تحتاج رد
+            </p>
+          ) : null}
         </div>
         <div className="flex gap-2">
           {canCreate ? (
@@ -120,9 +135,11 @@ export default function InlineAuditFindingsPanel({
               + {t('audit.add_finding')}
             </button>
           ) : null}
-          <a href="/audit/findings" className="btn-secondary">
-            {t('nav.audit_findings')}
-          </a>
+          {canOpenFindingsPage ? (
+            <a href="/audit/findings" className="btn-secondary">
+              {t('nav.audit_findings')}
+            </a>
+          ) : null}
         </div>
       </div>
 
@@ -177,7 +194,7 @@ export default function InlineAuditFindingsPanel({
                   placeholder={t('audit.response_text')}
                 />
                 <button type="button" className="btn-primary" onClick={() => handleAcknowledge(row.id)}>
-                  {t('audit.acknowledge')}
+                  رد على الملاحظة
                 </button>
               </div>
             ) : null}

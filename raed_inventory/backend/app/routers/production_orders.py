@@ -1,8 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
+from html import escape
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import HTMLResponse
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -12,13 +14,18 @@ from app.core.locking import lock_row
 from app.database import get_db
 from app.models import (
     Branch,
+    BranchBrand,
     BranchRequestLine,
     BranchRequestLineStatus,
     KitchenMaterialRequest,
     KitchenMaterialRequestStatus,
     KitchenSectionAssignment,
+    Item,
     ProductionOrder,
     ProductionOrderStatus,
+    ReplenishmentOrder,
+    ReplenishmentOrderLine,
+    SupplyDefaultSource,
     TransactionType,
     User,
     WarehouseLine,
@@ -138,6 +145,85 @@ def _audit(db: Session, request: Request, user: User, action: str, row: Producti
     )
 
 
+def _daily_kitchen_lines_query(db: Session, current_user: User, source_order_id: int | None = None):
+    q = (
+        db.query(ReplenishmentOrderLine, ReplenishmentOrder, Branch)
+        .join(ReplenishmentOrder, ReplenishmentOrder.id == ReplenishmentOrderLine.order_id)
+        .join(Branch, Branch.id == ReplenishmentOrder.branch_id)
+        .join(Item, Item.id == ReplenishmentOrderLine.item_id)
+        .options(joinedload(ReplenishmentOrderLine.item))
+        .filter(
+            Item.default_source == SupplyDefaultSource.KITCHEN,
+            ReplenishmentOrderLine.wh_approved_qty > 0,
+        )
+    )
+    if source_order_id is not None:
+        q = q.filter(ReplenishmentOrder.id == source_order_id)
+
+    if not _broad_access(current_user):
+        scopes = _kitchen_scopes(db, current_user)
+        if not scopes:
+            return q.filter(ReplenishmentOrderLine.id == -1)
+        conds = []
+        for sid, svc_city in scopes:
+            if svc_city:
+                conds.append(
+                    and_(
+                        Item.kitchen_section_id == sid,
+                        func.lower(func.trim(Branch.city)) == _norm_city(svc_city),
+                    )
+                )
+            else:
+                conds.append(Item.kitchen_section_id == sid)
+        q = q.filter(or_(*conds))
+    return q
+
+
+def _daily_status(lines: list[ReplenishmentOrderLine], order_status: str) -> str:
+    statuses = {str(line.line_status or "") for line in lines}
+    if statuses and statuses.issubset({"kitchen_sent_to_warehouse"}):
+        return "kitchen_sent_to_warehouse"
+    if statuses and statuses.issubset({"kitchen_ready", "kitchen_sent_to_warehouse"}):
+        return "kitchen_ready"
+    if "kitchen_in_progress" in statuses:
+        return "kitchen_in_progress"
+    if "kitchen_received" in statuses:
+        return "kitchen_received"
+    return order_status
+
+
+def _daily_line_item_dict(item: Item | None) -> dict | None:
+    if not item:
+        return None
+    return {
+        "id": item.id,
+        "item_code": item.item_code,
+        "item_name_ar": item.item_name_ar,
+        "item_name_en": item.item_name_en,
+        "category_id": item.category_id,
+        "unit_id": item.unit_id,
+        "item_type": item.item_type.value if hasattr(item.item_type, "value") else str(item.item_type),
+        "storage_type": item.storage_type.value if hasattr(item.storage_type, "value") else str(item.storage_type),
+        "purchase_unit_id": item.purchase_unit_id,
+        "supply_unit_id": item.supply_unit_id,
+        "conversion_ratio": item.conversion_ratio,
+        "branch_requestable": item.branch_requestable,
+        "visible_in_branch_ui": item.visible_in_branch_ui,
+        "active": item.active,
+        "min_qty": item.min_qty,
+        "max_qty": item.max_qty,
+        "reorder_point": item.reorder_point,
+        "safety_stock": item.safety_stock,
+        "lead_time_days": item.lead_time_days,
+        "shelf_life_days": item.shelf_life_days,
+        "average_consumption_mode": item.average_consumption_mode.value if hasattr(item.average_consumption_mode, "value") else str(item.average_consumption_mode),
+        "critical_item": item.critical_item,
+        "source_type": item.source_type.value if hasattr(item.source_type, "value") else str(item.source_type),
+        "default_source": item.default_source.value if hasattr(item.default_source, "value") else str(item.default_source),
+        "kitchen_section_id": item.kitchen_section_id,
+    }
+
+
 def _get_material_request(db: Session, material_request_id: int) -> KitchenMaterialRequest:
     row = db.query(KitchenMaterialRequest).options(
         joinedload(KitchenMaterialRequest.production_order).joinedload(ProductionOrder.destination_branch),
@@ -206,6 +292,246 @@ def list_production_orders(
     if kitchen_section_id:
         q = q.filter(ProductionOrder.kitchen_section_id == kitchen_section_id)
     return q.order_by(ProductionOrder.created_at.desc()).all()
+
+
+@router.get("/daily-kitchen-lines")
+def list_daily_order_kitchen_lines(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*PRODUCTION_ROLES)),
+):
+    """
+    Surface KITCHEN-routed lines from the legacy daily order flow on the
+    kitchen section page. Daily replenishment orders are not ProductionOrder
+    rows, so these rows are read-only operational visibility.
+    """
+    q = _daily_kitchen_lines_query(db, current_user)
+    result = []
+    for line, order, branch in q.order_by(ReplenishmentOrder.created_at.desc(), ReplenishmentOrderLine.id.asc()).all():
+        item = line.item
+        result.append({
+            "id": f"daily-{line.id}",
+            "legacy_daily": True,
+            "source_order_id": order.id,
+            "source_order_no": order.order_no,
+            "source_line_id": line.id,
+            "destination_branch_id": order.branch_id,
+            "destination_branch": {
+                "id": branch.id,
+                "branch_name": branch.branch_name,
+                "branch_name_ar": branch.branch_name,
+            },
+            "brand_id": None,
+            "kitchen_section_id": item.kitchen_section_id if item else None,
+            "item_id": line.item_id,
+            "qty_requested": line.wh_approved_qty,
+            "qty_ready": line.picked_qty,
+            "qty_sent_to_warehouse": line.dispatched_qty,
+            "status": order.status.value if hasattr(order.status, "value") else str(order.status),
+            "priority": None,
+            "notes": f"Daily order {order.order_no}",
+            "created_at": order.created_at,
+            "updated_at": order.updated_at or order.created_at,
+            "item": _daily_line_item_dict(item),
+        })
+    return result
+
+
+@router.get("/daily-kitchen-orders")
+def list_daily_kitchen_orders(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*PRODUCTION_ROLES)),
+):
+    grouped: dict[int, dict] = {}
+    for line, order, branch in _daily_kitchen_lines_query(db, current_user).order_by(
+        ReplenishmentOrder.created_at.desc(),
+        ReplenishmentOrderLine.id.asc(),
+    ).all():
+        row = grouped.setdefault(order.id, {
+            "id": order.id,
+            "order_no": order.order_no,
+            "branch_id": order.branch_id,
+            "branch_name": branch.branch_name,
+            "status": order.status.value if hasattr(order.status, "value") else str(order.status),
+            "created_at": order.created_at,
+            "updated_at": order.updated_at or order.created_at,
+            "lines": [],
+        })
+        row["lines"].append({
+            "id": line.id,
+            "item_id": line.item_id,
+            "item": _daily_line_item_dict(line.item),
+            "qty_requested": line.wh_approved_qty,
+            "qty_ready": line.picked_qty,
+            "qty_sent_to_warehouse": line.dispatched_qty,
+            "line_status": line.line_status,
+            "notes": line.notes,
+        })
+
+    for row in grouped.values():
+        row["items_count"] = len(row["lines"])
+        row["qty_requested_total"] = sum(Decimal(str(line["qty_requested"] or 0)) for line in row["lines"])
+        row["qty_ready_total"] = sum(Decimal(str(line["qty_ready"] or 0)) for line in row["lines"])
+        row["qty_sent_total"] = sum(Decimal(str(line["qty_sent_to_warehouse"] or 0)) for line in row["lines"])
+        row["kitchen_status"] = _daily_status(
+            [
+                type("Line", (), {"line_status": line["line_status"]})()
+                for line in row["lines"]
+            ],
+            row["status"],
+        )
+    return list(grouped.values())
+
+
+def _load_daily_kitchen_order_rows(db: Session, current_user: User, source_order_id: int):
+    rows = _daily_kitchen_lines_query(db, current_user, source_order_id).order_by(ReplenishmentOrderLine.id.asc()).all()
+    if not rows:
+        raise AppError(
+            status_code=404,
+            error_code="production_orders.daily_kitchen_order_not_found",
+            message="Daily kitchen order not found for this section",
+            detail={"source_order_id": source_order_id},
+        )
+    return rows
+
+
+@router.post("/daily-kitchen-orders/{source_order_id}/receive")
+def receive_daily_kitchen_order(
+    source_order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*PRODUCTION_ROLES)),
+):
+    rows = _load_daily_kitchen_order_rows(db, current_user, source_order_id)
+    for line, _, _ in rows:
+        if line.line_status != "kitchen_sent_to_warehouse":
+            line.line_status = "kitchen_received"
+    db.commit()
+    return {"source_order_id": source_order_id, "status": "kitchen_received"}
+
+
+@router.post("/daily-kitchen-orders/{source_order_id}/start")
+def start_daily_kitchen_order(
+    source_order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*PRODUCTION_ROLES)),
+):
+    rows = _load_daily_kitchen_order_rows(db, current_user, source_order_id)
+    for line, _, _ in rows:
+        if line.line_status != "kitchen_sent_to_warehouse":
+            line.line_status = "kitchen_in_progress"
+    db.commit()
+    return {"source_order_id": source_order_id, "status": "kitchen_in_progress"}
+
+
+@router.post("/daily-kitchen-orders/{source_order_id}/mark-ready")
+def mark_daily_kitchen_order_ready(
+    source_order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*PRODUCTION_ROLES)),
+):
+    rows = _load_daily_kitchen_order_rows(db, current_user, source_order_id)
+    for line, _, _ in rows:
+        if line.line_status != "kitchen_sent_to_warehouse":
+            line.picked_qty = line.wh_approved_qty
+            line.line_status = "kitchen_ready"
+    db.commit()
+    return {"source_order_id": source_order_id, "status": "kitchen_ready"}
+
+
+@router.post("/daily-kitchen-orders/{source_order_id}/send-to-warehouse")
+def send_daily_kitchen_order_to_warehouse(
+    source_order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*PRODUCTION_ROLES)),
+):
+    rows = _load_daily_kitchen_order_rows(db, current_user, source_order_id)
+    _, order, branch = rows[0]
+    brand = db.query(BranchBrand).filter(BranchBrand.branch_id == order.branch_id).order_by(BranchBrand.id).first()
+    if not brand:
+        raise AppError(
+            status_code=400,
+            error_code="production_orders.branch_brand_missing",
+            message="Branch has no brand mapping",
+            detail={"branch_id": order.branch_id},
+        )
+
+    created = 0
+    for line, _, _ in rows:
+        if Decimal(str(line.picked_qty or 0)) <= 0:
+            line.picked_qty = line.wh_approved_qty
+        line.dispatched_qty = line.picked_qty
+        line.line_status = "kitchen_sent_to_warehouse"
+        marker = f"daily_order:{order.order_no}:line:{line.id}"
+        exists = db.query(WarehouseLine).filter(
+            WarehouseLine.source_type == WarehouseLineSourceType.KITCHEN_OUTPUT,
+            WarehouseLine.branch_id == order.branch_id,
+            WarehouseLine.item_id == line.item_id,
+            WarehouseLine.delay_reason == marker,
+        ).first()
+        if not exists:
+            db.add(WarehouseLine(
+                source_request_id=None,
+                source_request_line_id=None,
+                source_type=WarehouseLineSourceType.KITCHEN_OUTPUT,
+                branch_id=order.branch_id,
+                brand_id=brand.brand_id,
+                kitchen_section_id=line.item.kitchen_section_id if line.item else None,
+                item_id=line.item_id,
+                requested_qty=line.dispatched_qty,
+                issued_qty=Decimal("0"),
+                pending_qty=line.dispatched_qty,
+                status=WarehouseLineStatus.PENDING,
+                delay_reason=marker,
+            ))
+            created += 1
+    db.commit()
+    return {"source_order_id": source_order_id, "status": "kitchen_sent_to_warehouse", "warehouse_lines_created": created}
+
+
+@router.get("/daily-kitchen-orders/{source_order_id}/pdf", response_class=HTMLResponse)
+def daily_kitchen_order_pdf(
+    source_order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*PRODUCTION_ROLES)),
+):
+    rows = _load_daily_kitchen_order_rows(db, current_user, source_order_id)
+    _, order, branch = rows[0]
+    line_html = []
+    for line, _, _ in rows:
+        item_name = line.item.item_name_en if line.item else str(line.item_id)
+        line_html.append(
+            f"<tr><td>{escape(item_name)}</td><td>{escape(line.item.item_code if line.item else '')}</td>"
+            f"<td>{escape(str(line.wh_approved_qty))}</td><td>{escape(str(line.picked_qty or 0))}</td></tr>"
+        )
+    return HTMLResponse(f"""
+    <!doctype html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="utf-8">
+      <title>{escape(order.order_no)} Kitchen Order</title>
+      <style>
+        body {{ font-family: Arial, sans-serif; margin: 24px; color: #111827; }}
+        h1 {{ margin: 0 0 8px; font-size: 24px; }}
+        .meta {{ margin: 4px 0; color: #374151; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 18px; }}
+        th, td {{ border: 1px solid #d1d5db; padding: 8px; text-align: right; }}
+        th {{ background: #f3f4f6; }}
+        button {{ margin-bottom: 16px; padding: 8px 14px; }}
+        @media print {{ button {{ display: none; }} }}
+      </style>
+    </head>
+    <body>
+      <button onclick="window.print()">طباعة / حفظ PDF</button>
+      <h1>طلبية مطبخ</h1>
+      <div class="meta"><strong>رقم الطلبية:</strong> {escape(order.order_no)}</div>
+      <div class="meta"><strong>الفرع:</strong> {escape(branch.branch_name)}</div>
+      <div class="meta"><strong>التاريخ:</strong> {escape(str(order.order_date))}</div>
+      <table>
+        <thead><tr><th>الصنف</th><th>الكود</th><th>المطلوب</th><th>الجاهز</th></tr></thead>
+        <tbody>{''.join(line_html)}</tbody>
+      </table>
+    </body>
+    </html>
+    """)
 
 
 @router.get("/{order_id}", response_model=ProductionOrderOut)

@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Modal } from '../../components/common'
-import { auditApi } from '../../services/api'
+import { auditApi, getApiErrorMessage } from '../../services/api'
 import { selectUser, selectUserRoles } from '../../store'
 import { useT } from '../../i18n'
 
@@ -215,7 +215,7 @@ export function AuditDashboardPage() {
         const res = await auditApi.dashboard()
         if (mounted) setSummary(res.data || {})
       } catch (error) {
-        toast.error(error?.response?.data?.detail || 'Failed to load audit dashboard')
+        toast.error(getApiErrorMessage(error, 'Failed to load audit dashboard'))
       } finally {
         if (mounted) setLoading(false)
       }
@@ -401,6 +401,15 @@ export function AuditFindingsPage() {
   const user = useSelector(selectUser)
   const roles = useSelector(selectUserRoles)
   const [searchParams] = useSearchParams()
+  const entityTypeOptions = [
+    { value: '', label: 'كل أنواع الكيانات' },
+    { value: 'replenishment_order', label: 'طلبية' },
+    { value: 'warehouse_stock', label: 'مخزون مستودع' },
+    { value: 'branch_request', label: 'طلب فرع' },
+    { value: 'quality_visit', label: 'زيارة جودة' },
+    { value: 'training_assessment', label: 'تقييم تدريب' },
+    { value: 'document', label: 'وثيقة' },
+  ]
   const canCreate = roles.includes('internal_auditor') || roles.includes('admin') || roles.includes('super_admin')
   const canAcknowledge = roles.some((role) => ['area_manager', 'operations_manager', 'admin', 'super_admin'].includes(role))
   const [loading, setLoading] = React.useState(true)
@@ -421,7 +430,18 @@ export function AuditFindingsPage() {
     title: '',
     description: '',
   })
+  const [showManualCreate, setShowManualCreate] = React.useState(false)
   const [ackById, setAckById] = React.useState({})
+  const resetFilters = () => {
+    setFilters({
+      severity: '',
+      status: '',
+      entity_type: '',
+      created_by: '',
+      from_date: '',
+      to_date: '',
+    })
+  }
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -430,7 +450,7 @@ export function AuditFindingsPage() {
       const res = await auditApi.listFindings(params)
       setRows(res.data?.items || [])
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to load findings')
+      toast.error(getApiErrorMessage(error, 'Failed to load findings'))
     } finally {
       setLoading(false)
     }
@@ -440,16 +460,27 @@ export function AuditFindingsPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault()
+    const entityId = Number(form.entity_id)
+    if (!form.entity_type || !Number.isInteger(entityId) || entityId <= 0) {
+      toast.error('اكتب رقم الكيان الصحيح')
+      return
+    }
+    if (!form.title.trim() || !form.description.trim()) {
+      toast.error('اكتب عنوان ووصف الملاحظة')
+      return
+    }
     try {
       await auditApi.createFinding({
         ...form,
-        entity_id: Number(form.entity_id),
+        entity_id: entityId,
+        title: form.title.trim(),
+        description: form.description.trim(),
       })
       toast.success(t('audit.finding_created'))
       setForm({ entity_type: 'branch_request', entity_id: '', severity: 'warning', title: '', description: '' })
       load()
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to create finding')
+      toast.error(getApiErrorMessage(error, 'Failed to create finding'))
     }
   }
 
@@ -462,7 +493,7 @@ export function AuditFindingsPage() {
       setAckById((prev) => ({ ...prev, [id]: '' }))
       load()
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to acknowledge finding')
+      toast.error(getApiErrorMessage(error, 'Failed to acknowledge finding'))
     }
   }
 
@@ -485,21 +516,41 @@ export function AuditFindingsPage() {
           <option value="acknowledged">{t('nav.audit_finding_status_acknowledged')}</option>
           <option value="closed">{t('nav.audit_finding_status_closed')}</option>
         </select>
-        <input className="input-field" value={filters.entity_type} onChange={(e) => setFilters((prev) => ({ ...prev, entity_type: e.target.value }))} placeholder={text('audit.entity_type', 'نوع الكيان')} />
+        <select className="input-field" value={filters.entity_type} onChange={(e) => setFilters((prev) => ({ ...prev, entity_type: e.target.value }))}>
+          {entityTypeOptions.map((option) => (
+            <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+          ))}
+        </select>
         <input className="input-field" value={filters.created_by} onChange={(e) => setFilters((prev) => ({ ...prev, created_by: e.target.value }))} placeholder={text('audit.created_by', 'معرّف المستخدم المنشئ')} />
         <input className="input-field" type="date" value={filters.from_date} onChange={(e) => setFilters((prev) => ({ ...prev, from_date: e.target.value }))} />
         <input className="input-field" type="date" value={filters.to_date} onChange={(e) => setFilters((prev) => ({ ...prev, to_date: e.target.value }))} />
       </div>
 
       <div className="flex justify-end">
+        <button type="button" className="btn-secondary ml-2" onClick={resetFilters}>مسح الفلاتر</button>
         <button className="btn-primary" onClick={load}>{t('common.refresh')}</button>
       </div>
 
       {canCreate ? (
         <form className="card p-5 space-y-4" onSubmit={handleCreate}>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="font-semibold text-gray-900">إضافة ملاحظة مراجعة</h2>
+              <p className="text-sm text-gray-500 mt-1">الأفضل إضافة الملاحظة من صفحة الطلبية أو المخزون حتى يتم ربطها تلقائيًا. استخدم الإدخال اليدوي فقط للحالات الخاصة.</p>
+            </div>
+            <button type="button" className="btn-secondary" onClick={() => setShowManualCreate((value) => !value)}>
+              {showManualCreate ? 'إخفاء الإدخال اليدوي' : 'إدخال يدوي'}
+            </button>
+          </div>
+          {showManualCreate && (
+          <>
           <h2 className="font-semibold text-gray-900">{text('audit.add_finding', 'إضافة ملاحظة مراجعة')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input className="input-field" value={form.entity_type} onChange={(e) => setForm((prev) => ({ ...prev, entity_type: e.target.value }))} placeholder={text('audit.entity_type', 'نوع الكيان')} />
+            <select className="input-field" value={form.entity_type} onChange={(e) => setForm((prev) => ({ ...prev, entity_type: e.target.value }))}>
+              {entityTypeOptions.filter((option) => option.value).map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
             <input className="input-field" value={form.entity_id} onChange={(e) => setForm((prev) => ({ ...prev, entity_id: e.target.value }))} placeholder={text('audit.entity_id', 'معرّف الكيان')} />
             <select className="input-field" value={form.severity} onChange={(e) => setForm((prev) => ({ ...prev, severity: e.target.value }))}>
               <option value="info">{t('nav.audit_finding_severity_info')}</option>
@@ -512,6 +563,8 @@ export function AuditFindingsPage() {
           <div className="flex justify-end">
             <button type="submit" className="btn-primary">+ {text('audit.add_finding', 'إضافة ملاحظة مراجعة')}</button>
           </div>
+          </>
+          )}
         </form>
       ) : null}
 
@@ -636,7 +689,7 @@ export function AuditTrailPage() {
       setModules(Array.isArray(modulesRes.data) ? modulesRes.data : [])
       setActions(Array.isArray(actionsRes.data) ? actionsRes.data : [])
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to load audit trail')
+      toast.error(getApiErrorMessage(error, 'Failed to load audit trail'))
     } finally {
       setLoading(false)
     }

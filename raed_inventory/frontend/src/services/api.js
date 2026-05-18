@@ -9,6 +9,9 @@ const normalizeBasePath = (value, fallback) => {
 export const stockApi = {
   adjustBranch: (branchId, data) => api.post(`/stock/branches/${branchId}/adjust`, data),
   adjustWarehouse: (warehouseId, data) => api.post(`/stock/warehouses/${warehouseId}/adjust`, data),
+  bulkAdjustWarehouse: (warehouseId, data) => api.post(`/stock/warehouses/${warehouseId}/bulk-adjust`, data),
+  exportWarehouseStock: (warehouseId, format = 'xlsx') =>
+    api.get(`/export/stock/warehouses/${warehouseId}`, { params: { format }, responseType: 'blob' }),
   transferWarehouseToBranch: (warehouseId, branchId, data) =>
     api.post(`/stock/transfer/warehouse-to-branch?warehouse_id=${warehouseId}&branch_id=${branchId}`, data),
   transferBranchToWarehouse: (branchId, warehouseId, data) =>
@@ -118,6 +121,7 @@ export const authApi = {
 
 export const usersApi = {
   list: (params) => api.get('/users/', { params }),
+  roles: () => api.get('/users/roles'),
   lookup: (params) => api.get('/users/lookup', { params }),
   get: (id) => api.get(`/users/${id}`),
   create: (data) => api.post('/users/', data),
@@ -240,6 +244,28 @@ export const auditApi = {
   },
 }
 
+export const getApiErrorMessage = (error, fallback = 'Request failed') => {
+  const data = error?.response?.data
+  const detail = data?.detail ?? data?.message ?? error?.message
+  if (!detail) return fallback
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (!item || typeof item !== 'object') return String(item)
+        const loc = Array.isArray(item.loc) ? item.loc.join('.') : item.loc
+        const msg = item.msg || item.message || JSON.stringify(item)
+        return loc ? `${loc}: ${msg}` : msg
+      })
+      .join('\n')
+  }
+  if (typeof detail === 'object') {
+    return detail.message || detail.msg || JSON.stringify(detail)
+  }
+  return String(detail)
+}
+
 export const qualityApi = {
   getChecklist: (params) => api.get('/quality/checklist', { params }),
   list: (params) => api.get('/quality/', { params }),
@@ -356,6 +382,15 @@ export const supplyChainApi = {
   rejectBranchRequest: (id, data) => api.post(`/branch-requests/${id}/reject`, data),
 
   listProductionOrders: (params) => api.get('/production-orders', { params }),
+  listDailyKitchenLines: () => api.get('/production-orders/daily-kitchen-lines'),
+  listDailyKitchenOrders: () => api.get('/production-orders/daily-kitchen-orders'),
+  receiveDailyKitchenOrder: (id) => api.post(`/production-orders/daily-kitchen-orders/${id}/receive`),
+  startDailyKitchenOrder: (id) => api.post(`/production-orders/daily-kitchen-orders/${id}/start`),
+  markDailyKitchenOrderReady: (id) => api.post(`/production-orders/daily-kitchen-orders/${id}/mark-ready`),
+  sendDailyKitchenOrderToWarehouse: (id) => api.post(`/production-orders/daily-kitchen-orders/${id}/send-to-warehouse`),
+  dailyKitchenOrderPdfUrl: (id) => `/api/v1/production-orders/daily-kitchen-orders/${id}/pdf`,
+  dailyKitchenOrderPdf: (id) =>
+    api.get(`/production-orders/daily-kitchen-orders/${id}/pdf`, { responseType: 'text' }),
   getProductionOrder: (id) => api.get(`/production-orders/${id}`),
   startProductionOrder: (id) => api.post(`/production-orders/${id}/start`),
   markProductionPartialReady: (id, data) => api.post(`/production-orders/${id}/mark-partial-ready`, data),

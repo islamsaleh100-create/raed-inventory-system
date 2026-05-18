@@ -129,7 +129,7 @@ def can_access_branch(user: User, branch_id: int, db: Optional[Session] = None) 
 
 def can_access_warehouse(user: User, warehouse_id: int) -> bool:
     user_roles = get_user_roles(user)
-    if any(role in user_roles for role in ["super_admin", "admin", "operations_manager"]):
+    if any(role in user_roles for role in ["super_admin", "admin", "operations_manager", "internal_auditor"]):
         return True
     if any(role in user_roles for role in ["warehouse_user", "warehouse_manager"]):
         return user.warehouse_id == warehouse_id

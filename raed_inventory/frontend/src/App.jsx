@@ -1,13 +1,14 @@
-import React, { lazy, Suspense } from 'react'
+﻿import React, { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom'
 import { Provider, useSelector } from 'react-redux'
-import { Toaster } from 'react-hot-toast'
+import toast, { Toaster } from 'react-hot-toast'
 import { store, selectIsAuthenticated, selectUser, selectUserRoles } from './store'
 import AppLayout from './components/layout/AppLayoutV2'
 import { PageLoader, ErrorBoundary } from './components/common'
 import RouteRoleGuard from './components/common/RouteRoleGuard'
+import InlineAuditFindingsPanel from './components/audit/InlineAuditFindingsPanel'
 import { LanguageProvider, useT, useLanguage } from './i18n'
-import { masterApi, notificationsApi, ordersApi } from './services/api'
+import { dashboardApi, masterApi, notificationsApi, ordersApi, stockApi } from './services/api'
 import './index.css'
 
 // Pages
@@ -43,7 +44,7 @@ import {
   DeliveryImportPage,
   DeliveryBranchesManagementPage,
   DeliveryUnmatchedPage,
-  // للتوافق مع الأسماء القديمة
+  // ظ„ظ„طھظˆط§ظپظ‚ ظ…ط¹ ط§ظ„ط£ط³ظ…ط§ط، ط§ظ„ظ‚ط¯ظٹظ…ط©
   DeliveryDashboardPage as DeliveryAnalyticsDashboardPage,
   DeliveryBranchesManagementPage as DeliveryAnalyticsBranchesPage,
   DeliveryImportPage as DeliveryAnalyticsImportsPage,
@@ -73,7 +74,7 @@ function BranchStockPage() {
   const nameOf = (obj, base = 'item_name') =>
     obj?.[`${base}_${lang}`] || obj?.[`${base}_ar`] || obj?.[base] || ''
 
-  // للأدمن: حمّل قائمة الفروع علشان يختار منهم
+  // ظ„ظ„ط£ط¯ظ…ظ†: ط­ظ…ظ‘ظ„ ظ‚ط§ط¦ظ…ط© ط§ظ„ظپط±ظˆط¹ ط¹ظ„ط´ط§ظ† ظٹط®طھط§ط± ظ…ظ†ظ‡ظ…
   React.useEffect(() => {
     if (!isAdmin) return
     let cancelled = false
@@ -89,7 +90,7 @@ function BranchStockPage() {
 
   React.useEffect(() => {
     let cancelled = false
-    // لو ما فيش فرع محدد (ولا حتى من user.branch_id) ولا الأدمن اختار فرع → وقف التحميل
+    // ظ„ظˆ ظ…ط§ ظپظٹط´ ظپط±ط¹ ظ…ط­ط¯ط¯ (ظˆظ„ط§ ط­طھظ‰ ظ…ظ† user.branch_id) ظˆظ„ط§ ط§ظ„ط£ط¯ظ…ظ† ط§ط®طھط§ط± ظپط±ط¹ â†’ ظˆظ‚ظپ ط§ظ„طھط­ظ…ظٹظ„
     if (!selectedBranchId) {
       setLoading(false)
       setStock([])
@@ -106,19 +107,19 @@ function BranchStockPage() {
         .catch((err) => {
           if (cancelled) return
           setStock([])
-          setError(err?.response?.data?.detail || t('branch_stock.load_error') || 'تعذّر تحميل المخزون')
+          setError(err?.response?.data?.detail || t('branch_stock.load_error') || 'طھط¹ط°ظ‘ط± طھط­ظ…ظٹظ„ ط§ظ„ظ…ط®ط²ظˆظ†')
         })
         .finally(() => { if (!cancelled) setLoading(false) })
     })
     return () => { cancelled = true }
   }, [selectedBranchId])
 
-  // Admin بدون branch_id وبدون اختيار → رسالة إرشادية
+  // Admin ط¨ط¯ظˆظ† branch_id ظˆط¨ط¯ظˆظ† ط§ط®طھظٹط§ط± â†’ ط±ط³ط§ظ„ط© ط¥ط±ط´ط§ط¯ظٹط©
   if (!selectedBranchId && !isAdmin) {
     return (
       <div className="p-6">
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
-          <p className="text-yellow-700 font-medium">{t('branch_stock.no_branch') || 'لا يوجد فرع مرتبط بحسابك'}</p>
+          <p className="text-yellow-700 font-medium">{t('branch_stock.no_branch') || 'ظ„ط§ ظٹظˆط¬ط¯ ظپط±ط¹ ظ…ط±طھط¨ط· ط¨ط­ط³ط§ط¨ظƒ'}</p>
         </div>
       </div>
     )
@@ -134,7 +135,7 @@ function BranchStockPage() {
             onChange={(e) => setSelectedBranchId(e.target.value ? parseInt(e.target.value, 10) : null)}
             className="input-field w-64"
           >
-            <option value="">{t('branch_stock.select_branch') || 'اختر الفرع'}</option>
+            <option value="">{t('branch_stock.select_branch') || 'ط§ط®طھط± ط§ظ„ظپط±ط¹'}</option>
             {branches.map((b) => (
               <option key={b.id} value={b.id}>{b.branch_name_ar || b.branch_name || b.name}</option>
             ))}
@@ -143,7 +144,7 @@ function BranchStockPage() {
       </div>
       {!selectedBranchId && isAdmin ? (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
-          <p className="text-blue-700 font-medium">{t('branch_stock.select_branch_prompt') || 'اختر الفرع أولًا لعرض حالة المخزون'}</p>
+          <p className="text-blue-700 font-medium">{t('branch_stock.select_branch_prompt') || 'ط§ط®طھط± ط§ظ„ظپط±ط¹ ط£ظˆظ„ظ‹ط§ ظ„ط¹ط±ط¶ ط­ط§ظ„ط© ط§ظ„ظ…ط®ط²ظˆظ†'}</p>
         </div>
       ) : loading ? (
         <PageLoader />
@@ -167,7 +168,7 @@ function BranchStockPage() {
             </thead>
             <tbody>
               {stock.length === 0 ? (
-                <tr><td colSpan={7} className="text-center text-gray-400 py-8">{t('branch_stock.empty') || 'لا توجد بيانات'}</td></tr>
+                <tr><td colSpan={7} className="text-center text-gray-400 py-8">{t('branch_stock.empty') || 'ظ„ط§ طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ'}</td></tr>
               ) : stock.map((s) => (
                 <tr key={s?.item_id} className={
                   s?.status === 'out_of_stock' ? 'bg-red-50' :
@@ -203,12 +204,13 @@ function BranchStockPage() {
 }
 
 // Warehouse stock page
-function WarehouseStockPage() {
+function WarehouseStockPage({ readOnly = false, title = null, subtitle = null }) {
   const t = useT()
   const { lang } = useLanguage()
   const user = useSelector((s) => s.auth.user)
   const roles = useSelector(selectUserRoles)
   const isAdmin = roles.includes('admin') || roles.includes('super_admin')
+  const canSelectWarehouse = isAdmin || readOnly || roles.includes('internal_auditor')
   const nameOf = (obj, base = 'item_name') =>
     obj?.[`${base}_${lang}`] || obj?.[`${base}_ar`] || obj?.[base] || ''
 
@@ -216,10 +218,32 @@ function WarehouseStockPage() {
   const [loading, setLoading] = React.useState(false)
   const [warehouses, setWarehouses] = React.useState([])
   const [selectedWh, setSelectedWh] = React.useState(user?.warehouse_id || null)
+  const [items, setItems] = React.useState([])
+  const [adjustOpen, setAdjustOpen] = React.useState(false)
+  const [adjustForm, setAdjustForm] = React.useState({
+    item_id: '',
+    adjustment_type: 'set',
+    qty: '',
+    reason: 'Warehouse stock update',
+  })
+  const [quickQtys, setQuickQtys] = React.useState({})
+  const [selectedStockAudit, setSelectedStockAudit] = React.useState(null)
+  const fileInputRef = React.useRef(null)
 
-  // لو admin: حمّل قائمة المستودعات
+  const loadStock = React.useCallback(() => {
+    if (!selectedWh) return undefined
+    let cancelled = false
+    setLoading(true)
+    dashboardApi.warehouseStock(selectedWh)
+      .then((r) => { if (!cancelled) setStock(Array.isArray(r?.data) ? r.data : []) })
+      .catch(() => { if (!cancelled) setStock([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedWh])
+
+  // ظ„ظˆ admin: ط­ظ…ظ‘ظ„ ظ‚ط§ط¦ظ…ط© ط§ظ„ظ…ط³طھظˆط¯ط¹ط§طھ
   React.useEffect(() => {
-    if (!isAdmin) return
+    if (!canSelectWarehouse) return
     let cancelled = false
     import('./services/api').then(({ masterApi }) => {
       masterApi.listWarehouses().then((r) => {
@@ -229,38 +253,211 @@ function WarehouseStockPage() {
       }).catch(() => {})
     })
     return () => { cancelled = true }
-  }, [isAdmin])
+  }, [canSelectWarehouse])
 
-  // حمّل المخزون لما يتحدد المستودع
+  // ط­ظ…ظ‘ظ„ ط§ظ„ظ…ط®ط²ظˆظ† ظ„ظ…ط§ ظٹطھط­ط¯ط¯ ط§ظ„ظ…ط³طھظˆط¯ط¹
   React.useEffect(() => {
     if (!selectedWh) return
+    return loadStock()
+  }, [selectedWh, loadStock])
+
+  React.useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    import('./services/api').then(({ dashboardApi }) => {
-      dashboardApi.warehouseStock(selectedWh)
-        .then((r) => { if (!cancelled) setStock(Array.isArray(r?.data) ? r.data : []) })
-        .catch(() => { if (!cancelled) setStock([]) })
-        .finally(() => { if (!cancelled) setLoading(false) })
-    })
+    const loadItems = async () => {
+      const pageSize = 200
+      let pageNo = 1
+      let all = []
+      let total = null
+      do {
+        const r = await masterApi.listItems({ page: pageNo, page_size: pageSize, active_only: false })
+        const batch = Array.isArray(r?.data) ? r.data : (r?.data?.items || [])
+        all = [...all, ...batch]
+        total = Array.isArray(r?.data) ? all.length : (r?.data?.total ?? all.length)
+        pageNo += 1
+      } while (all.length < total && pageNo < 50)
+      return all
+    }
+    loadItems()
+      .then((all) => {
+        if (cancelled) return
+        setItems(all)
+      })
+      .catch(() => { if (!cancelled) setItems([]) })
     return () => { cancelled = true }
-  }, [selectedWh])
+  }, [])
+
+  const itemIdByCode = React.useMemo(() => {
+    const map = new Map()
+    items.forEach((item) => {
+      if (item.item_code) map.set(String(item.item_code).trim().toLowerCase(), item.id)
+    })
+    return map
+  }, [items])
+
+  const displayedStock = React.useMemo(() => {
+    const stockByItemId = new Map(stock.map((row) => [String(row.item_id), row]))
+    const rows = items.map((item) => {
+      const stockRow = stockByItemId.get(String(item.id))
+      return {
+        item_id: item.id,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        item_name_ar: item.item_name_ar,
+        item_name_en: item.item_name_en,
+        current_qty: stockRow?.current_qty ?? 0,
+        reserved_qty: stockRow?.reserved_qty ?? 0,
+      }
+    })
+    stock.forEach((stockRow) => {
+      if (!items.some((item) => String(item.id) === String(stockRow.item_id))) {
+        rows.push(stockRow)
+      }
+    })
+    return rows
+  }, [items, stock])
+
+  const downloadWarehouseStock = async () => {
+    if (!selectedWh) return
+    try {
+      const res = await stockApi.exportWarehouseStock(selectedWh, 'xlsx')
+      const url = URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `warehouse_${selectedWh}_stock.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'ظپط´ظ„ طھظ†ط²ظٹظ„ ظ…ظ„ظپ ط§ظ„ظ…ط®ط²ظˆظ†')
+    }
+  }
+
+  const saveAdjustment = async () => {
+    if (!selectedWh || !adjustForm.item_id || adjustForm.qty === '') {
+      toast.error('ط§ط®طھط± ط§ظ„طµظ†ظپ ظˆط§ظ„ظƒظ…ظٹط©')
+      return
+    }
+    try {
+      await stockApi.adjustWarehouse(selectedWh, {
+        item_id: Number(adjustForm.item_id),
+        adjustment_type: adjustForm.adjustment_type,
+        qty: Number(adjustForm.qty),
+        reason: adjustForm.reason || 'Warehouse stock update',
+      })
+      toast.success('طھظ… طھط­ط¯ظٹط« ظ…ط®ط²ظˆظ† ط§ظ„ظ…ط³طھظˆط¯ط¹')
+      setAdjustOpen(false)
+      setAdjustForm({ item_id: '', adjustment_type: 'set', qty: '', reason: 'Warehouse stock update' })
+      loadStock()
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'ظپط´ظ„ طھط­ط¯ظٹط« ط§ظ„ظ…ط®ط²ظˆظ†')
+    }
+  }
+
+  const openAdjustmentForItem = (itemId, qty = '') => {
+    setAdjustForm({
+      item_id: String(itemId || ''),
+      adjustment_type: 'set',
+      qty: qty === null || qty === undefined ? '' : String(qty),
+      reason: 'Warehouse stock update',
+    })
+    setAdjustOpen(true)
+  }
+
+  const saveQuickQty = async (itemId) => {
+    if (!selectedWh) return
+    const qty = quickQtys[itemId]
+    if (qty === '' || qty === undefined) {
+      toast.error('ط§ظƒطھط¨ ط§ظ„ظƒظ…ظٹط©')
+      return
+    }
+    try {
+      await stockApi.adjustWarehouse(selectedWh, {
+        item_id: Number(itemId),
+        adjustment_type: 'set',
+        qty: Number(qty),
+        reason: 'Quick warehouse stock update',
+      })
+      toast.success('طھظ… طھط­ط¯ظٹط« ط§ظ„ظƒظ…ظٹط©')
+      setQuickQtys((prev) => {
+        const next = { ...prev }
+        delete next[itemId]
+        return next
+      })
+      loadStock()
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'ظپط´ظ„ طھط­ط¯ظٹط« ط§ظ„ظƒظ…ظٹط©')
+    }
+  }
+
+  const handleUpload = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !selectedWh) return
+    try {
+      const XLSX = await import('xlsx')
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data)
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+      const lines = []
+      for (const row of rows) {
+        const rawItemId = row.item_id || row.ItemID || row['Item ID']
+        const rawCode = row.item_code || row.ItemCode || row['Item Code']
+        const rawQty = row.current_qty ?? row.qty ?? row.quantity ?? row['Current Qty'] ?? row['Quantity']
+        const resolvedItemId = Number(rawItemId || itemIdByCode.get(String(rawCode || '').trim().toLowerCase()))
+        const qty = Number(rawQty)
+        if (!resolvedItemId || Number.isNaN(qty)) continue
+        lines.push({
+          item_id: resolvedItemId,
+          qty,
+        })
+      }
+      if (lines.length === 0) {
+        toast.error('ظ…ظ„ظپ Excel ظ„ط§ ظٹط­طھظˆظٹ طµظپظˆظپ طµط§ظ„ط­ط©')
+        return
+      }
+      const result = await stockApi.bulkAdjustWarehouse(selectedWh, {
+        adjustment_type: 'set',
+        reason: `Excel import: ${file.name}`,
+        lines,
+      })
+      const updated = result?.data?.updated ?? lines.length
+      const errors = result?.data?.errors || []
+      toast.success(`طھظ… طھط­ط¯ظٹط« ${updated} طµظ†ظپ ظ…ظ† Excel${errors.length ? `طŒ ظˆظپط´ظ„ ${errors.length}` : ''}`)
+      loadStock()
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'ظپط´ظ„ ط±ظپط¹ ظ…ظ„ظپ Excel')
+    }
+  }
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">{t('branch_stock.warehouse_title')}</h1>
-        {isAdmin && warehouses.length > 1 && (
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{title || t('branch_stock.warehouse_title')}</h1>
+          {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedWh && !readOnly && (
+            <>
+              <button type="button" onClick={() => setAdjustOpen(true)} className="btn-primary">ط¥ط¶ط§ظپط©/طھط¹ط¯ظٹظ„ طµظ†ظپ</button>
+              <button type="button" onClick={downloadWarehouseStock} className="btn-secondary">طھظ†ط²ظٹظ„ Excel</button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary">ط±ظپط¹ Excel</button>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} className="hidden" />
+            </>
+          )}
+          {canSelectWarehouse && warehouses.length > 1 && (
           <select
             value={selectedWh || ''}
             onChange={(e) => setSelectedWh(e.target.value ? parseInt(e.target.value, 10) : null)}
             className="input-field w-64"
           >
-            <option value="">{t('branch_stock.select_warehouse') || 'اختر المستودع'}</option>
+            <option value="">{t('branch_stock.select_warehouse') || 'ط§ط®طھط± ط§ظ„ظ…ط³طھظˆط¯ط¹'}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>{w.warehouse_name}</option>
             ))}
           </select>
-        )}
+          )}
+        </div>
       </div>
 
       {loading && <div className="p-6"><PageLoader /></div>}
@@ -280,35 +477,137 @@ function WarehouseStockPage() {
                 <th>{t('branch_stock.col_code')}</th>
                 <th>{t('branch_stock.wh_col_qty')}</th>
                 <th>{t('branch_stock.reserved_qty')}</th>
+                <th>{readOnly ? 'مراجعة' : 'تعديل'}</th>
               </tr>
             </thead>
             <tbody>
-              {stock.length === 0 ? (
-                <tr><td colSpan={4} className="text-center text-gray-400 py-8">{t('branch_stock.wh_empty')}</td></tr>
-              ) : stock.map((s) => (
+              {displayedStock.length === 0 ? (
+                <tr><td colSpan={5} className="text-center text-gray-400 py-8">{t('branch_stock.wh_empty')}</td></tr>
+              ) : displayedStock.map((s) => (
                 <tr key={s.item_id}>
                   <td className="font-medium">{nameOf(s)}</td>
                   <td className="font-mono text-xs text-gray-400">{s.item_code}</td>
                   <td className="text-center font-bold">{parseFloat(s.current_qty)}</td>
                   <td className="text-center text-gray-500">{parseFloat(s.reserved_qty)}</td>
+                  <td className="text-center">
+                    {readOnly ? (
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs py-1 px-2"
+                        onClick={() => setSelectedStockAudit(s)}
+                      >
+                        ملاحظة
+                      </button>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={quickQtys[s.item_id] ?? ''}
+                          placeholder={String(s.current_qty ?? 0)}
+                          onChange={(e) => setQuickQtys((p) => ({ ...p, [s.item_id]: e.target.value }))}
+                          className="w-24 border border-gray-300 rounded px-2 py-1 text-sm text-center"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveQuickQty(s.item_id)}
+                          className="btn-primary text-xs py-1 px-2"
+                        >
+                          ط­ظپط¸
+                        </button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {readOnly && selectedStockAudit && (
+        <InlineAuditFindingsPanel
+          entityType="warehouse_stock"
+          entityId={selectedStockAudit.item_id}
+          title={`ملاحظات مراجعة المخزون - ${nameOf(selectedStockAudit) || selectedStockAudit.item_code}`}
+        />
+      )}
+
+      {adjustOpen && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-lg">ط¥ط¶ط§ظپط©/طھط¹ط¯ظٹظ„ ظ…ط®ط²ظˆظ† ط§ظ„ظ…ط³طھظˆط¯ط¹</h2>
+              <button type="button" onClick={() => setAdjustOpen(false)} className="text-gray-500 hover:text-gray-800">أ—</button>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="label">ط§ظ„طµظ†ظپ</label>
+                <select
+                  value={adjustForm.item_id}
+                  onChange={(e) => setAdjustForm((p) => ({ ...p, item_id: e.target.value }))}
+                  className="input-field"
+                >
+                  <option value="">ط§ط®طھط± طµظ†ظپ</option>
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {nameOf(item)} ({item.item_code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">ظ†ظˆط¹ ط§ظ„طھط¹ط¯ظٹظ„</label>
+                  <select
+                    value={adjustForm.adjustment_type}
+                    onChange={(e) => setAdjustForm((p) => ({ ...p, adjustment_type: e.target.value }))}
+                    className="input-field"
+                  >
+                    <option value="set">طھط¹ظٹظٹظ† ط§ظ„ظƒظ…ظٹط©</option>
+                    <option value="increase">ط²ظٹط§ط¯ط©</option>
+                    <option value="decrease">ظ†ظ‚طµ</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">ط§ظ„ظƒظ…ظٹط©</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={adjustForm.qty}
+                    onChange={(e) => setAdjustForm((p) => ({ ...p, qty: e.target.value }))}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label">ط§ظ„ط³ط¨ط¨</label>
+                <input
+                  value={adjustForm.reason}
+                  onChange={(e) => setAdjustForm((p) => ({ ...p, reason: e.target.value }))}
+                  className="input-field"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button type="button" onClick={() => setAdjustOpen(false)} className="btn-secondary">ط¥ظ„ط؛ط§ط،</button>
+              <button type="button" onClick={saveAdjustment} className="btn-primary">ط­ظپط¸</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-// عرض نص آمن في JSX (نصوص/أرقام كـ String، كائنات كـ JSON لتجنب خطأ React children)
+// ط¹ط±ط¶ ظ†طµ ط¢ظ…ظ† ظپظٹ JSX (ظ†طµظˆطµ/ط£ط±ظ‚ط§ظ… ظƒظ€ StringطŒ ظƒط§ط¦ظ†ط§طھ ظƒظ€ JSON ظ„طھط¬ظ†ط¨ ط®ط·ط£ React children)
 function safeItemText(v) {
   if (v === null || v === undefined) return ''
   if (typeof v === 'object') return JSON.stringify(v)
   return String(v)
 }
 
-// طلب استثنائي أو طلبية يومية (نفس النموذج)
+// ط·ظ„ط¨ ط§ط³طھط«ظ†ط§ط¦ظٹ ط£ظˆ ط·ظ„ط¨ظٹط© ظٹظˆظ…ظٹط© (ظ†ظپط³ ط§ظ„ظ†ظ…ظˆط°ط¬)
 function ManualOrderPage({ orderType = 'exceptional' }) {
   const t = useT()
   const { lang } = useLanguage()
@@ -319,6 +618,7 @@ function ManualOrderPage({ orderType = 'exceptional' }) {
     obj?.[`${base}_${lang}`] || obj?.[`${base}_ar`] || obj?.[base] || ''
 
   const [allItems, setAllItems] = React.useState([])
+  const [branchStockByItem, setBranchStockByItem] = React.useState({})
   const [quantities, setQuantities] = React.useState({})
   const [lineNotes, setLineNotes] = React.useState({})
   const [orderNotes, setOrderNotes] = React.useState('')
@@ -326,17 +626,17 @@ function ManualOrderPage({ orderType = 'exceptional' }) {
   const [loading, setLoading] = React.useState(false)
   const [fetching, setFetching] = React.useState(true)
 
-  // Branch selector للأدمن اللي مش مربوط بفرع واحد — بدونها الـ submit
-  // بيفشل بـ "branch_id is required" والمستخدم يشوف toast فاضية {}.
+  // Branch selector ظ„ظ„ط£ط¯ظ…ظ† ط§ظ„ظ„ظٹ ظ…ط´ ظ…ط±ط¨ظˆط· ط¨ظپط±ط¹ ظˆط§ط­ط¯ â€” ط¨ط¯ظˆظ†ظ‡ط§ ط§ظ„ظ€ submit
+  // ط¨ظٹظپط´ظ„ ط¨ظ€ "branch_id is required" ظˆط§ظ„ظ…ط³طھط®ط¯ظ… ظٹط´ظˆظپ toast ظپط§ط¶ظٹط© {}.
   const [branches, setBranches] = React.useState([])
   const [selectedBranchId, setSelectedBranchId] = React.useState(user?.branch_id || null)
 
-  const isDaily = orderType === 'daily'
+  const isDaily = orderType === 'daily' || orderType === 'daily_order'
   const title = isDaily ? t('manual_order.title_daily') : t('manual_order.title_exceptional')
   const showBranchSelector = isAdmin && !user?.branch_id
 
   React.useEffect(() => {
-    import('./services/api').then(({ masterApi }) => {
+    import('./services/api').then(({ dashboardApi, masterApi }) => {
       const effectiveBranchId = selectedBranchId || user?.branch_id
       if (showBranchSelector && !effectiveBranchId) {
         setAllItems([])
@@ -364,12 +664,23 @@ function ManualOrderPage({ orderType = 'exceptional' }) {
         })
         .finally(() => setFetching(false))
 
-      // الأدمن: حمّل قائمة الفروع ليختار منها
+      if (effectiveBranchId) {
+        dashboardApi.branchStock(effectiveBranchId)
+          .then((r) => {
+            const rows = Array.isArray(r.data) ? r.data : []
+            setBranchStockByItem(Object.fromEntries(rows.map((row) => [row.item_id, row])))
+          })
+          .catch(() => setBranchStockByItem({}))
+      } else {
+        setBranchStockByItem({})
+      }
+
+      // ط§ظ„ط£ط¯ظ…ظ†: ط­ظ…ظ‘ظ„ ظ‚ط§ط¦ظ…ط© ط§ظ„ظپط±ظˆط¹ ظ„ظٹط®طھط§ط± ظ…ظ†ظ‡ط§
       if (isAdmin && !user?.branch_id) {
         masterApi.listBranches({ active_only: true }).then((r) => {
           const list = Array.isArray(r.data) ? r.data : (r.data?.items || [])
           setBranches(list)
-        }).catch(() => { /* تجاهل بهدوء — الأخطاء ستظهر عند الـ submit */ })
+        }).catch(() => { /* طھط¬ط§ظ‡ظ„ ط¨ظ‡ط¯ظˆط، â€” ط§ظ„ط£ط®ط·ط§ط، ط³طھط¸ظ‡ط± ط¹ظ†ط¯ ط§ظ„ظ€ submit */ })
       }
     })
   }, [isAdmin, selectedBranchId, user?.branch_id])
@@ -409,11 +720,16 @@ function ManualOrderPage({ orderType = 'exceptional' }) {
         }
         if (effectiveBranchId) itemParams.branch_id = effectiveBranchId
 
-        const itemsResp = await masterApi.listItems(itemParams)
+        const [itemsResp, stockResp] = await Promise.all([
+          masterApi.listItems(itemParams),
+          dashboardApi.branchStock(effectiveBranchId).catch(() => ({ data: [] })),
+        ])
         if (cancelled) return
         const raw = itemsResp.data
         const list = Array.isArray(raw) ? raw : (raw?.items || raw?.data || [])
         setAllItems(Array.isArray(list) ? list : [])
+        const stockRows = Array.isArray(stockResp.data) ? stockResp.data : []
+        setBranchStockByItem(Object.fromEntries(stockRows.map((row) => [row.item_id, row])))
       } catch (_e) {
         if (!cancelled) setAllItems([])
       } finally {
@@ -470,12 +786,12 @@ function ManualOrderPage({ orderType = 'exceptional' }) {
       toast.success(isDaily ? t('manual_order.toast_created_daily') : t('manual_order.toast_created_exceptional'))
       window.history.back()
     } catch (err) {
-      // الـ backend بيرجّع {error_code, message, detail}. نفضّل الـ message،
-      // ولو مش موجود نرجع للـ detail (قد يكون array من pydantic أو dict أو string).
+      // ط§ظ„ظ€ backend ط¨ظٹط±ط¬ظ‘ط¹ {error_code, message, detail}. ظ†ظپط¶ظ‘ظ„ ط§ظ„ظ€ messageطŒ
+      // ظˆظ„ظˆ ظ…ط´ ظ…ظˆط¬ظˆط¯ ظ†ط±ط¬ط¹ ظ„ظ„ظ€ detail (ظ‚ط¯ ظٹظƒظˆظ† array ظ…ظ† pydantic ط£ظˆ dict ط£ظˆ string).
       const data = err?.response?.data
       const det = data?.detail
       const detMsg = Array.isArray(det)
-        ? det.map((e) => (typeof e === 'object' && e != null ? (e.msg || JSON.stringify(e)) : String(e))).join(' — ')
+        ? det.map((e) => (typeof e === 'object' && e != null ? (e.msg || JSON.stringify(e)) : String(e))).join(' â€” ')
         : (typeof det === 'object' && det != null && Object.keys(det).length > 0
             ? JSON.stringify(det)
             : (typeof det === 'string' ? det : ''))
@@ -526,7 +842,7 @@ function ManualOrderPage({ orderType = 'exceptional' }) {
 
       {showBranchSelector && !selectedBranchId && (
         <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
-          {t('manual_order.toast_branch_required') || 'اختر الفرع أولًا لتحميل أصناف الطلب.'}
+          {t('manual_order.toast_branch_required') || 'ط§ط®طھط± ط§ظ„ظپط±ط¹ ط£ظˆظ„ظ‹ط§ ظ„طھط­ظ…ظٹظ„ ط£طµظ†ط§ظپ ط§ظ„ط·ظ„ط¨.'}
         </div>
       )}
 
@@ -546,47 +862,55 @@ function ManualOrderPage({ orderType = 'exceptional' }) {
             <tr>
               <th>{t('manual_order.col_name')}</th>
               <th>{t('manual_order.col_code')}</th>
+              <th className="w-32 text-center">مخزون الفرع</th>
               <th className="w-32 text-center">{t('manual_order.col_qty')}</th>
               <th className="w-48">{t('manual_order.col_note')}</th>
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((item) => (
-              <tr key={item.id} className={parseFloat(quantities[item.id] || 0) > 0 ? 'bg-blue-50' : ''}>
-                <td className="font-medium">{nameOf(item) || item.item_code}</td>
-                <td className="font-mono text-xs text-gray-600">{safeItemText(item.item_code)}</td>
-                <td>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={quantities[item.id] || ''}
-                    onChange={(e) => setQuantities((p) => ({
-                      ...p, [item.id]: e.target.value,
-                    }))}
-                    className="border rounded px-2 py-1 w-full text-center text-sm focus:ring-2 focus:ring-blue-300"
-                    placeholder="0"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    value={lineNotes[item.id] || ''}
-                    onChange={(e) => setLineNotes((p) => ({
-                      ...p, [item.id]: e.target.value,
-                    }))}
-                    className="border rounded px-2 py-1 w-full text-sm focus:ring-2 focus:ring-blue-300"
-                    placeholder={t('manual_order.note_placeholder')}
-                  />
-                </td>
-              </tr>
-            ))}
+            {filteredItems.map((item) => {
+              const stock = branchStockByItem[item.id]
+              const stockQty = stock ? Number(stock.current_qty || 0) : 0
+              return (
+                <tr key={item.id} className={parseFloat(quantities[item.id] || 0) > 0 ? 'bg-blue-50' : ''}>
+                  <td className="font-medium">{nameOf(item) || item.item_code}</td>
+                  <td className="font-mono text-xs text-gray-600">{safeItemText(item.item_code)}</td>
+                  <td className={`text-center font-semibold ${stockQty <= 0 ? 'text-red-600' : stockQty <= Number(stock?.reorder_point || 0) ? 'text-amber-600' : 'text-gray-900'}`}>
+                    {stock ? stockQty.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'}
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={quantities[item.id] || ''}
+                      onChange={(e) => setQuantities((p) => ({
+                        ...p, [item.id]: e.target.value,
+                      }))}
+                      className="border rounded px-2 py-1 w-full text-center text-sm focus:ring-2 focus:ring-blue-300"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      value={lineNotes[item.id] || ''}
+                      onChange={(e) => setLineNotes((p) => ({
+                        ...p, [item.id]: e.target.value,
+                      }))}
+                      className="border rounded px-2 py-1 w-full text-sm focus:ring-2 focus:ring-blue-300"
+                      placeholder={t('manual_order.note_placeholder')}
+                    />
+                  </td>
+                </tr>
+              )
+            })}
             {filteredItems.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center text-gray-400 py-8">
+                <td colSpan={5} className="text-center text-gray-400 py-8">
                   {showBranchSelector && !selectedBranchId
-                    ? (t('manual_order.admin_branch_select_placeholder') || 'اختر الفرع أولًا')
-                    : (t('branch_stock.empty') || 'لا توجد بيانات')}
+                    ? (t('manual_order.admin_branch_select_placeholder') || 'ط§ط®طھط± ط§ظ„ظپط±ط¹ ط£ظˆظ„ظ‹ط§')
+                    : (t('branch_stock.empty') || 'ظ„ط§ طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ')}
                 </td>
               </tr>
             )}
@@ -626,10 +950,10 @@ function ManualOrderPage({ orderType = 'exceptional' }) {
   )
 }
 
-// ─── Inter-branch stock transfer page ──────────────────────────────────
-// تحويل مخزون مباشر (فوري، بدون workflow موافقة) من فرع لفرع.
-// الصلاحية (backend): area_manager / operations_manager / admin / super_admin.
-// الـ API: POST /api/v1/orders/inter-branch (طلب تحويل بانتظار موافقة مدير المنطقة؛ ليس تحويل المخزون المباشر)
+// â”€â”€â”€ Inter-branch stock transfer page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// طھط­ظˆظٹظ„ ظ…ط®ط²ظˆظ† ظ…ط¨ط§ط´ط± (ظپظˆط±ظٹطŒ ط¨ط¯ظˆظ† workflow ظ…ظˆط§ظپظ‚ط©) ظ…ظ† ظپط±ط¹ ظ„ظپط±ط¹.
+// ط§ظ„طµظ„ط§ط­ظٹط© (backend): area_manager / operations_manager / admin / super_admin.
+// ط§ظ„ظ€ API: POST /api/v1/orders/inter-branch (ط·ظ„ط¨ طھط­ظˆظٹظ„ ط¨ط§ظ†طھط¸ط§ط± ظ…ظˆط§ظپظ‚ط© ظ…ط¯ظٹط± ط§ظ„ظ…ظ†ط·ظ‚ط©ط› ظ„ظٹط³ طھط­ظˆظٹظ„ ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ظ…ط¨ط§ط´ط±)
 function InterBranchTransferPage() {
   const t = useT()
   const { lang } = useLanguage()
@@ -643,35 +967,35 @@ function InterBranchTransferPage() {
     obj?.[`${base}_${lang}`] || obj?.[`${base}_ar`] || obj?.[base] || ''
 
   const [branches, setBranches] = React.useState([])
-  // branch_manager مقفل على فرعه؛ الإداريون يختارون فرع المصدر
+  // branch_manager ظ…ظ‚ظپظ„ ط¹ظ„ظ‰ ظپط±ط¹ظ‡ط› ط§ظ„ط¥ط¯ط§ط±ظٹظˆظ† ظٹط®طھط§ط±ظˆظ† ظپط±ط¹ ط§ظ„ظ…طµط¯ط±
   const [sourceBranchId, setSourceBranchId] = React.useState('')
   const [destBranchId, setDestBranchId] = React.useState('')
   const [sourceStock, setSourceStock] = React.useState([])
   const [loadingStock, setLoadingStock] = React.useState(false)
-  // كل صنف = { item_id, qty }
+  // ظƒظ„ طµظ†ظپ = { item_id, qty }
   const [lines, setLines] = React.useState([{ item_id: '', qty: '' }])
   const [reason, setReason] = React.useState('')
   const [referenceNo, setReferenceNo] = React.useState('')
   const [notes, setNotes] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
-  const [history, setHistory] = React.useState([]) // طلبات أُنشئت في هذه الجلسة
+  const [history, setHistory] = React.useState([]) // ط·ظ„ط¨ط§طھ ط£ظڈظ†ط´ط¦طھ ظپظٹ ظ‡ط°ظ‡ ط§ظ„ط¬ظ„ط³ط©
 
-  // حمّل الفروع + إذا كان branch_manager استخدم فرعه كمصدر
+  // ط­ظ…ظ‘ظ„ ط§ظ„ظپط±ظˆط¹ + ط¥ط°ط§ ظƒط§ظ† branch_manager ط§ط³طھط®ط¯ظ… ظپط±ط¹ظ‡ ظƒظ…طµط¯ط±
   React.useEffect(() => {
     import('./services/api').then(({ masterApi }) => {
       masterApi.listBranches({ active_only: true }).then((r) => {
         const list = Array.isArray(r.data) ? r.data : (r.data?.items || [])
         setBranches(list)
-      }).catch(() => { /* رسائل الخطأ ستظهر عند الـ submit */ })
+      }).catch(() => { /* ط±ط³ط§ط¦ظ„ ط§ظ„ط®ط·ط£ ط³طھط¸ظ‡ط± ط¹ظ†ط¯ ط§ظ„ظ€ submit */ })
     })
 
-    // branch_manager: فرع المصدر = فرعه (مقفل)
+    // branch_manager: ظپط±ط¹ ط§ظ„ظ…طµط¯ط± = ظپط±ط¹ظ‡ (ظ…ظ‚ظپظ„)
     if (!isElevated && user?.branch_id) {
       setSourceBranchId(String(user.branch_id))
     }
   }, [isElevated, user?.branch_id])
 
-  // لما يتحدد فرع المصدر، حمّل مخزونه
+  // ظ„ظ…ط§ ظٹطھط­ط¯ط¯ ظپط±ط¹ ط§ظ„ظ…طµط¯ط±طŒ ط­ظ…ظ‘ظ„ ظ…ط®ط²ظˆظ†ظ‡
   React.useEffect(() => {
     if (!sourceBranchId) {
       setSourceStock([])
@@ -689,7 +1013,7 @@ function InterBranchTransferPage() {
     })
   }, [sourceBranchId])
 
-  // — Helpers للـ lines —
+  // â€” Helpers ظ„ظ„ظ€ lines â€”
   const updateLine = (idx, patch) => {
     setLines((arr) => arr.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
   }
@@ -701,7 +1025,7 @@ function InterBranchTransferPage() {
     return row ? parseFloat(row.current_qty) : 0
   }
 
-  // validation: سطر صالح = صنف مختار + كمية > 0 + <= المتاح
+  // validation: ط³ط·ط± طµط§ظ„ط­ = طµظ†ظپ ظ…ط®طھط§ط± + ظƒظ…ظٹط© > 0 + <= ط§ظ„ظ…طھط§ط­
   const validLines = lines.filter((l) => l.item_id && parseFloat(l.qty) > 0)
   const anyOverStock = lines.some(
     (l) => l.item_id && parseFloat(l.qty) > 0 && parseFloat(l.qty) > getAvailableQty(l.item_id)
@@ -770,7 +1094,7 @@ function InterBranchTransferPage() {
         reference_no: referenceNo.trim() || null,
         notes: notes.trim() || null,
       }
-      // الإداريون ممكن يحددوا مصدر مختلف عن فرعهم
+      // ط§ظ„ط¥ط¯ط§ط±ظٹظˆظ† ظ…ظ…ظƒظ† ظٹط­ط¯ط¯ظˆط§ ظ…طµط¯ط± ظ…ط®طھظ„ظپ ط¹ظ† ظپط±ط¹ظ‡ظ…
       if (isElevated) {
         payload.source_branch_id = parseInt(sourceBranchId, 10)
       }
@@ -781,7 +1105,7 @@ function InterBranchTransferPage() {
       setHistory((h) => [
         {
           at: new Date().toLocaleTimeString(lang === 'en' ? 'en-US' : 'ar-EG'),
-          order_no: data?.order_no || '—',
+          order_no: data?.order_no || 'â€”',
           dst: dst?.branch_name || destBranchId,
           lines_count: validLines.length,
           status: data?.status || 'area_manager_review',
@@ -793,7 +1117,7 @@ function InterBranchTransferPage() {
       const data = err?.response?.data
       const det = data?.detail
       const detMsg = Array.isArray(det)
-        ? det.map((e) => (typeof e === 'object' && e != null ? (e.msg || JSON.stringify(e)) : String(e))).join(' — ')
+        ? det.map((e) => (typeof e === 'object' && e != null ? (e.msg || JSON.stringify(e)) : String(e))).join(' â€” ')
         : (typeof det === 'object' && det != null && Object.keys(det).length > 0
             ? JSON.stringify(det)
             : (typeof det === 'string' ? det : ''))
@@ -831,7 +1155,7 @@ function InterBranchTransferPage() {
       </div>
 
       <div className="card p-6 space-y-5">
-        {/* المصدر والمقصد */}
+        {/* ط§ظ„ظ…طµط¯ط± ظˆط§ظ„ظ…ظ‚طµط¯ */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="label">{t('inter_branch.tx_source_label')} <span className="text-red-600">*</span></label>
@@ -853,7 +1177,7 @@ function InterBranchTransferPage() {
                 type="text"
                 readOnly
                 value={
-                  branches.find((b) => String(b.id) === String(sourceBranchId))?.branch_name || '—'
+                  branches.find((b) => String(b.id) === String(sourceBranchId))?.branch_name || 'â€”'
                 }
                 className="input-field w-full bg-gray-50"
               />
@@ -881,7 +1205,7 @@ function InterBranchTransferPage() {
           </div>
         </div>
 
-        {/* الأصناف (متعدد) */}
+        {/* ط§ظ„ط£طµظ†ط§ظپ (ظ…طھط¹ط¯ط¯) */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="label m-0">{t('inter_branch.tx_items_label')} <span className="text-red-600">*</span></label>
@@ -917,7 +1241,7 @@ function InterBranchTransferPage() {
                       <option value="">{t('inter_branch.tx_select_item')}</option>
                       {sourceStock
                         .filter((s) => {
-                          // استبعد الأصناف المختارة في الأسطر الأخرى
+                          // ط§ط³طھط¨ط¹ط¯ ط§ظ„ط£طµظ†ط§ظپ ط§ظ„ظ…ط®طھط§ط±ط© ظپظٹ ط§ظ„ط£ط³ط·ط± ط§ظ„ط£ط®ط±ظ‰
                           const pickedElsewhere = lines.some(
                             (l, i) => i !== idx && String(l.item_id) === String(s.item_id)
                           )
@@ -925,7 +1249,7 @@ function InterBranchTransferPage() {
                         })
                         .map((s) => (
                           <option key={s.item_id} value={s.item_id}>
-                            {nameOf(s) || s.item_code} — {t('inter_branch.tx_available')}: {parseFloat(s.current_qty)}
+                            {nameOf(s) || s.item_code} â€” {t('inter_branch.tx_available')}: {parseFloat(s.current_qty)}
                           </option>
                         ))}
                     </select>
@@ -953,7 +1277,7 @@ function InterBranchTransferPage() {
                       className="p-2 text-red-600 hover:bg-red-50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                       title={t('common.delete')}
                     >
-                      ×
+                      أ—
                     </button>
                   </div>
                 )
@@ -965,7 +1289,7 @@ function InterBranchTransferPage() {
           )}
         </div>
 
-        {/* السبب والمرجع والملاحظات */}
+        {/* ط§ظ„ط³ط¨ط¨ ظˆط§ظ„ظ…ط±ط¬ط¹ ظˆط§ظ„ظ…ظ„ط§ط­ط¸ط§طھ */}
         <div>
           <label className="label">{t('inter_branch.tx_reason_label')} <span className="text-red-600">*</span></label>
           <input
@@ -1020,7 +1344,7 @@ function InterBranchTransferPage() {
         </div>
       </div>
 
-      {/* طلبات تم إرسالها في هذه الجلسة */}
+      {/* ط·ظ„ط¨ط§طھ طھظ… ط¥ط±ط³ط§ظ„ظ‡ط§ ظپظٹ ظ‡ط°ظ‡ ط§ظ„ط¬ظ„ط³ط© */}
       {history.length > 0 && (
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-gray-700 mb-2">{t('inter_branch.tx_history_title')}</h2>
@@ -1059,7 +1383,7 @@ function InterBranchTransferPage() {
 }
 
 
-// صفحة مدير المنطقة لمراجعة طلبات التحويل وتفعيلها/رفضها
+// طµظپط­ط© ظ…ط¯ظٹط± ط§ظ„ظ…ظ†ط·ظ‚ط© ظ„ظ…ط±ط§ط¬ط¹ط© ط·ظ„ط¨ط§طھ ط§ظ„طھط­ظˆظٹظ„ ظˆطھظپط¹ظٹظ„ظ‡ط§/ط±ظپط¶ظ‡ط§
 function InterBranchPendingApprovalsPage() {
   const t = useT()
   const { lang } = useLanguage()
@@ -1170,7 +1494,7 @@ function InterBranchPendingApprovalsPage() {
                   </div>
                   <div className="text-sm text-gray-900">
                     <b>{t('inter_branch.approvals_from')}:</b> {o.source_branch_name || o.source_branch_id}
-                    <span className="mx-2 text-gray-400">←</span>
+                    <span className="mx-2 text-gray-400">â†گ</span>
                     <b>{t('inter_branch.approvals_to')}:</b> {o.destination_branch_name || o.destination_branch_id}
                   </div>
                   {o.reason && (
@@ -1261,7 +1585,7 @@ function InterBranchPendingApprovalsPage() {
 }
 
 
-// ─── Notifications full-page view ─────────────────────────────────────
+// â”€â”€â”€ Notifications full-page view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function NotificationsPage() {
   const t = useT()
   const [data, setData] = React.useState({ total: 0, sections: [] })
@@ -1339,7 +1663,7 @@ function NotificationsPage() {
               ))}
               {section.count > (section.items?.length || 0) && (
                 <li className="px-5 py-2 text-center text-xs text-gray-400">
-                  …
+                  â€¦
                 </li>
               )}
             </ul>
@@ -1392,7 +1716,7 @@ function AppRoutes() {
             path="/orders/daily"
             element={(
               <RouteRoleGuard allowed={['branch_manager', 'admin', 'super_admin']}>
-                <ManualOrderPage orderType="daily" />
+                <ManualOrderPage orderType="daily_order" />
               </RouteRoleGuard>
             )}
           />
@@ -1410,7 +1734,7 @@ function AppRoutes() {
           <Route path="/warehouse/stock" element={<WarehouseStockPage />} />
           <Route path="/warehouse/reports" element={<WarehouseDashboard />} />
 
-          {/* Inter-branch transfer — طلب من مدير الفرع، بانتظار موافقة مدير المنطقة */}
+          {/* Inter-branch transfer â€” ط·ظ„ط¨ ظ…ظ† ظ…ط¯ظٹط± ط§ظ„ظپط±ط¹طŒ ط¨ط§ظ†طھط¸ط§ط± ظ…ظˆط§ظپظ‚ط© ظ…ط¯ظٹط± ط§ظ„ظ…ظ†ط·ظ‚ط© */}
           <Route path="/stock/inter-branch-transfer" element={<RouteRoleGuard allowed={['branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin']}><InterBranchTransferPage /></RouteRoleGuard>} />
 
           {/* Operations */}
@@ -1430,7 +1754,7 @@ function AppRoutes() {
               </RouteRoleGuard>
             )}
           />
-          {/* Notifications — لكل الأدوار */}
+          {/* Notifications â€” ظ„ظƒظ„ ط§ظ„ط£ط¯ظˆط§ط± */}
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route
             path="/reports/inventory"
@@ -1449,7 +1773,7 @@ function AppRoutes() {
             )}
           />
 
-          {/* Delivery Analytics — أدوار متوافقة مع AppLayoutV2 */}
+          {/* Delivery Analytics â€” ط£ط¯ظˆط§ط± ظ…طھظˆط§ظپظ‚ط© ظ…ط¹ AppLayoutV2 */}
           <Route path="/delivery" element={<RouteRoleGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'admin', 'super_admin']}><DeliveryDashboardPage /></RouteRoleGuard>} />
           <Route path="/delivery/daily-entry" element={<RouteRoleGuard allowed={['branch_manager', 'sales_manager', 'area_manager', 'admin', 'super_admin']}><SalesChannelsDailyEntryPage /></RouteRoleGuard>} />
           <Route path="/delivery/statements" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><SalesChannelsStatementsPage /></RouteRoleGuard>} />
@@ -1461,7 +1785,7 @@ function AppRoutes() {
           <Route path="/delivery/branch-stats" element={<RouteRoleGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><DeliveryBranchStatsPage /></RouteRoleGuard>} />
           <Route path="/delivery/brands" element={<RouteRoleGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><DeliveryBrandStatsPage /></RouteRoleGuard>} />
           <Route path="/delivery/unmatched" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryUnmatchedPage /></RouteRoleGuard>} />
-          {/* Redirect من المسارات القديمة */}
+          {/* Redirect ظ…ظ† ط§ظ„ظ…ط³ط§ط±ط§طھ ط§ظ„ظ‚ط¯ظٹظ…ط© */}
           <Route path="/delivery-analytics" element={<RouteRoleGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'admin', 'super_admin']}><DeliveryDashboardPage /></RouteRoleGuard>} />
           <Route path="/delivery-analytics/branches" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryBranchesManagementPage /></RouteRoleGuard>} />
           <Route path="/delivery-analytics/imports" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryImportPage /></RouteRoleGuard>} />
@@ -1481,6 +1805,9 @@ function AppRoutes() {
 
           {/* Internal audit */}
           <Route path="/audit/dashboard" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><AuditDashboardPage /></RouteRoleGuard>} />
+          <Route path="/audit/daily-orders" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><OrdersListPage scopeAll showBranchColumn readOnly todayOnly orderType="daily_order" title="طلبيات اليوم لكل الفروع" subtitle="طلبات اليوم فقط مع حالة كل فرع." /></RouteRoleGuard>} />
+          <Route path="/audit/order-history" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><OrdersListPage scopeAll showBranchColumn readOnly title="سجل الطلبيات" subtitle="أرشيف كل الطلبيات بكل الأنواع والتواريخ." /></RouteRoleGuard>} />
+          <Route path="/audit/warehouse-stock" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><WarehouseStockPage readOnly title="مخزون مستودعات الرياض والدمام" subtitle="عرض قراءة فقط للمراجع الداخلي" /></RouteRoleGuard>} />
           <Route path="/audit/findings" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin', 'area_manager', 'operations_manager']}><AuditFindingsPage /></RouteRoleGuard>} />
           <Route path="/audit/trail" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><AuditTrailPage /></RouteRoleGuard>} />
 
@@ -1499,7 +1826,7 @@ function AppRoutes() {
           <Route path="/documents/new" element={<RouteRoleGuard allowed={['admin', 'super_admin', 'area_manager', 'branch_manager', 'quality_manager']}><DocumentFormPage /></RouteRoleGuard>} />
           <Route path="/documents/:id" element={<RouteRoleGuard allowed={['admin', 'super_admin', 'area_manager', 'branch_manager', 'quality_manager', 'warehouse_manager', 'internal_auditor']}><DocumentFormPage /></RouteRoleGuard>} />
 
-          {/* Admin — صلاحيات مسارات (يتم تجاوزها لـ admin/super_admin داخل RouteRoleGuard) */}
+          {/* Admin â€” طµظ„ط§ط­ظٹط§طھ ظ…ط³ط§ط±ط§طھ (ظٹطھظ… طھط¬ط§ظˆط²ظ‡ط§ ظ„ظ€ admin/super_admin ط¯ط§ط®ظ„ RouteRoleGuard) */}
           <Route path="/admin/users" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><UsersManagementPage /></RouteRoleGuard>} />
           <Route path="/admin/items" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><ItemsManagementPage /></RouteRoleGuard>} />
           <Route path="/admin/branches" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><BranchesAdminPage /></RouteRoleGuard>} />
@@ -1560,16 +1887,16 @@ function BranchesAdminPage() {
 
   const handleDelete = async (branch) => {
     const msg = t('admin.branches_confirm_delete', { name: branch.branch_name })
-      || `هل أنت متأكد من حذف الفرع "${branch.branch_name}"؟`
+      || `ظ‡ظ„ ط£ظ†طھ ظ…طھط£ظƒط¯ ظ…ظ† ط­ط°ظپ ط§ظ„ظپط±ط¹ "${branch.branch_name}"طں`
     if (!window.confirm(msg)) return
     const { masterApi } = await import('./services/api')
     const { default: toast } = await import('react-hot-toast')
     try {
       await masterApi.deleteBranch(branch.id)
-      toast.success(t('admin.branches_deleted_toast') || 'تم حذف الفرع')
+      toast.success(t('admin.branches_deleted_toast') || 'طھظ… ط­ط°ظپ ط§ظ„ظپط±ط¹')
       reload()
     } catch (e) {
-      toast.error(e?.response?.data?.detail || e?.response?.data?.message || t('admin.branches_delete_error') || 'فشل الحذف')
+      toast.error(e?.response?.data?.detail || e?.response?.data?.message || t('admin.branches_delete_error') || 'ظپط´ظ„ ط§ظ„ط­ط°ظپ')
     }
   }
 
@@ -1602,8 +1929,8 @@ function BranchesAdminPage() {
                 <td><span className={`status-badge ${b.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{b.active ? t('admin.branches_status_active') : t('admin.branches_status_inactive')}</span></td>
                 <td>
                   <div className="flex gap-1">
-                    <button onClick={() => { setEditing(b); setForm({ branch_code:b.branch_code, branch_name:b.branch_name, city:b.city||'', area:b.area||'', warehouse_id:b.warehouse_id, active:b.active }); setModal(true) }} className="p-1.5 hover:bg-gray-100 rounded" title={t('common.edit')}>✏️</button>
-                    <button onClick={() => handleDelete(b)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title={t('common.delete')}>🗑️</button>
+                    <button onClick={() => { setEditing(b); setForm({ branch_code:b.branch_code, branch_name:b.branch_name, city:b.city||'', area:b.area||'', warehouse_id:b.warehouse_id, active:b.active }); setModal(true) }} className="p-1.5 hover:bg-gray-100 rounded" title={t('common.edit')}>âœڈï¸ڈ</button>
+                    <button onClick={() => handleDelete(b)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title={t('common.delete')}>ًں—‘ï¸ڈ</button>
                   </div>
                 </td>
               </tr>
@@ -1663,14 +1990,14 @@ function WarehousesAdminPage() {
     const { masterApi } = await import('./services/api')
     const { default: toast } = await import('react-hot-toast')
     const msg = t('admin.warehouses_confirm_delete', { name: w.warehouse_name })
-      || `هل أنت متأكد من حذف المستودع "${w.warehouse_name}"؟`
+      || `ظ‡ظ„ ط£ظ†طھ ظ…طھط£ظƒط¯ ظ…ظ† ط­ط°ظپ ط§ظ„ظ…ط³طھظˆط¯ط¹ "${w.warehouse_name}"طں`
     if (!window.confirm(msg)) return
     try {
       await masterApi.deleteWarehouse(w.id)
-      toast.success(t('admin.warehouses_toast_deleted') || 'تم حذف المستودع')
+      toast.success(t('admin.warehouses_toast_deleted') || 'طھظ… ط­ط°ظپ ط§ظ„ظ…ط³طھظˆط¯ط¹')
       reload()
     } catch (e) {
-      toast.error(e?.response?.data?.detail || t('admin.warehouses_toast_delete_error') || 'فشل الحذف')
+      toast.error(e?.response?.data?.detail || t('admin.warehouses_toast_delete_error') || 'ظپط´ظ„ ط§ظ„ط­ط°ظپ')
     }
   }
 
@@ -1700,8 +2027,8 @@ function WarehousesAdminPage() {
                 <td><span className={`status-badge ${w.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{w.active ? t('admin.warehouses_status_active') : t('admin.warehouses_status_inactive')}</span></td>
                 <td>
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditing(w); setForm({ warehouse_code:w.warehouse_code, warehouse_name:w.warehouse_name, location:w.location||'', active:w.active }); setModal(true) }} className="p-1.5 hover:bg-gray-100 rounded" title={t('common.edit')}>✏️</button>
-                    <button onClick={() => handleDelete(w)} className="p-1.5 hover:bg-red-100 rounded" title={t('common.delete') || 'حذف'}>🗑️</button>
+                    <button onClick={() => { setEditing(w); setForm({ warehouse_code:w.warehouse_code, warehouse_name:w.warehouse_name, location:w.location||'', active:w.active }); setModal(true) }} className="p-1.5 hover:bg-gray-100 rounded" title={t('common.edit')}>âœڈï¸ڈ</button>
+                    <button onClick={() => handleDelete(w)} className="p-1.5 hover:bg-red-100 rounded" title={t('common.delete') || 'ط­ط°ظپ'}>ًں—‘ï¸ڈ</button>
                   </div>
                 </td>
               </tr>
@@ -1724,7 +2051,7 @@ function WarehousesAdminPage() {
   )
 }
 
-// Boolean / enum / time / numeric settings — metadata drives the UI
+// Boolean / enum / time / numeric settings â€” metadata drives the UI
 const SETTING_META = {
   days_of_cover_target:                { kind: 'int', min: 1, max: 30 },
   max_exceptional_order_per_day:       { kind: 'int', min: 1, max: 20 },
@@ -1774,7 +2101,7 @@ function SettingsPage() {
       const payload = {}
       for (const c of changed) payload[c.key] = draft[c.key]
       await settingsApi.bulkUpdate(payload)
-      toast.success(t('admin.settings_saved_toast') || 'تم حفظ الإعدادات')
+      toast.success(t('admin.settings_saved_toast') || 'طھظ… ط­ظپط¸ ط§ظ„ط¥ط¹ط¯ط§ط¯ط§طھ')
       await load()
     } catch (e) {
       toast.error(e?.response?.data?.detail || t('admin.error_generic'))
@@ -1856,7 +2183,7 @@ function SettingsPage() {
             disabled={!hasChanges || saving}
             className="btn-secondary disabled:opacity-50"
           >
-            {t('admin.settings_reset') || 'إلغاء التغييرات'}
+            {t('admin.settings_reset') || 'ط¥ظ„ط؛ط§ط، ط§ظ„طھط؛ظٹظٹط±ط§طھ'}
           </button>
           <button
             onClick={handleSave}
@@ -1889,7 +2216,7 @@ function SettingsPage() {
                   <div className="flex-1">
                     <div className="text-sm font-medium text-gray-800">
                       {label}
-                      {isDirty && <span className="mr-2 text-xs text-yellow-700">● {t('admin.settings_dirty') || 'غير محفوظ'}</span>}
+                      {isDirty && <span className="mr-2 text-xs text-yellow-700">â—ڈ {t('admin.settings_dirty') || 'ط؛ظٹط± ظ…ط­ظپظˆط¸'}</span>}
                     </div>
                     {hint && <div className="text-xs text-gray-500 mt-0.5">{hint}</div>}
                   </div>
@@ -1902,12 +2229,12 @@ function SettingsPage() {
 
         {rows.length > 0 && rows.some(r => r.updated_by_name) && (
           <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
-            {t('admin.settings_last_updated_footer') || 'آخر تحديث:'}{' '}
+            {t('admin.settings_last_updated_footer') || 'ط¢ط®ط± طھط­ط¯ظٹط«:'}{' '}
             {(() => {
               const latest = rows.reduce((acc, r) => (!acc || new Date(r.updated_at) > new Date(acc.updated_at) ? r : acc), null)
-              if (!latest) return '—'
+              if (!latest) return 'â€”'
               const d = new Date(latest.updated_at)
-              return `${d.toLocaleString()} ${latest.updated_by_name ? '— ' + latest.updated_by_name : ''}`
+              return `${d.toLocaleString()} ${latest.updated_by_name ? 'â€” ' + latest.updated_by_name : ''}`
             })()}
           </div>
         )}
@@ -1916,8 +2243,8 @@ function SettingsPage() {
   )
 }
 
-// ─── Root App ──────────────────────────────────────────────────────────
-// ErrorBoundary يمسك أي crash في الشجرة بدلاً من Whitescreen
+// â”€â”€â”€ Root App â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ErrorBoundary ظٹظ…ط³ظƒ ط£ظٹ crash ظپظٹ ط§ظ„ط´ط¬ط±ط© ط¨ط¯ظ„ط§ظ‹ ظ…ظ† Whitescreen
 export default function App() {
   return (
     <ErrorBoundary>
@@ -1933,3 +2260,5 @@ export default function App() {
   )
 }
      
+
+

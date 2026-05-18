@@ -43,7 +43,7 @@ router = APIRouter(prefix="/api/v1/orders", tags=["Replenishment Orders"])
 
 def _ensure_order_read_access(current_user: User, order: ReplenishmentOrder, db: Session):
     user_roles = [ur.role.name.value for ur in current_user.user_roles]
-    if any(role in user_roles for role in ["super_admin", "admin", "operations_manager"]):
+    if any(role in user_roles for role in ["super_admin", "admin", "operations_manager", "internal_auditor"]):
         return
     if any(role in user_roles for role in ["branch_user", "branch_manager"]) and can_access_branch(current_user, order.branch_id, db):
         return
@@ -82,6 +82,8 @@ def _order_to_dict(order: ReplenishmentOrder) -> dict:
         "id": order.id,
         "order_no": order.order_no,
         "branch_id": order.branch_id,
+        "branch_name": order.branch.branch_name if order.branch else None,
+        "branch_name_ar": order.branch.branch_name if order.branch else None,
         "warehouse_id": order.warehouse_id,
         "order_type": order.order_type,
         "status": order.status,
@@ -102,6 +104,9 @@ def _line_to_dict(line: ReplenishmentOrderLine) -> dict:
         "item_name_ar": item.item_name_ar if item else None,
         "item_name_en": item.item_name_en if item else None,
         "unit": item.unit.name_ar if item and item.unit else None,
+        "item_source_type": item.source_type.value if item and item.source_type else None,
+        "item_default_source": item.default_source.value if item and item.default_source else None,
+        "kitchen_section_id": item.kitchen_section_id if item else None,
         "suggested_qty": float(line.suggested_qty),
         "branch_requested_qty": float(line.branch_requested_qty),
         "wh_approved_qty": float(line.wh_approved_qty),
@@ -113,7 +118,7 @@ def _line_to_dict(line: ReplenishmentOrderLine) -> dict:
         "shortage_flag": line.shortage_flag,
         "shortage_reason": line.shortage_reason,
         "rejection_reason": line.rejection_reason,
-        "line_status": line.line_status,
+        "line_status": line.line_status or "",
         "notes": line.notes,
     }
 
@@ -132,6 +137,7 @@ def list_orders(
     current_user: User = Depends(get_current_active_user)
 ):
     q = db.query(ReplenishmentOrder).options(
+        joinedload(ReplenishmentOrder.branch),
         selectinload(ReplenishmentOrder.lines).selectinload(ReplenishmentOrderLine.item)
     )
 
@@ -175,6 +181,7 @@ def get_order(
     current_user: User = Depends(get_current_active_user)
 ):
     order = db.query(ReplenishmentOrder).options(
+        joinedload(ReplenishmentOrder.branch),
         selectinload(ReplenishmentOrder.lines).selectinload(ReplenishmentOrderLine.item)
     ).filter(ReplenishmentOrder.id == order_id).first()
     if not order:

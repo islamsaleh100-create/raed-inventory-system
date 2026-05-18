@@ -2,7 +2,16 @@ from typing import Iterable
 
 
 _READ_ONLY_ROLES = {"internal_auditor"}
-_AUDITOR_FINDING_MANAGER_ROLES = {"area_manager", "operations_manager", "admin", "super_admin"}
+_AUDITOR_FINDING_MANAGER_ROLES = {
+    "branch_user",
+    "branch_manager",
+    "warehouse_user",
+    "warehouse_manager",
+    "area_manager",
+    "operations_manager",
+    "admin",
+    "super_admin",
+}
 
 
 def _as_set(roles: Iterable[str]) -> set[str]:

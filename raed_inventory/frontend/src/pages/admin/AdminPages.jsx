@@ -277,6 +277,7 @@ export function UsersManagementPage() {
   const [loading, setLoading] = useState(true)
   const [branches, setBranches] = useState([])
   const [warehouses, setWarehouses] = useState([])
+  const [availableRoles, setAvailableRoles] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({
@@ -285,16 +286,27 @@ export function UsersManagementPage() {
     role_names: [], status: 'active',
   })
 
-  // Keep in sync with backend RoleName (app/models/__init__.py)
-  const ROLES = [
-    'branch_user', 'branch_manager', 'warehouse_user', 'warehouse_manager',
-    'operations_manager', 'quality_visitor', 'quality_manager', 'trainer',
-    'area_manager', 'sales_manager', 'admin', 'super_admin',
+  const FALLBACK_ROLES = [
+    'super_admin', 'admin', 'internal_auditor',
+    'branch_user', 'branch_manager',
+    'warehouse_user', 'warehouse_manager',
+    'operations_manager',
+    'quality_visitor', 'quality_manager', 'trainer',
+    'area_manager', 'evaluator', 'hr_manager',
+    'sales_manager',
+    'kitchen_manager', 'kitchen_section_manager', 'delivery_user',
   ]
 
   useEffect(() => {
-    Promise.all([masterApi.listBranches(), masterApi.listWarehouses()])
-      .then(([b, w]) => { setBranches(b.data); setWarehouses(w.data) })
+    Promise.allSettled([masterApi.listBranches(), masterApi.listWarehouses(), usersApi.roles()])
+      .then(([branchesResult, warehousesResult, rolesResult]) => {
+        if (branchesResult.status === 'fulfilled') setBranches(branchesResult.value.data || [])
+        if (warehousesResult.status === 'fulfilled') setWarehouses(warehousesResult.value.data || [])
+
+        const rolesData = rolesResult.status === 'fulfilled' ? rolesResult.value.data : []
+        const roleNames = (rolesData || []).map((role) => role.name).filter(Boolean)
+        setAvailableRoles(roleNames.length ? roleNames : FALLBACK_ROLES)
+      })
   }, [])
 
   const load = (p = 1) => {
@@ -477,7 +489,7 @@ export function UsersManagementPage() {
           <div className="col-span-2">
             <label className="label">{t('admin.users_field_roles')}</label>
             <div className="flex flex-wrap gap-2">
-              {ROLES.map((r) => (
+              {(availableRoles.length ? availableRoles : FALLBACK_ROLES).map((r) => (
                 <button
                   key={r}
                   type="button"

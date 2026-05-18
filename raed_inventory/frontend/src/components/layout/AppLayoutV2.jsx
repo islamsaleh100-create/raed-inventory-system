@@ -90,6 +90,9 @@ const NAVIGATION = [
     roles: ['internal_auditor', 'admin', 'super_admin'],
     items: [
       { to: '/audit/dashboard', icon: ShieldCheck, labelKey: 'nav.audit_dashboard', roles: ['internal_auditor', 'admin', 'super_admin'] },
+      { to: '/audit/daily-orders', icon: ClipboardList, labelKey: 'nav.audit_daily_orders', roles: ['internal_auditor', 'admin', 'super_admin'] },
+      { to: '/audit/order-history', icon: History, labelKey: 'nav.audit_order_history', roles: ['internal_auditor', 'admin', 'super_admin'] },
+      { to: '/audit/warehouse-stock', icon: Warehouse, labelKey: 'nav.audit_warehouse_stock', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/findings', icon: Flag, labelKey: 'nav.audit_findings', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/trail', icon: History, labelKey: 'nav.audit_trail', roles: ['internal_auditor', 'admin', 'super_admin'] },
     ]

@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core.auth import can_access_branch, can_access_warehouse
@@ -59,10 +59,9 @@ def _ensure_order_warehouse_access(current_user: User, order: ReplenishmentOrder
 
 
 def _load_order_for_update(db: Session, order_id: int, *, with_lines: bool = False) -> ReplenishmentOrder:
-    query = db.query(ReplenishmentOrder)
-    if with_lines:
-        query = query.options(joinedload(ReplenishmentOrder.lines))
-    order = lock_row(query.filter(ReplenishmentOrder.id == order_id)).first()
+    order = lock_row(
+        db.query(ReplenishmentOrder).filter(ReplenishmentOrder.id == order_id)
+    ).first()
     if not order:
         raise AppError(
             status_code=404,
@@ -70,6 +69,10 @@ def _load_order_for_update(db: Session, order_id: int, *, with_lines: bool = Fal
             message="Order not found",
             detail={"order_id": order_id},
         )
+    if with_lines:
+        # Keep the row lock scoped to the order table. PostgreSQL rejects
+        # SELECT FOR UPDATE across the nullable side of joined eager loads.
+        order.lines
     return order
 
 
@@ -186,7 +189,12 @@ def branch_review_order(
     order = _load_order_for_update(db, order_id, with_lines=True)
     _ensure_order_branch_access(current_user, order, db)
 
-    if order.status not in [OrderStatus.system_generated, OrderStatus.draft]:
+    if order.status not in [
+        OrderStatus.system_generated,
+        OrderStatus.draft,
+        OrderStatus.branch_reviewed,
+        OrderStatus.area_manager_review,
+    ]:
         raise AppError(
             status_code=400,
             error_code="orders.invalid_branch_review_status",
@@ -219,11 +227,11 @@ def warehouse_review_order(
     order = _load_order_for_update(db, order_id, with_lines=True)
     _ensure_order_warehouse_access(current_user, order)
 
-    if order.status != OrderStatus.submitted_to_warehouse:
+    if order.status not in [OrderStatus.submitted_to_warehouse, OrderStatus.under_review]:
         raise AppError(
             status_code=400,
             error_code="orders.invalid_warehouse_review_status",
-            message="Order is not in submitted state",
+            message="Order is not available for warehouse review",
             detail={"order_id": order.id, "status": order.status.value},
         )
 

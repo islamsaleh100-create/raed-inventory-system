@@ -9,7 +9,20 @@ import { StatusBadge, PageLoader, Pagination } from '../../components/common'
 import { formatDate } from '../../utils/helpers'
 import { useT } from '../../i18n'
 
-export default function OrdersListPage({ warehouseView = false, receiveView = false, pickingView = false, dispatchView = false, defaultStatus = null }) {
+export default function OrdersListPage({
+  warehouseView = false,
+  receiveView = false,
+  pickingView = false,
+  dispatchView = false,
+  defaultStatus = null,
+  scopeAll = false,
+  showBranchColumn = false,
+  readOnly = false,
+  orderType = null,
+  title = null,
+  subtitle = null,
+  todayOnly = false,
+}) {
   const user = useSelector(selectUser)
   const roles = useSelector(selectUserRoles)
   const t = useT()
@@ -37,10 +50,14 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
   const load = (p = 1) => {
     setLoading(true)
     const effectiveStatus = forcedStatus || status
+    const today = new Date().toISOString().slice(0, 10)
     const params = {
       page: p, page_size: 20,
-      ...(warehouseView ? { warehouse_id: warehouseId } : { branch_id: branchId }),
+      ...(warehouseView && warehouseId && !scopeAll ? { warehouse_id: warehouseId } : {}),
+      ...(!warehouseView && branchId && !scopeAll ? { branch_id: branchId } : {}),
       ...(effectiveStatus ? { status: effectiveStatus } : {}),
+      ...(orderType ? { order_type: orderType } : {}),
+      ...(todayOnly ? { date_from: today, date_to: today } : {}),
     }
     ordersApi.list(params)
       .then((r) => {
@@ -55,7 +72,10 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [status, forcedStatus])
+  useEffect(() => {
+    setPage(1)
+    load(1)
+  }, [status, forcedStatus, warehouseView, scopeAll, orderType, todayOnly, branchId, warehouseId])
 
   const handleApprove = async (id) => {
     try {
@@ -93,19 +113,21 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
 
   if (loading && items.length === 0) return <PageLoader />
 
-  const colCount = 6 + (warehouseView ? 1 : 0)
+  const shouldShowBranch = warehouseView || showBranchColumn
+  const colCount = 6 + (shouldShowBranch ? 1 : 0)
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          {receiveView ? (t('orders.receive_list_title') || t('nav.receiving'))
+          {title || (receiveView ? (t('orders.receive_list_title') || t('nav.receiving'))
             : pickingView ? (t('orders.picking_list_title') || t('nav.warehouse_picking'))
             : dispatchView ? (t('orders.dispatch_list_title') || t('nav.warehouse_dispatch'))
             : warehouseView ? t('orders.warehouse_list_title')
-            : t('orders.branch_list_title')}
+            : t('orders.branch_list_title'))}
         </h1>
-        {!warehouseView && !receiveView && !pickingView && !dispatchView && (
+        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+        {!readOnly && !warehouseView && !receiveView && !pickingView && !dispatchView && (
           <Link to="/orders/exceptional" className="btn-primary">
             <Plus className="w-4 h-4" /> {t('orders.new_exceptional')}
           </Link>
@@ -135,7 +157,7 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
               <tr>
                 <th>{t('orders.col_order_no')}</th>
                 <th>{t('orders.col_date')}</th>
-                {warehouseView && <th>{t('orders.col_branch')}</th>}
+                {shouldShowBranch && <th>{t('orders.col_branch')}</th>}
                 <th>{t('orders.col_type')}</th>
                 <th>{t('orders.col_status')}</th>
                 <th>{t('orders.col_items_count')}</th>
@@ -147,7 +169,7 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
                 <tr key={order.id}>
                   <td className="font-mono text-sm font-semibold">{order.order_no}</td>
                   <td>{formatDate(order.order_date)}</td>
-                  {warehouseView && (
+                  {shouldShowBranch && (
                     <td className="text-sm">
                       {order.branch_name || order.branch_name_ar || order.branch_id}
                     </td>
@@ -174,7 +196,7 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
                       </Link>
 
                       {/* Branch: submit to warehouse */}
-                      {!warehouseView && isBrMgr &&
+                      {!readOnly && !warehouseView && isBrMgr &&
                         ['system_generated', 'branch_reviewed', 'draft'].includes(order.status) && (
                         <button
                           onClick={() => handleSubmitToWH(order.id)}
@@ -186,7 +208,7 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
                       )}
 
                       {/* Warehouse: approve */}
-                      {warehouseView && isWhMgr &&
+                      {!readOnly && warehouseView && isWhMgr &&
                         ['under_review', 'submitted_to_warehouse'].includes(order.status) && (
                         <button
                           onClick={() => handleApprove(order.id)}
@@ -198,7 +220,7 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
                       )}
 
                       {/* Warehouse: start picking */}
-                      {warehouseView &&
+                      {!readOnly && warehouseView &&
                         ['approved', 'partially_approved'].includes(order.status) && (
                         <button
                           onClick={() => handleStartPicking(order.id)}
@@ -210,7 +232,7 @@ export default function OrdersListPage({ warehouseView = false, receiveView = fa
                       )}
 
                       {/* Branch: receive */}
-                      {!warehouseView && order.status === 'dispatched' && (
+                      {!readOnly && !warehouseView && order.status === 'dispatched' && (
                         <Link
                           to={`/receiving/${order.id}`}
                           className="p-1.5 hover:bg-purple-50 rounded-lg"

@@ -8,6 +8,7 @@ import { selectUserRoles } from '../../store'
 import { StatusBadge, PageLoader, Modal } from '../../components/common'
 import { formatDate, formatQty, ORDER_TYPE_LABELS } from '../../utils/helpers'
 import { useT, useLanguage } from '../../i18n'
+import InlineAuditFindingsPanel from '../../components/audit/InlineAuditFindingsPanel'
 
 export default function OrderDetailPage({ warehouseView = false }) {
   const { id } = useParams()
@@ -15,10 +16,21 @@ export default function OrderDetailPage({ warehouseView = false }) {
   const roles = useSelector(selectUserRoles)
   const t = useT()
   const { lang } = useLanguage()
+  const tf = (key, fallback) => {
+    const value = t(key)
+    return value === key ? fallback : value
+  }
+  const apiErrorMessage = (err, fallback) => {
+    const data = err?.response?.data
+    if (data?.message) return data.message
+    if (typeof data?.detail === 'string') return data.detail
+    return fallback
+  }
   const nameOf = (obj, base) => obj?.[`${base}_${lang}`] || obj?.[`${base}_ar`] || obj?.[base] || ''
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [lineEdits, setLineEdits] = useState({}) // line_id -> wh_approved_qty
+  const [branchQtyEdits, setBranchQtyEdits] = useState({})
   const [dispatchQtys, setDispatchQtys] = useState({})
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
@@ -39,12 +51,15 @@ export default function OrderDetailPage({ warehouseView = false }) {
       setOrder(r.data)
       // init line edits
       const edits = {}
+      const branchEdits = {}
       const dispatches = {}
       r.data.lines?.forEach((l) => {
         edits[l.id] = l.wh_approved_qty
+        branchEdits[l.id] = l.branch_requested_qty
         dispatches[l.id] = l.wh_approved_qty
       })
       setLineEdits(edits)
+      setBranchQtyEdits(branchEdits)
       setDispatchQtys(dispatches)
     }).finally(() => setLoading(false))
   }
@@ -63,7 +78,25 @@ export default function OrderDetailPage({ warehouseView = false }) {
       toast.success(t('orders.toast_review_saved'))
       load()
     } catch (err) {
-      toast.error(err?.response?.data?.detail || t('orders.toast_generic_error'))
+      toast.error(apiErrorMessage(err, t('orders.toast_generic_error')))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleBranchReview = async () => {
+    setSaving(true)
+    try {
+      await ordersApi.branchReview(id, {
+        lines: order.lines.map((l) => ({
+          line_id: l.id,
+          branch_requested_qty: parseFloat(branchQtyEdits[l.id]) || 0,
+        })),
+      })
+      toast.success('تم حفظ كميات الفرع')
+      load()
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t('orders.toast_generic_error')))
     } finally {
       setSaving(false)
     }
@@ -75,7 +108,7 @@ export default function OrderDetailPage({ warehouseView = false }) {
       toast.success(t('orders.toast_approved'))
       load()
     } catch (err) {
-      toast.error(err?.response?.data?.detail || t('orders.toast_generic_error'))
+      toast.error(apiErrorMessage(err, t('orders.toast_generic_error')))
     }
   }
 
@@ -85,7 +118,7 @@ export default function OrderDetailPage({ warehouseView = false }) {
       toast.success(t('orders.toast_picking_started'))
       load()
     } catch (err) {
-      toast.error(err?.response?.data?.detail || t('orders.toast_generic_error'))
+      toast.error(apiErrorMessage(err, t('orders.toast_generic_error')))
     }
   }
 
@@ -102,7 +135,7 @@ export default function OrderDetailPage({ warehouseView = false }) {
       toast.success(t('orders.toast_order_dispatched'))
       load()
     } catch (err) {
-      toast.error(err?.response?.data?.detail || t('orders.toast_generic_error'))
+      toast.error(apiErrorMessage(err, t('orders.toast_generic_error')))
     } finally {
       setSaving(false)
     }
@@ -116,17 +149,25 @@ export default function OrderDetailPage({ warehouseView = false }) {
       setShowRejectModal(false)
       load()
     } catch (err) {
-      toast.error(err?.response?.data?.detail || t('orders.toast_generic_error'))
+      toast.error(apiErrorMessage(err, t('orders.toast_generic_error')))
     }
   }
 
   const handleSubmitToWarehouse = async () => {
     try {
+      if (canBranchEdit) {
+        await ordersApi.branchReview(id, {
+          lines: order.lines.map((l) => ({
+            line_id: l.id,
+            branch_requested_qty: parseFloat(branchQtyEdits[l.id]) || 0,
+          })),
+        })
+      }
       await ordersApi.submitToWarehouse(id)
       toast.success(t('orders.toast_submitted_to_warehouse'))
       load()
     } catch (err) {
-      toast.error(err?.response?.data?.detail || t('orders.toast_generic_error'))
+      toast.error(apiErrorMessage(err, t('orders.toast_generic_error')))
     }
   }
 
@@ -147,7 +188,7 @@ export default function OrderDetailPage({ warehouseView = false }) {
       setAreaReviewNotes('')
       load()
     } catch (err) {
-      toast.error(err?.response?.data?.detail || t('orders.toast_generic_error'))
+      toast.error(apiErrorMessage(err, t('orders.toast_generic_error')))
     } finally {
       setSaving(false)
     }
@@ -161,18 +202,21 @@ export default function OrderDetailPage({ warehouseView = false }) {
   if (loading) return <PageLoader />
   if (!order) return <div className="p-6 text-red-600">{t('orders.order_not_found')}</div>
 
-  const canWHReview = isWhUser && order.status === 'submitted_to_warehouse'
+  const canWHReview = isWhUser && ['submitted_to_warehouse', 'under_review'].includes(order.status)
   const canApprove = isWhMgr && ['under_review', 'submitted_to_warehouse'].includes(order.status)
   const canPick = isWhUser && ['approved', 'partially_approved'].includes(order.status)
   const canDispatch = isWhUser && order.status === 'picking'
   // H13: submit-to-warehouse now also available to area managers after area_manager_review
   const canSubmitToWH = (isBrMgr || isAreaMgr) && ['system_generated', 'branch_reviewed', 'area_manager_review', 'draft'].includes(order.status)
+  const canBranchEdit = !warehouseView && isBrMgr && ['system_generated', 'branch_reviewed', 'area_manager_review', 'draft'].includes(order.status)
   // H13: area manager gets a review action on system_generated / branch_reviewed orders
   const canAreaReview = isAreaMgr && ['system_generated', 'branch_reviewed'].includes(order.status)
   // H13: branch user/manager can confirm receipt of a dispatched order
   const canReceive = (isBrUser || isBrMgr) && order.status === 'dispatched'
   const showWHQtyEdit = canWHReview
   const showDispatchQtyEdit = canDispatch
+  const hasActions = canBranchEdit || canAreaReview || canSubmitToWH || canReceive || canWHReview || canApprove || canPick || canDispatch
+  const warehouseWaitingForBranchReceipt = warehouseView && isWhUser && order.status === 'dispatched'
 
   return (
     <div className="p-6">
@@ -209,6 +253,11 @@ export default function OrderDetailPage({ warehouseView = false }) {
               <Truck className="w-4 h-4" /> {t('orders.action_submit_to_warehouse')}
             </button>
           )}
+          {canBranchEdit && (
+            <button onClick={handleBranchReview} disabled={saving} className="btn-secondary">
+              {saving ? t('orders.action_saving') : 'حفظ تعديل الكميات'}
+            </button>
+          )}
           {canReceive && (
             <button onClick={handleGoToReceive} className="btn-success">
               <PackageCheck className="w-4 h-4" /> {t('orders.action_receive') || 'استلام الطلبية'}
@@ -238,6 +287,12 @@ export default function OrderDetailPage({ warehouseView = false }) {
             <button onClick={handleDispatch} disabled={saving} className="btn-primary">
               <Truck className="w-4 h-4" /> {saving ? t('orders.action_dispatching') : t('orders.action_dispatch_cta')}
             </button>
+          )}
+          {!hasActions && warehouseWaitingForBranchReceipt && (
+            <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+              <PackageCheck className="w-4 h-4" />
+              <span>{tf('orders.waiting_branch_receipt', 'تم الصرف، والطلب الآن بانتظار استلام الفرع')}</span>
+            </div>
           )}
         </div>
       </div>
@@ -286,10 +341,11 @@ export default function OrderDetailPage({ warehouseView = false }) {
                 {warehouseView && <th>{t('orders.col_wh_approved')}</th>}
                 {warehouseView && <th>{t('orders.col_dispatched')}</th>}
                 {!warehouseView && <th>{t('orders.col_approved')}</th>}
+                {!warehouseView && <th>{t('orders.col_dispatched')}</th>}
                 {!warehouseView && <th>{t('orders.col_received')}</th>}
                 <th>{t('orders.col_line_status')}</th>
                 {order.status === 'picking' && <th>{t('orders.col_dispatch_qty')}</th>}
-                {order.status === 'submitted_to_warehouse' && <th>{t('orders.col_approval_qty')}</th>}
+                {canWHReview && <th>{t('orders.col_approval_qty')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -315,7 +371,20 @@ export default function OrderDetailPage({ warehouseView = false }) {
                   </td>
                   <td className="text-xs text-gray-500">{line.unit}</td>
                   <td className="text-center">{formatQty(line.suggested_qty)}</td>
-                  <td className="text-center font-medium">{formatQty(line.branch_requested_qty)}</td>
+                  <td className="text-center font-medium">
+                    {canBranchEdit ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={branchQtyEdits[line.id] ?? line.branch_requested_qty}
+                        onChange={(e) => setBranchQtyEdits((p) => ({ ...p, [line.id]: e.target.value }))}
+                        className="w-20 border border-gray-300 rounded px-2 py-1 text-sm text-center"
+                      />
+                    ) : (
+                      formatQty(line.branch_requested_qty)
+                    )}
+                  </td>
 
                   {warehouseView && (
                     <td className="text-center">
@@ -349,6 +418,7 @@ export default function OrderDetailPage({ warehouseView = false }) {
                   )}
 
                   {!warehouseView && <td className="text-center">{formatQty(line.wh_approved_qty)}</td>}
+                  {!warehouseView && <td className="text-center">{formatQty(line.dispatched_qty)}</td>}
                   {!warehouseView && <td className="text-center">{formatQty(line.received_qty)}</td>}
 
                   <td>
@@ -363,7 +433,7 @@ export default function OrderDetailPage({ warehouseView = false }) {
                     </span>
                   </td>
 
-                  {(order.status === 'picking' || order.status === 'submitted_to_warehouse') && (
+                  {(order.status === 'picking' || canWHReview) && (
                     <td />
                   )}
                 </tr>
@@ -372,6 +442,12 @@ export default function OrderDetailPage({ warehouseView = false }) {
           </table>
         </div>
       </div>
+
+      <InlineAuditFindingsPanel
+        entityType="replenishment_order"
+        entityId={order.id}
+        title="ملاحظات المراجعة على الطلبية"
+      />
 
       {/* Reject modal */}
       <Modal open={showRejectModal} onClose={() => setShowRejectModal(false)} title={t('orders.reject_modal_title')}>
