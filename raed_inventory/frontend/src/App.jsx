@@ -506,7 +506,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
         <div className="flex items-center gap-2 flex-wrap">
           {selectedWh && !readOnly && (
             <>
-              <button type="button" onClick={() => setAdjustOpen(true)} className="btn-primary">إضافة/تعديل صنف</button>
+              <button type="button" onClick={() => setAdjustOpen(true)} className="btn-primary">تعديل صنف</button>
               <button type="button" onClick={() => openWarehouseRequestForm('new_item')} className="btn-secondary">طلب تغيير/صنف جديد</button>
               <button type="button" onClick={downloadWarehouseStock} className="btn-secondary">تنزيل Excel</button>
               <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary">رفع Excel</button>
@@ -696,7 +696,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-lg">إضافة/تعديل مخزون المستودع</h2>
+              <h2 className="font-semibold text-lg">تعديل مخزون صنف</h2>
               <button type="button" onClick={() => setAdjustOpen(false)} className="text-gray-500 hover:text-gray-800">×</button>
             </div>
             <div className="grid grid-cols-1 gap-4">
