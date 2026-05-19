@@ -327,13 +327,13 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'ظپط´ظ„ طھظ†ط²ظٹظ„ ظ…ظ„ظپ ط§ظ„ظ…ط®ط²ظˆظ†')
+      toast.error(err?.response?.data?.message || 'فشل تنزيل ملف المخزون')
     }
   }
 
   const saveAdjustment = async () => {
     if (!selectedWh || !adjustForm.item_id || adjustForm.qty === '') {
-      toast.error('ط§ط®طھط± ط§ظ„طµظ†ظپ ظˆط§ظ„ظƒظ…ظٹط©')
+      toast.error('اختر الصنف والكمية')
       return
     }
     try {
@@ -343,12 +343,12 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
         qty: Number(adjustForm.qty),
         reason: adjustForm.reason || 'Warehouse stock update',
       })
-      toast.success('طھظ… طھط­ط¯ظٹط« ظ…ط®ط²ظˆظ† ط§ظ„ظ…ط³طھظˆط¯ط¹')
+      toast.success('تم تحديث مخزون المستودع')
       setAdjustOpen(false)
       setAdjustForm({ item_id: '', adjustment_type: 'set', qty: '', reason: 'Warehouse stock update' })
       loadStock()
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'ظپط´ظ„ طھط­ط¯ظٹط« ط§ظ„ظ…ط®ط²ظˆظ†')
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'فشل تحديث المخزون')
     }
   }
 
@@ -366,7 +366,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
     if (!selectedWh) return
     const qty = quickQtys[itemId]
     if (qty === '' || qty === undefined) {
-      toast.error('ط§ظƒطھط¨ ط§ظ„ظƒظ…ظٹط©')
+      toast.error('اكتب الكمية')
       return
     }
     try {
@@ -376,7 +376,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
         qty: Number(qty),
         reason: 'Quick warehouse stock update',
       })
-      toast.success('طھظ… طھط­ط¯ظٹط« ط§ظ„ظƒظ…ظٹط©')
+      toast.success('تم تحديث الكمية')
       setQuickQtys((prev) => {
         const next = { ...prev }
         delete next[itemId]
@@ -384,7 +384,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
       })
       loadStock()
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'ظپط´ظ„ طھط­ط¯ظٹط« ط§ظ„ظƒظ…ظٹط©')
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'فشل تحديث الكمية')
     }
   }
 
@@ -412,7 +412,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
         })
       }
       if (lines.length === 0) {
-        toast.error('ظ…ظ„ظپ Excel ظ„ط§ ظٹط­طھظˆظٹ طµظپظˆظپ طµط§ظ„ط­ط©')
+        toast.error('ملف Excel لا يحتوي صفوف صالحة')
         return
       }
       const result = await stockApi.bulkAdjustWarehouse(selectedWh, {
@@ -422,10 +422,10 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
       })
       const updated = result?.data?.updated ?? lines.length
       const errors = result?.data?.errors || []
-      toast.success(`طھظ… طھط­ط¯ظٹط« ${updated} طµظ†ظپ ظ…ظ† Excel${errors.length ? `طŒ ظˆظپط´ظ„ ${errors.length}` : ''}`)
+      toast.success(`تم تحديث ${updated} صنف من Excel${errors.length ? `، وفشل ${errors.length}` : ''}`)
       loadStock()
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'ظپط´ظ„ ط±ظپط¹ ظ…ظ„ظپ Excel')
+      toast.error(err?.response?.data?.message || 'فشل رفع ملف Excel')
     }
   }
 
@@ -439,9 +439,9 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
         <div className="flex items-center gap-2 flex-wrap">
           {selectedWh && !readOnly && (
             <>
-              <button type="button" onClick={() => setAdjustOpen(true)} className="btn-primary">ط¥ط¶ط§ظپط©/طھط¹ط¯ظٹظ„ طµظ†ظپ</button>
-              <button type="button" onClick={downloadWarehouseStock} className="btn-secondary">طھظ†ط²ظٹظ„ Excel</button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary">ط±ظپط¹ Excel</button>
+              <button type="button" onClick={() => setAdjustOpen(true)} className="btn-primary">إضافة/تعديل صنف</button>
+              <button type="button" onClick={downloadWarehouseStock} className="btn-secondary">تنزيل Excel</button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary">رفع Excel</button>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} className="hidden" />
             </>
           )}
@@ -451,7 +451,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
             onChange={(e) => setSelectedWh(e.target.value ? parseInt(e.target.value, 10) : null)}
             className="input-field w-64"
           >
-            <option value="">{t('branch_stock.select_warehouse') || 'ط§ط®طھط± ط§ظ„ظ…ط³طھظˆط¯ط¹'}</option>
+            <option value="">{t('branch_stock.select_warehouse') || 'اختر المستودع'}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>{w.warehouse_name}</option>
             ))}
@@ -513,7 +513,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
                           onClick={() => saveQuickQty(s.item_id)}
                           className="btn-primary text-xs py-1 px-2"
                         >
-                          ط­ظپط¸
+                          حفظ
                         </button>
                       </div>
                     )}
@@ -537,18 +537,18 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-lg">ط¥ط¶ط§ظپط©/طھط¹ط¯ظٹظ„ ظ…ط®ط²ظˆظ† ط§ظ„ظ…ط³طھظˆط¯ط¹</h2>
-              <button type="button" onClick={() => setAdjustOpen(false)} className="text-gray-500 hover:text-gray-800">أ—</button>
+              <h2 className="font-semibold text-lg">إضافة/تعديل مخزون المستودع</h2>
+              <button type="button" onClick={() => setAdjustOpen(false)} className="text-gray-500 hover:text-gray-800">×</button>
             </div>
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="label">ط§ظ„طµظ†ظپ</label>
+                <label className="label">الصنف</label>
                 <select
                   value={adjustForm.item_id}
                   onChange={(e) => setAdjustForm((p) => ({ ...p, item_id: e.target.value }))}
                   className="input-field"
                 >
-                  <option value="">ط§ط®طھط± طµظ†ظپ</option>
+                  <option value="">اختر صنف</option>
                   {items.map((item) => (
                     <option key={item.id} value={item.id}>
                       {nameOf(item)} ({item.item_code})
@@ -558,19 +558,19 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">ظ†ظˆط¹ ط§ظ„طھط¹ط¯ظٹظ„</label>
+                  <label className="label">نوع التعديل</label>
                   <select
                     value={adjustForm.adjustment_type}
                     onChange={(e) => setAdjustForm((p) => ({ ...p, adjustment_type: e.target.value }))}
                     className="input-field"
                   >
-                    <option value="set">طھط¹ظٹظٹظ† ط§ظ„ظƒظ…ظٹط©</option>
-                    <option value="increase">ط²ظٹط§ط¯ط©</option>
-                    <option value="decrease">ظ†ظ‚طµ</option>
+                    <option value="set">تعيين الكمية</option>
+                    <option value="increase">زيادة</option>
+                    <option value="decrease">نقص</option>
                   </select>
                 </div>
                 <div>
-                  <label className="label">ط§ظ„ظƒظ…ظٹط©</label>
+                  <label className="label">الكمية</label>
                   <input
                     type="number"
                     min="0"
@@ -581,7 +581,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
                 </div>
               </div>
               <div>
-                <label className="label">ط§ظ„ط³ط¨ط¨</label>
+                <label className="label">السبب</label>
                 <input
                   value={adjustForm.reason}
                   onChange={(e) => setAdjustForm((p) => ({ ...p, reason: e.target.value }))}
@@ -590,8 +590,8 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button type="button" onClick={() => setAdjustOpen(false)} className="btn-secondary">ط¥ظ„ط؛ط§ط،</button>
-              <button type="button" onClick={saveAdjustment} className="btn-primary">ط­ظپط¸</button>
+              <button type="button" onClick={() => setAdjustOpen(false)} className="btn-secondary">إلغاء</button>
+              <button type="button" onClick={saveAdjustment} className="btn-primary">حفظ</button>
             </div>
           </div>
         </div>
