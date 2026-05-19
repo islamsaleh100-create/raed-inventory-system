@@ -8,7 +8,7 @@ import { PageLoader, ErrorBoundary } from './components/common'
 import RouteRoleGuard from './components/common/RouteRoleGuard'
 import InlineAuditFindingsPanel from './components/audit/InlineAuditFindingsPanel'
 import { LanguageProvider, useT, useLanguage } from './i18n'
-import { dashboardApi, masterApi, notificationsApi, ordersApi, stockApi } from './services/api'
+import { dashboardApi, itemChangeRequestsApi, masterApi, notificationsApi, ordersApi, stockApi } from './services/api'
 import './index.css'
 
 // Pages
@@ -388,6 +388,42 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
     }
   }
 
+  const requestRemoveFromWarehouse = async (row) => {
+    if (!selectedWh || !row?.item_id) return
+    const reason = window.prompt(`سبب طلب إزالة الصنف: ${nameOf(row) || row.item_code}`) || ''
+    if (!reason.trim()) return
+    try {
+      await itemChangeRequestsApi.requestWarehouseRemove({
+        warehouse_id: Number(selectedWh),
+        item_id: Number(row.item_id),
+        reason: reason.trim(),
+      })
+      toast.success('تم إرسال طلب الإزالة للمراجعة')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'فشل إرسال طلب الإزالة')
+    }
+  }
+
+  const requestNewWarehouseItem = async () => {
+    const proposed_item_name_ar = window.prompt('اسم الصنف الجديد') || ''
+    if (!proposed_item_name_ar.trim()) return
+    const proposed_unit = window.prompt('الوحدة') || ''
+    const reason = window.prompt('سبب إضافة الصنف') || ''
+    try {
+      await itemChangeRequestsApi.requestNewItem({
+        target_type: 'warehouse',
+        warehouse_id: selectedWh ? Number(selectedWh) : null,
+        proposed_item_name_ar: proposed_item_name_ar.trim(),
+        proposed_unit: proposed_unit.trim(),
+        proposed_source_type: 'WAREHOUSE',
+        reason: reason.trim(),
+      })
+      toast.success('تم إرسال طلب إنشاء الصنف للمراجعة')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'فشل إرسال طلب الصنف الجديد')
+    }
+  }
+
   const handleUpload = async (event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -440,6 +476,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
           {selectedWh && !readOnly && (
             <>
               <button type="button" onClick={() => setAdjustOpen(true)} className="btn-primary">إضافة/تعديل صنف</button>
+              <button type="button" onClick={requestNewWarehouseItem} className="btn-secondary">طلب صنف جديد</button>
               <button type="button" onClick={downloadWarehouseStock} className="btn-secondary">تنزيل Excel</button>
               <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary">رفع Excel</button>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} className="hidden" />
@@ -514,6 +551,13 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
                           className="btn-primary text-xs py-1 px-2"
                         >
                           حفظ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => requestRemoveFromWarehouse(s)}
+                          className="btn-secondary text-xs py-1 px-2"
+                        >
+                          طلب إزالة
                         </button>
                       </div>
                     )}
@@ -1754,6 +1798,7 @@ function AppRoutes() {
               </RouteRoleGuard>
             )}
           />
+          <Route path="/operations/branch-items" element={<RouteRoleGuard allowed={['area_manager', 'admin', 'super_admin']}><AreaBranchItemsPage /></RouteRoleGuard>} />
           {/* Notifications â€” ظ„ظƒظ„ ط§ظ„ط£ط¯ظˆط§ط± */}
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route
@@ -1808,6 +1853,7 @@ function AppRoutes() {
           <Route path="/audit/daily-orders" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><OrdersListPage scopeAll showBranchColumn readOnly todayOnly orderType="daily_order" title="طلبيات اليوم لكل الفروع" subtitle="طلبات اليوم فقط مع حالة كل فرع." /></RouteRoleGuard>} />
           <Route path="/audit/order-history" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><OrdersListPage scopeAll showBranchColumn readOnly title="سجل الطلبيات" subtitle="أرشيف كل الطلبيات بكل الأنواع والتواريخ." /></RouteRoleGuard>} />
           <Route path="/audit/warehouse-stock" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><WarehouseStockPage readOnly title="مخزون مستودعات الرياض والدمام" subtitle="عرض قراءة فقط للمراجع الداخلي" /></RouteRoleGuard>} />
+          <Route path="/audit/item-change-requests" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><ItemChangeRequestsPage /></RouteRoleGuard>} />
           <Route path="/audit/findings" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin', 'area_manager', 'operations_manager']}><AuditFindingsPage /></RouteRoleGuard>} />
           <Route path="/audit/trail" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><AuditTrailPage /></RouteRoleGuard>} />
 
@@ -2238,6 +2284,245 @@ function SettingsPage() {
             })()}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function AreaBranchItemsPage() {
+  const { lang } = useLanguage()
+  const [branches, setBranches] = React.useState([])
+  const [items, setItems] = React.useState([])
+  const [branchItems, setBranchItems] = React.useState([])
+  const [branchId, setBranchId] = React.useState('')
+  const [itemId, setItemId] = React.useState('')
+  const [loading, setLoading] = React.useState(false)
+  const [newItem, setNewItem] = React.useState({ proposed_item_name_ar: '', proposed_unit: '', proposed_source_type: 'WAREHOUSE', reason: '' })
+  const nameOf = (obj, base = 'item_name') => obj?.[`${base}_${lang}`] || obj?.[`${base}_ar`] || obj?.[base] || obj?.item_name || ''
+
+  const loadBranchItems = React.useCallback(async (id) => {
+    if (!id) {
+      setBranchItems([])
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await masterApi.listItems({ page_size: 200, active_only: true, branch_id: id, visible_in_branch_ui_only: true, requestable_only: true })
+      setBranchItems(res?.data?.items || [])
+    } catch {
+      setBranchItems([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    ;(async () => {
+      try {
+        const [branchesRes, itemsRes] = await Promise.all([
+          masterApi.listBranches({ active_only: true }),
+          masterApi.listItems({ page_size: 200, active_only: true }),
+        ])
+        const branchList = Array.isArray(branchesRes.data) ? branchesRes.data : (branchesRes.data?.items || [])
+        setBranches(branchList)
+        setItems(itemsRes.data?.items || [])
+        if (branchList[0]?.id) {
+          setBranchId(String(branchList[0].id))
+          loadBranchItems(branchList[0].id)
+        }
+      } catch (err) {
+        toast.error('فشل تحميل البيانات')
+      }
+    })()
+  }, [loadBranchItems])
+
+  const addItem = async () => {
+    if (!branchId || !itemId) {
+      toast.error('اختر الفرع والصنف')
+      return
+    }
+    try {
+      await itemChangeRequestsApi.addBranchItem({ branch_id: Number(branchId), item_id: Number(itemId), reason: 'Area manager branch item add' })
+      toast.success('تمت إضافة الصنف للفرع')
+      setItemId('')
+      loadBranchItems(branchId)
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'فشل إضافة الصنف')
+    }
+  }
+
+  const requestRemove = async (row) => {
+    const reason = window.prompt(`سبب طلب إزالة الصنف من الفرع: ${nameOf(row) || row.item_code}`) || ''
+    if (!reason.trim()) return
+    try {
+      await itemChangeRequestsApi.requestBranchRemove({ branch_id: Number(branchId), item_id: Number(row.id || row.item_id), reason: reason.trim() })
+      toast.success('تم إرسال طلب الإزالة للمراجعة')
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'فشل إرسال طلب الإزالة')
+    }
+  }
+
+  const requestNewItem = async () => {
+    if (!newItem.proposed_item_name_ar.trim()) {
+      toast.error('اكتب اسم الصنف الجديد')
+      return
+    }
+    try {
+      await itemChangeRequestsApi.requestNewItem({ ...newItem, target_type: 'branch', branch_id: branchId ? Number(branchId) : null })
+      toast.success('تم إرسال طلب إنشاء الصنف للمراجعة')
+      setNewItem({ proposed_item_name_ar: '', proposed_unit: '', proposed_source_type: 'WAREHOUSE', reason: '' })
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'فشل إرسال طلب الصنف الجديد')
+    }
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">أصناف الفروع</h1>
+        <p className="text-sm text-gray-500 mt-1">إضافة صنف موجود للفرع مباشرة، وطلب إزالة الصنف يذهب للمراجعة.</p>
+      </div>
+      <div className="card p-5 grid grid-cols-1 lg:grid-cols-4 gap-3 items-end">
+        <div>
+          <label className="label">الفرع</label>
+          <select className="input-field" value={branchId} onChange={(e) => { setBranchId(e.target.value); loadBranchItems(e.target.value) }}>
+            <option value="">اختر الفرع</option>
+            {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name || b.branch_name_ar || b.branch_code}</option>)}
+          </select>
+        </div>
+        <div className="lg:col-span-2">
+          <label className="label">صنف موجود</label>
+          <select className="input-field" value={itemId} onChange={(e) => setItemId(e.target.value)}>
+            <option value="">اختر صنف</option>
+            {items.map((item) => <option key={item.id} value={item.id}>{nameOf(item)} ({item.item_code})</option>)}
+          </select>
+        </div>
+        <button type="button" className="btn-primary" onClick={addItem}>إضافة للفرع</button>
+      </div>
+      <div className="card p-5 space-y-3">
+        <h2 className="font-semibold text-gray-900">طلب صنف جديد غير موجود</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+          <input className="input-field" placeholder="اسم الصنف" value={newItem.proposed_item_name_ar} onChange={(e) => setNewItem((p) => ({ ...p, proposed_item_name_ar: e.target.value }))} />
+          <input className="input-field" placeholder="الوحدة" value={newItem.proposed_unit} onChange={(e) => setNewItem((p) => ({ ...p, proposed_unit: e.target.value }))} />
+          <select className="input-field" value={newItem.proposed_source_type} onChange={(e) => setNewItem((p) => ({ ...p, proposed_source_type: e.target.value }))}>
+            <option value="WAREHOUSE">من المستودع</option>
+            <option value="KITCHEN">من المطبخ</option>
+          </select>
+          <input className="input-field" placeholder="سبب الطلب" value={newItem.reason} onChange={(e) => setNewItem((p) => ({ ...p, reason: e.target.value }))} />
+        </div>
+        <button type="button" className="btn-secondary" onClick={requestNewItem}>إرسال للمراجعة</button>
+      </div>
+      <div className="card table-container">
+        <table className="table">
+          <thead><tr><th>الصنف</th><th>الكود</th><th>المصدر</th><th>إجراء</th></tr></thead>
+          <tbody>
+            {loading ? <tr><td colSpan={4} className="text-center py-8 text-gray-500">جاري التحميل...</td></tr> : branchItems.length === 0 ? (
+              <tr><td colSpan={4} className="text-center py-8 text-gray-400">لا توجد أصناف ظاهرة لهذا الفرع</td></tr>
+            ) : branchItems.map((item) => (
+              <tr key={item.id}>
+                <td className="font-medium">{nameOf(item)}</td>
+                <td className="font-mono text-xs text-gray-500">{item.item_code}</td>
+                <td>{item.source_type === 'KITCHEN' ? 'مطبخ' : 'مستودع'}</td>
+                <td><button type="button" className="btn-secondary text-xs" onClick={() => requestRemove(item)}>طلب إزالة</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function ItemChangeRequestsPage() {
+  const [rows, setRows] = React.useState([])
+  const [status, setStatus] = React.useState('pending')
+  const [loading, setLoading] = React.useState(false)
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await itemChangeRequestsApi.list({ status: status || undefined })
+      setRows(Array.isArray(res.data) ? res.data : [])
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'فشل تحميل طلبات الأصناف')
+    } finally {
+      setLoading(false)
+    }
+  }, [status])
+
+  React.useEffect(() => { load() }, [load])
+
+  const typeLabel = (type) => ({
+    warehouse_remove: 'إزالة من مستودع',
+    branch_remove: 'إزالة من فرع',
+    new_item: 'صنف جديد',
+  }[type] || type)
+
+  const approve = async (row) => {
+    const review_note = window.prompt('ملاحظة الموافقة') || ''
+    try {
+      await itemChangeRequestsApi.approve(row.id, { review_note })
+      toast.success('تمت مراجعة الطلب')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'فشل اعتماد الطلب')
+    }
+  }
+
+  const reject = async (row) => {
+    const review_note = window.prompt('سبب الرفض') || ''
+    if (!review_note.trim()) return
+    try {
+      await itemChangeRequestsApi.reject(row.id, { review_note })
+      toast.success('تم رفض الطلب')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'فشل رفض الطلب')
+    }
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">طلبات تغييرات الأصناف</h1>
+          <p className="text-sm text-gray-500 mt-1">مراجعة حذف الأصناف وطلبات إنشاء الأصناف الجديدة.</p>
+        </div>
+        <select className="input-field w-48" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="pending">قيد المراجعة</option>
+          <option value="">كل الحالات</option>
+          <option value="executed">منفذ</option>
+          <option value="approved">معتمد</option>
+          <option value="rejected">مرفوض</option>
+          <option value="failed">فشل التنفيذ</option>
+        </select>
+      </div>
+      <div className="card table-container">
+        <table className="table">
+          <thead><tr><th>رقم الطلب</th><th>النوع</th><th>الفرع/المستودع</th><th>الصنف</th><th>الحالة</th><th>السبب</th><th>الإجراءات</th></tr></thead>
+          <tbody>
+            {loading ? <tr><td colSpan={7} className="text-center py-8 text-gray-500">جاري التحميل...</td></tr> : rows.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-8 text-gray-400">لا توجد طلبات</td></tr>
+            ) : rows.map((row) => (
+              <tr key={row.id}>
+                <td className="font-mono text-xs">{row.request_no}</td>
+                <td>{typeLabel(row.request_type)}</td>
+                <td>{row.branch_name || row.warehouse_name || '-'}</td>
+                <td>{row.item_name || row.proposed_item_name_ar || '-'}</td>
+                <td><span className="status-badge bg-blue-100 text-blue-700">{row.status}</span></td>
+                <td className="text-sm text-gray-600">{row.failure_reason || row.reason || '-'}</td>
+                <td>
+                  {row.status === 'pending' ? (
+                    <div className="flex gap-2">
+                      <button type="button" className="btn-primary text-xs" onClick={() => approve(row)}>موافقة</button>
+                      <button type="button" className="btn-secondary text-xs" onClick={() => reject(row)}>رفض</button>
+                    </div>
+                  ) : <span className="text-xs text-gray-400">{row.review_note || '-'}</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )

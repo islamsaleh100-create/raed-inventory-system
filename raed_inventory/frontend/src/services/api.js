@@ -244,6 +244,16 @@ export const auditApi = {
   },
 }
 
+export const itemChangeRequestsApi = {
+  list: (params) => api.get('/item-change-requests', { params }),
+  requestWarehouseRemove: (data) => api.post('/item-change-requests/warehouse-remove', data),
+  addBranchItem: (data) => api.post('/item-change-requests/branch-add', data),
+  requestBranchRemove: (data) => api.post('/item-change-requests/branch-remove', data),
+  requestNewItem: (data) => api.post('/item-change-requests/new-item', data),
+  approve: (id, data = {}) => api.post(`/item-change-requests/${id}/approve`, data),
+  reject: (id, data = {}) => api.post(`/item-change-requests/${id}/reject`, data),
+}
+
 export const getApiErrorMessage = (error, fallback = 'Request failed') => {
   const data = error?.response?.data
   const detail = data?.detail ?? data?.message ?? error?.message

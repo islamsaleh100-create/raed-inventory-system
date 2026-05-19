@@ -53,6 +53,7 @@ const NAVIGATION = [
       { to: '/reports/inventory', icon: FileText, labelKey: 'nav.inventory_reports', roles: ['operations_manager', 'admin', 'super_admin', 'warehouse_manager', 'area_manager'] },
       { to: '/reports/orders', icon: FileText, labelKey: 'nav.order_reports', roles: ['operations_manager', 'admin', 'super_admin'] },
       { to: '/operations/inter-branch-approvals', icon: ArrowLeftRight, labelKey: 'nav.inter_branch_approvals', roles: ['area_manager', 'operations_manager', 'admin', 'super_admin'] },
+      { to: '/operations/branch-items', icon: Package, label: 'أصناف الفروع', labelKey: 'nav.branch_items', roles: ['area_manager', 'admin', 'super_admin'] },
     ]
   },
     {
@@ -93,6 +94,7 @@ const NAVIGATION = [
       { to: '/audit/daily-orders', icon: ClipboardList, labelKey: 'nav.audit_daily_orders', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/order-history', icon: History, labelKey: 'nav.audit_order_history', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/warehouse-stock', icon: Warehouse, labelKey: 'nav.audit_warehouse_stock', roles: ['internal_auditor', 'admin', 'super_admin'] },
+      { to: '/audit/item-change-requests', icon: Package, label: 'طلبات تغييرات الأصناف', labelKey: 'nav.item_change_requests', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/findings', icon: Flag, labelKey: 'nav.audit_findings', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/trail', icon: History, labelKey: 'nav.audit_trail', roles: ['internal_auditor', 'admin', 'super_admin'] },
     ]
@@ -159,7 +161,7 @@ function NavItem({ item, roles, onClick }) {
     <Link to={item.to} onClick={onClick}>
       <div className={`sidebar-link ${isActive ? 'active' : ''}`}>
         <item.icon className="w-4 h-4 flex-shrink-0" />
-        <span>{t(item.labelKey)}</span>
+        <span>{item.label || t(item.labelKey)}</span>
       </div>
     </Link>
   )

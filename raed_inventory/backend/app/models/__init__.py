@@ -1003,6 +1003,56 @@ class WarehouseStock(Base):
     item = relationship("Item", back_populates="warehouse_stock")
 
 
+class BranchItemAvailability(Base):
+    __tablename__ = "branch_item_availability"
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+    active = Column(Boolean, default=True, nullable=False)
+    added_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    removed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (UniqueConstraint("branch_id", "item_id", name="uq_branch_item_availability"),)
+
+    branch = relationship("Branch")
+    item = relationship("Item")
+    added_by_user = relationship("User", foreign_keys=[added_by])
+    removed_by_user = relationship("User", foreign_keys=[removed_by])
+
+
+class ItemChangeRequest(Base):
+    __tablename__ = "item_change_requests"
+    id = Column(Integer, primary_key=True)
+    request_no = Column(String(40), unique=True, nullable=False, index=True)
+    request_type = Column(String(40), nullable=False, index=True)
+    status = Column(String(30), default="pending", nullable=False, index=True)
+    target_type = Column(String(30), nullable=False, index=True)
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True, index=True)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=True, index=True)
+    proposed_item_name_ar = Column(String(200), nullable=True)
+    proposed_item_name_en = Column(String(200), nullable=True)
+    proposed_item_code = Column(String(50), nullable=True)
+    proposed_unit = Column(String(80), nullable=True)
+    proposed_source_type = Column(String(30), nullable=True)
+    reason = Column(Text, nullable=True)
+    review_note = Column(Text, nullable=True)
+    failure_reason = Column(Text, nullable=True)
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    reviewed_at = Column(DateTime, nullable=True)
+    executed_at = Column(DateTime, nullable=True)
+
+    warehouse = relationship("Warehouse")
+    branch = relationship("Branch")
+    item = relationship("Item")
+    requester = relationship("User", foreign_keys=[requested_by])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
 # ─────────────────────────────────────────────
 # DAILY INVENTORY
 # ─────────────────────────────────────────────

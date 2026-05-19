@@ -1,11 +1,12 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from app.core.errors import AppError
 from app.models import (
-    AreaManagerAssignment, Brand, Branch, BranchBrand, BranchStock, Item, ItemBrand,
+    AreaManagerAssignment, Brand, Branch, BranchBrand, BranchItemAvailability, BranchStock, Item, ItemBrand,
     ItemCategory, ItemType, KitchenSection, StorageType, SupplySourceType, UnitOfMeasure, Warehouse, WarehouseStock,
     InventoryVarianceReason, ReceivingVarianceReason, TransactionType,
 )
@@ -83,24 +84,42 @@ def list_items(
         q = q.filter(Item.active == True)
     if critical_only:
         q = q.filter(Item.critical_item == True)
-    if visible_in_branch_ui_only:
-        q = q.filter(
-            Item.visible_in_branch_ui == True,
-            Item.source_type != SupplySourceType.NOT_REQUESTABLE,
-            Item.item_code.notlike("DEMO-%"),
-        )
-    if requestable_only:
-        q = q.filter(Item.branch_requestable == True)
     if category_id:
         q = q.filter(Item.category_id == category_id)
     if brand_id:
         q = q.join(ItemBrand, ItemBrand.item_id == Item.id).filter(ItemBrand.brand_id == brand_id)
+    branch_item_availability = None
     if branch_id:
+        branch_item_availability = aliased(BranchItemAvailability)
         q = (
-            q.join(ItemBrand, ItemBrand.item_id == Item.id)
-            .join(BranchBrand, BranchBrand.brand_id == ItemBrand.brand_id)
-            .filter(BranchBrand.branch_id == branch_id)
+            q.outerjoin(
+                branch_item_availability,
+                and_(
+                    branch_item_availability.item_id == Item.id,
+                    branch_item_availability.branch_id == branch_id,
+                ),
+            )
+            .outerjoin(ItemBrand, ItemBrand.item_id == Item.id)
+            .outerjoin(
+                BranchBrand,
+                and_(BranchBrand.brand_id == ItemBrand.brand_id, BranchBrand.branch_id == branch_id),
+            )
+            .filter(
+                or_(
+                    and_(branch_item_availability.id == None, BranchBrand.branch_id == branch_id),
+                    branch_item_availability.active == True,
+                )
+            )
         )
+    if visible_in_branch_ui_only:
+        base_visible = and_(
+            Item.visible_in_branch_ui == True,
+            Item.source_type != SupplySourceType.NOT_REQUESTABLE,
+            Item.item_code.notlike("DEMO-%"),
+        )
+        q = q.filter(or_(branch_item_availability.active == True, base_visible) if branch_item_availability is not None else base_visible)
+    if requestable_only:
+        q = q.filter(or_(branch_item_availability.active == True, Item.branch_requestable == True) if branch_item_availability is not None else Item.branch_requestable == True)
     if item_type:
         try:
             q = q.filter(Item.item_type == ItemType(item_type))

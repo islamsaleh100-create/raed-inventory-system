@@ -2,7 +2,7 @@ from sqlalchemy import inspect, text
 import logging
 
 from app.database import engine
-from app.models import Base, IdempotencyRequest
+from app.models import Base, BranchItemAvailability, IdempotencyRequest, ItemChangeRequest
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ SQLITE_COMPAT_ALTERS = {
 
 # Sprint 3 reduced runtime schema creation to the minimum legacy-only case.
 # All application tables should now come from Alembic revisions.
-NEW_MODULE_TABLES = []
+NEW_MODULE_TABLES = [BranchItemAvailability.__table__, ItemChangeRequest.__table__]
 
 
 def ensure_local_schema_compatibility() -> None:
@@ -45,14 +45,11 @@ def ensure_local_schema_compatibility() -> None:
     Application feature tables should be managed by Alembic, not by runtime
     schema mutation.
     """
-    if not str(engine.url).startswith("sqlite"):
-        return
-
     inspector = inspect(engine)
 
     with engine.begin() as conn:
         existing_before = set(inspector.get_table_names())
-        target_tables = [IdempotencyRequest.__table__] + NEW_MODULE_TABLES
+        target_tables = ([IdempotencyRequest.__table__] if str(engine.url).startswith("sqlite") else []) + NEW_MODULE_TABLES
         Base.metadata.create_all(bind=conn, tables=target_tables, checkfirst=True)
         created = [t.name for t in target_tables if t.name not in existing_before]
         if created:
@@ -61,6 +58,9 @@ def ensure_local_schema_compatibility() -> None:
                 "TODO: retire this fallback once all local DBs are migrated.",
                 len(created), created,
             )
+
+        if not str(engine.url).startswith("sqlite"):
+            return
 
         for table_name, operations in SQLITE_COMPAT_ALTERS.items():
             if not inspector.has_table(table_name):
