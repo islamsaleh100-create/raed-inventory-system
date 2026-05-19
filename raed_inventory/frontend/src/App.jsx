@@ -236,7 +236,6 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
     proposed_source_type: 'WAREHOUSE',
     reason: '',
   })
-  const requestFormRef = React.useRef(null)
   const [quickQtys, setQuickQtys] = React.useState({})
   const [selectedStockAudit, setSelectedStockAudit] = React.useState(null)
   const fileInputRef = React.useRef(null)
@@ -410,9 +409,6 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
       reason: '',
     })
     setRequestOpen(true)
-    window.setTimeout(() => {
-      requestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 0)
   }
 
   const submitWarehouseItemRequest = async () => {
@@ -541,7 +537,8 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
       )}
 
       {requestOpen && !readOnly && (
-        <div ref={requestFormRef} className="card p-5 mb-5 border-blue-200 bg-blue-50/30">
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="font-semibold text-lg text-gray-900">طلب تغيير صنف</h2>
@@ -626,6 +623,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
           <div className="flex justify-end mt-4">
             <button type="button" onClick={submitWarehouseItemRequest} className="btn-primary">إرسال الطلب للمراجعة</button>
           </div>
+          </div>
         </div>
       )}
 
@@ -675,13 +673,6 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
                           className="btn-primary text-xs py-1 px-2"
                         >
                           حفظ
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openWarehouseRequestForm('warehouse_remove', s)}
-                          className="btn-secondary text-xs py-1 px-2"
-                        >
-                          طلب إزالة
                         </button>
                       </div>
                     )}
