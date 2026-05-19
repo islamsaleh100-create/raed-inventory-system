@@ -226,6 +226,16 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
     qty: '',
     reason: 'Warehouse stock update',
   })
+  const [requestOpen, setRequestOpen] = React.useState(false)
+  const [requestForm, setRequestForm] = React.useState({
+    type: 'new_item',
+    item_id: '',
+    item_label: '',
+    proposed_item_name_ar: '',
+    proposed_unit: '',
+    proposed_source_type: 'WAREHOUSE',
+    reason: '',
+  })
   const [quickQtys, setQuickQtys] = React.useState({})
   const [selectedStockAudit, setSelectedStockAudit] = React.useState(null)
   const fileInputRef = React.useRef(null)
@@ -388,39 +398,60 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
     }
   }
 
-  const requestRemoveFromWarehouse = async (row) => {
-    if (!selectedWh || !row?.item_id) return
-    const reason = window.prompt(`سبب طلب إزالة الصنف: ${nameOf(row) || row.item_code}`) || ''
-    if (!reason.trim()) return
-    try {
-      await itemChangeRequestsApi.requestWarehouseRemove({
-        warehouse_id: Number(selectedWh),
-        item_id: Number(row.item_id),
-        reason: reason.trim(),
-      })
-      toast.success('تم إرسال طلب الإزالة للمراجعة')
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'فشل إرسال طلب الإزالة')
-    }
+  const openWarehouseRequestForm = (type = 'new_item', row = null) => {
+    setRequestForm({
+      type,
+      item_id: row?.item_id ? String(row.item_id) : '',
+      item_label: row ? `${nameOf(row) || row.item_code} (${row.item_code || ''})` : '',
+      proposed_item_name_ar: '',
+      proposed_unit: '',
+      proposed_source_type: 'WAREHOUSE',
+      reason: '',
+    })
+    setRequestOpen(true)
   }
 
-  const requestNewWarehouseItem = async () => {
-    const proposed_item_name_ar = window.prompt('اسم الصنف الجديد') || ''
-    if (!proposed_item_name_ar.trim()) return
-    const proposed_unit = window.prompt('الوحدة') || ''
-    const reason = window.prompt('سبب إضافة الصنف') || ''
+  const submitWarehouseItemRequest = async () => {
+    if (!selectedWh) return
     try {
-      await itemChangeRequestsApi.requestNewItem({
-        target_type: 'warehouse',
-        warehouse_id: selectedWh ? Number(selectedWh) : null,
-        proposed_item_name_ar: proposed_item_name_ar.trim(),
-        proposed_unit: proposed_unit.trim(),
+      if (requestForm.type === 'warehouse_remove') {
+        if (!requestForm.item_id || !requestForm.reason.trim()) {
+          toast.error('اختر الصنف واكتب سبب الإزالة')
+          return
+        }
+        await itemChangeRequestsApi.requestWarehouseRemove({
+          warehouse_id: Number(selectedWh),
+          item_id: Number(requestForm.item_id),
+          reason: requestForm.reason.trim(),
+        })
+        toast.success('تم إرسال طلب الإزالة للمراجعة')
+      } else {
+        if (!requestForm.proposed_item_name_ar.trim()) {
+          toast.error('اكتب اسم الصنف الجديد')
+          return
+        }
+        await itemChangeRequestsApi.requestNewItem({
+          target_type: 'warehouse',
+          warehouse_id: Number(selectedWh),
+          proposed_item_name_ar: requestForm.proposed_item_name_ar.trim(),
+          proposed_unit: requestForm.proposed_unit.trim(),
+          proposed_source_type: requestForm.proposed_source_type,
+          reason: requestForm.reason.trim(),
+        })
+        toast.success('تم إرسال طلب إنشاء الصنف للمراجعة')
+      }
+      setRequestOpen(false)
+      setRequestForm({
+        type: 'new_item',
+        item_id: '',
+        item_label: '',
+        proposed_item_name_ar: '',
+        proposed_unit: '',
         proposed_source_type: 'WAREHOUSE',
-        reason: reason.trim(),
+        reason: '',
       })
-      toast.success('تم إرسال طلب إنشاء الصنف للمراجعة')
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'فشل إرسال طلب الصنف الجديد')
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'فشل إرسال الطلب')
     }
   }
 
@@ -476,7 +507,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
           {selectedWh && !readOnly && (
             <>
               <button type="button" onClick={() => setAdjustOpen(true)} className="btn-primary">إضافة/تعديل صنف</button>
-              <button type="button" onClick={requestNewWarehouseItem} className="btn-secondary">طلب صنف جديد</button>
+              <button type="button" onClick={() => openWarehouseRequestForm('new_item')} className="btn-secondary">طلب تغيير/صنف جديد</button>
               <button type="button" onClick={downloadWarehouseStock} className="btn-secondary">تنزيل Excel</button>
               <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary">رفع Excel</button>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} className="hidden" />
@@ -554,7 +585,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
                         </button>
                         <button
                           type="button"
-                          onClick={() => requestRemoveFromWarehouse(s)}
+                          onClick={() => openWarehouseRequestForm('warehouse_remove', s)}
                           className="btn-secondary text-xs py-1 px-2"
                         >
                           طلب إزالة
@@ -575,6 +606,95 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
           entityId={selectedStockAudit.item_id}
           title={`ملاحظات مراجعة المخزون - ${nameOf(selectedStockAudit) || selectedStockAudit.item_code}`}
         />
+      )}
+
+      {requestOpen && !readOnly && (
+        <div className="card p-5 mt-5">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="font-semibold text-lg text-gray-900">طلب تغيير صنف</h2>
+              <p className="text-sm text-gray-500 mt-1">اكتب كل بيانات الطلب هنا مرة واحدة، وسيذهب للمراجعة عند الأوديت.</p>
+            </div>
+            <button type="button" onClick={() => setRequestOpen(false)} className="btn-secondary">إغلاق</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div>
+              <label className="label">نوع الطلب</label>
+              <select
+                className="input-field"
+                value={requestForm.type}
+                onChange={(e) => setRequestForm((p) => ({ ...p, type: e.target.value, item_id: '', item_label: '' }))}
+              >
+                <option value="new_item">صنف جديد غير موجود</option>
+                <option value="warehouse_remove">إزالة صنف من المستودع</option>
+              </select>
+            </div>
+            {requestForm.type === 'warehouse_remove' ? (
+              <div className="md:col-span-2">
+                <label className="label">الصنف المطلوب إزالته</label>
+                <select
+                  className="input-field"
+                  value={requestForm.item_id}
+                  onChange={(e) => {
+                    const item = displayedStock.find((row) => String(row.item_id) === e.target.value)
+                    setRequestForm((p) => ({
+                      ...p,
+                      item_id: e.target.value,
+                      item_label: item ? `${nameOf(item) || item.item_code} (${item.item_code || ''})` : '',
+                    }))
+                  }}
+                >
+                  <option value="">اختر صنف</option>
+                  {displayedStock.map((row) => (
+                    <option key={row.item_id} value={row.item_id}>{nameOf(row)} ({row.item_code})</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="label">اسم الصنف</label>
+                  <input
+                    className="input-field"
+                    value={requestForm.proposed_item_name_ar}
+                    onChange={(e) => setRequestForm((p) => ({ ...p, proposed_item_name_ar: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">الوحدة</label>
+                  <input
+                    className="input-field"
+                    placeholder="قطعة / كرتون / كيلوجرام"
+                    value={requestForm.proposed_unit}
+                    onChange={(e) => setRequestForm((p) => ({ ...p, proposed_unit: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">المصدر</label>
+                  <select
+                    className="input-field"
+                    value={requestForm.proposed_source_type}
+                    onChange={(e) => setRequestForm((p) => ({ ...p, proposed_source_type: e.target.value }))}
+                  >
+                    <option value="WAREHOUSE">مستودع</option>
+                    <option value="KITCHEN">مطبخ</option>
+                  </select>
+                </div>
+              </>
+            )}
+            <div className={requestForm.type === 'warehouse_remove' ? 'md:col-span-2 xl:col-span-1' : 'md:col-span-2 xl:col-span-4'}>
+              <label className="label">السبب</label>
+              <input
+                className="input-field"
+                value={requestForm.reason}
+                onChange={(e) => setRequestForm((p) => ({ ...p, reason: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <button type="button" onClick={submitWarehouseItemRequest} className="btn-primary">إرسال الطلب للمراجعة</button>
+          </div>
+        </div>
       )}
 
       {adjustOpen && (
