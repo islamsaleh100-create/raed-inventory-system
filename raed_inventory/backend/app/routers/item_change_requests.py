@@ -41,6 +41,13 @@ class NewItemPayload(BaseModel):
     reason: str | None = None
 
 
+class ItemRenamePayload(BaseModel):
+    warehouse_id: int | None = None
+    item_id: int
+    item_name_ar: str | None = None
+    item_name_en: str | None = None
+
+
 class ReviewPayload(BaseModel):
     review_note: str | None = None
 
@@ -233,6 +240,46 @@ def request_new_item(
     db.commit()
     db.refresh(row)
     return _row_to_dict(row)
+
+
+@router.post("/rename-item")
+def rename_item(
+    payload: ItemRenamePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("warehouse_manager", "admin", "super_admin")),
+):
+    item = _assert_item_exists(db, payload.item_id)
+    warehouse_id = payload.warehouse_id or current_user.warehouse_id
+    if "warehouse_manager" in _roles(current_user):
+        if not warehouse_id or not can_access_warehouse(current_user, warehouse_id):
+            raise HTTPException(status_code=403, detail="No access to warehouse")
+        stock = db.query(WarehouseStock).filter(
+            WarehouseStock.warehouse_id == warehouse_id,
+            WarehouseStock.item_id == payload.item_id,
+        ).first()
+        if not stock:
+            raise HTTPException(status_code=404, detail="Item is not in this warehouse")
+
+    new_ar = (payload.item_name_ar or "").strip()
+    new_en = (payload.item_name_en or "").strip()
+    if not new_ar and not new_en:
+        raise HTTPException(status_code=400, detail="Item name is required")
+    if new_ar:
+        item.item_name_ar = new_ar
+    if new_en:
+        item.item_name_en = new_en
+    elif new_ar and not item.item_name_en:
+        item.item_name_en = new_ar
+    item.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(item)
+    return {
+        "ok": True,
+        "item_id": item.id,
+        "item_code": item.item_code,
+        "item_name_ar": item.item_name_ar,
+        "item_name_en": item.item_name_en,
+    }
 
 
 @router.post("/{request_id}/approve")

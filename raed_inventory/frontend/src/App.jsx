@@ -222,6 +222,8 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
   const [adjustOpen, setAdjustOpen] = React.useState(false)
   const [adjustForm, setAdjustForm] = React.useState({
     item_id: '',
+    item_name_ar: '',
+    item_name_en: '',
     adjustment_type: 'set',
     qty: '',
     reason: 'Warehouse stock update',
@@ -342,20 +344,48 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
   }
 
   const saveAdjustment = async () => {
-    if (!selectedWh || !adjustForm.item_id || adjustForm.qty === '') {
-      toast.error('اختر الصنف والكمية')
+    if (!selectedWh || !adjustForm.item_id) {
+      toast.error('اختر الصنف')
       return
     }
     try {
-      await stockApi.adjustWarehouse(selectedWh, {
-        item_id: Number(adjustForm.item_id),
-        adjustment_type: adjustForm.adjustment_type,
-        qty: Number(adjustForm.qty),
-        reason: adjustForm.reason || 'Warehouse stock update',
-      })
-      toast.success('تم تحديث مخزون المستودع')
+      const selectedItem = items.find((item) => String(item.id) === String(adjustForm.item_id))
+      const nextNameAr = adjustForm.item_name_ar.trim()
+      const nextNameEn = adjustForm.item_name_en.trim()
+      const nameChanged =
+        (nextNameAr && nextNameAr !== (selectedItem?.item_name_ar || '')) ||
+        (nextNameEn && nextNameEn !== (selectedItem?.item_name_en || ''))
+      const qtyChanged = adjustForm.qty !== ''
+      if (!nameChanged && !qtyChanged) {
+        toast.error('غيّر الاسم أو اكتب الكمية')
+        return
+      }
+      if (nameChanged) {
+        await itemChangeRequestsApi.renameItem({
+          warehouse_id: Number(selectedWh),
+          item_id: Number(adjustForm.item_id),
+          item_name_ar: nextNameAr || selectedItem?.item_name_ar || '',
+          item_name_en: nextNameEn || selectedItem?.item_name_en || nextNameAr || '',
+        })
+      }
+      if (qtyChanged) {
+        await stockApi.adjustWarehouse(selectedWh, {
+          item_id: Number(adjustForm.item_id),
+          adjustment_type: adjustForm.adjustment_type,
+          qty: Number(adjustForm.qty),
+          reason: adjustForm.reason || 'Warehouse stock update',
+        })
+      }
+      toast.success(nameChanged && qtyChanged ? 'تم تحديث اسم الصنف والمخزون' : (nameChanged ? 'تم تحديث اسم الصنف' : 'تم تحديث مخزون المستودع'))
       setAdjustOpen(false)
-      setAdjustForm({ item_id: '', adjustment_type: 'set', qty: '', reason: 'Warehouse stock update' })
+      setAdjustForm({ item_id: '', item_name_ar: '', item_name_en: '', adjustment_type: 'set', qty: '', reason: 'Warehouse stock update' })
+      if (nameChanged) {
+        setItems((prev) => prev.map((item) => (
+          String(item.id) === String(adjustForm.item_id)
+            ? { ...item, item_name_ar: nextNameAr || item.item_name_ar, item_name_en: nextNameEn || item.item_name_en }
+            : item
+        )))
+      }
       loadStock()
     } catch (err) {
       toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'فشل تحديث المخزون')
@@ -363,8 +393,11 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
   }
 
   const openAdjustmentForItem = (itemId, qty = '') => {
+    const item = items.find((row) => String(row.id) === String(itemId))
     setAdjustForm({
       item_id: String(itemId || ''),
+      item_name_ar: item?.item_name_ar || '',
+      item_name_en: item?.item_name_en || '',
       adjustment_type: 'set',
       qty: qty === null || qty === undefined ? '' : String(qty),
       reason: 'Warehouse stock update',
@@ -704,7 +737,15 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
                 <label className="label">الصنف</label>
                 <select
                   value={adjustForm.item_id}
-                  onChange={(e) => setAdjustForm((p) => ({ ...p, item_id: e.target.value }))}
+                  onChange={(e) => {
+                    const item = items.find((row) => String(row.id) === e.target.value)
+                    setAdjustForm((p) => ({
+                      ...p,
+                      item_id: e.target.value,
+                      item_name_ar: item?.item_name_ar || '',
+                      item_name_en: item?.item_name_en || '',
+                    }))
+                  }}
                   className="input-field"
                 >
                   <option value="">اختر صنف</option>
@@ -714,6 +755,24 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">اسم الصنف عربي</label>
+                  <input
+                    value={adjustForm.item_name_ar}
+                    onChange={(e) => setAdjustForm((p) => ({ ...p, item_name_ar: e.target.value }))}
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="label">اسم الصنف إنجليزي</label>
+                  <input
+                    value={adjustForm.item_name_en}
+                    onChange={(e) => setAdjustForm((p) => ({ ...p, item_name_en: e.target.value }))}
+                    className="input-field"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -250,6 +250,7 @@ export const itemChangeRequestsApi = {
   addBranchItem: (data) => api.post('/item-change-requests/branch-add', data),
   requestBranchRemove: (data) => api.post('/item-change-requests/branch-remove', data),
   requestNewItem: (data) => api.post('/item-change-requests/new-item', data),
+  renameItem: (data) => api.post('/item-change-requests/rename-item', data),
   approve: (id, data = {}) => api.post(`/item-change-requests/${id}/approve`, data),
   reject: (id, data = {}) => api.post(`/item-change-requests/${id}/reject`, data),
 }
