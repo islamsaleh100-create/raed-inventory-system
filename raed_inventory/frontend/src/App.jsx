@@ -236,6 +236,7 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
     proposed_source_type: 'WAREHOUSE',
     reason: '',
   })
+  const requestFormRef = React.useRef(null)
   const [quickQtys, setQuickQtys] = React.useState({})
   const [selectedStockAudit, setSelectedStockAudit] = React.useState(null)
   const fileInputRef = React.useRef(null)
@@ -409,6 +410,9 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
       reason: '',
     })
     setRequestOpen(true)
+    window.setTimeout(() => {
+      requestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
   }
 
   const submitWarehouseItemRequest = async () => {
@@ -536,80 +540,8 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
         </div>
       )}
 
-      {!loading && selectedWh && (
-        <div className="card table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>{t('branch_stock.item')}</th>
-                <th>{t('branch_stock.col_code')}</th>
-                <th>{t('branch_stock.wh_col_qty')}</th>
-                <th>{t('branch_stock.reserved_qty')}</th>
-                <th>{readOnly ? 'مراجعة' : 'تعديل'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedStock.length === 0 ? (
-                <tr><td colSpan={5} className="text-center text-gray-400 py-8">{t('branch_stock.wh_empty')}</td></tr>
-              ) : displayedStock.map((s) => (
-                <tr key={s.item_id}>
-                  <td className="font-medium">{nameOf(s)}</td>
-                  <td className="font-mono text-xs text-gray-400">{s.item_code}</td>
-                  <td className="text-center font-bold">{parseFloat(s.current_qty)}</td>
-                  <td className="text-center text-gray-500">{parseFloat(s.reserved_qty)}</td>
-                  <td className="text-center">
-                    {readOnly ? (
-                      <button
-                        type="button"
-                        className="btn-secondary text-xs py-1 px-2"
-                        onClick={() => setSelectedStockAudit(s)}
-                      >
-                        ملاحظة
-                      </button>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          value={quickQtys[s.item_id] ?? ''}
-                          placeholder={String(s.current_qty ?? 0)}
-                          onChange={(e) => setQuickQtys((p) => ({ ...p, [s.item_id]: e.target.value }))}
-                          className="w-24 border border-gray-300 rounded px-2 py-1 text-sm text-center"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => saveQuickQty(s.item_id)}
-                          className="btn-primary text-xs py-1 px-2"
-                        >
-                          حفظ
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openWarehouseRequestForm('warehouse_remove', s)}
-                          className="btn-secondary text-xs py-1 px-2"
-                        >
-                          طلب إزالة
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {readOnly && selectedStockAudit && (
-        <InlineAuditFindingsPanel
-          entityType="warehouse_stock"
-          entityId={selectedStockAudit.item_id}
-          title={`ملاحظات مراجعة المخزون - ${nameOf(selectedStockAudit) || selectedStockAudit.item_code}`}
-        />
-      )}
-
       {requestOpen && !readOnly && (
-        <div className="card p-5 mt-5">
+        <div ref={requestFormRef} className="card p-5 mb-5 border-blue-200 bg-blue-50/30">
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="font-semibold text-lg text-gray-900">طلب تغيير صنف</h2>
@@ -695,6 +627,78 @@ function WarehouseStockPage({ readOnly = false, title = null, subtitle = null })
             <button type="button" onClick={submitWarehouseItemRequest} className="btn-primary">إرسال الطلب للمراجعة</button>
           </div>
         </div>
+      )}
+
+      {!loading && selectedWh && (
+        <div className="card table-container">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>{t('branch_stock.item')}</th>
+                <th>{t('branch_stock.col_code')}</th>
+                <th>{t('branch_stock.wh_col_qty')}</th>
+                <th>{t('branch_stock.reserved_qty')}</th>
+                <th>{readOnly ? 'مراجعة' : 'تعديل'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedStock.length === 0 ? (
+                <tr><td colSpan={5} className="text-center text-gray-400 py-8">{t('branch_stock.wh_empty')}</td></tr>
+              ) : displayedStock.map((s) => (
+                <tr key={s.item_id}>
+                  <td className="font-medium">{nameOf(s)}</td>
+                  <td className="font-mono text-xs text-gray-400">{s.item_code}</td>
+                  <td className="text-center font-bold">{parseFloat(s.current_qty)}</td>
+                  <td className="text-center text-gray-500">{parseFloat(s.reserved_qty)}</td>
+                  <td className="text-center">
+                    {readOnly ? (
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs py-1 px-2"
+                        onClick={() => setSelectedStockAudit(s)}
+                      >
+                        ملاحظة
+                      </button>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={quickQtys[s.item_id] ?? ''}
+                          placeholder={String(s.current_qty ?? 0)}
+                          onChange={(e) => setQuickQtys((p) => ({ ...p, [s.item_id]: e.target.value }))}
+                          className="w-24 border border-gray-300 rounded px-2 py-1 text-sm text-center"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveQuickQty(s.item_id)}
+                          className="btn-primary text-xs py-1 px-2"
+                        >
+                          حفظ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openWarehouseRequestForm('warehouse_remove', s)}
+                          className="btn-secondary text-xs py-1 px-2"
+                        >
+                          طلب إزالة
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {readOnly && selectedStockAudit && (
+        <InlineAuditFindingsPanel
+          entityType="warehouse_stock"
+          entityId={selectedStockAudit.item_id}
+          title={`ملاحظات مراجعة المخزون - ${nameOf(selectedStockAudit) || selectedStockAudit.item_code}`}
+        />
       )}
 
       {adjustOpen && (
