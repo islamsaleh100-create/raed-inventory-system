@@ -17,6 +17,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import get_current_active_user, require_roles
@@ -280,22 +281,28 @@ def export_warehouse_stock(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*_MGMT)),
 ):
-    stocks = db.query(WarehouseStock).options(
-        joinedload(WarehouseStock.item)
-    ).filter(WarehouseStock.warehouse_id == warehouse_id).all()
+    rows_query = (
+        db.query(Item, WarehouseStock)
+        .outerjoin(
+            WarehouseStock,
+            and_(WarehouseStock.item_id == Item.id, WarehouseStock.warehouse_id == warehouse_id),
+        )
+        .filter(Item.is_deleted == False)
+        .order_by(Item.category_id.asc(), Item.item_name_ar.asc(), Item.item_code.asc())
+        .all()
+    )
 
-    rows = [
-        {
-            "item_id": s.item_id,
-            "item_code": s.item.item_code if s.item else "",
-            "item_name_ar": s.item.item_name_ar if s.item else "",
-            "item_name_en": s.item.item_name_en if s.item else "",
-            "current_qty": float(s.current_qty),
-            "reserved_qty": float(s.reserved_qty),
-            "reorder_point": float(s.item.reorder_point) if s.item else 0,
-        }
-        for s in stocks
-    ]
+    rows = []
+    for item, stock in rows_query:
+        rows.append({
+            "item_id": item.id,
+            "item_code": item.item_code,
+            "item_name_ar": item.item_name_ar,
+            "item_name_en": item.item_name_en,
+            "current_qty": float(stock.current_qty) if stock else 0,
+            "reserved_qty": float(stock.reserved_qty) if stock else 0,
+            "reorder_point": float(item.reorder_point) if item else 0,
+        })
     return _respond(rows, f"warehouse_{warehouse_id}_stock", format, "Stock")
 
 
