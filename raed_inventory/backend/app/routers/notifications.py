@@ -12,6 +12,8 @@ Endpoints:
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Set
 
+from app.core.area_manager_scope import get_area_manager_branch_ids
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import inspect, func
 from sqlalchemy.orm import Session, load_only
@@ -42,25 +44,8 @@ router = APIRouter(prefix="/api/v1/notifications", tags=["Notifications"])
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _area_branch_ids(user: User, db: Session) -> List[int]:
-    """ترجع الـ branch ids داخل منطقة الـ area_manager (city أو area)."""
-    if not user.branch_id:
-        return []
-    home = db.query(Branch).filter(Branch.id == user.branch_id).first()
-    if not home:
-        return []
-    city = (home.city or "").strip().lower()
-    area = (home.area or "").strip().lower()
-    ids: Set[int] = {home.id}
-    rows = db.query(Branch).filter(
-        Branch.is_deleted == False,  # noqa: E712
-        Branch.active == True,       # noqa: E712
-    ).all()
-    for row in rows:
-        rc = (row.city or "").strip().lower()
-        ra = (row.area or "").strip().lower()
-        if (city and rc and city == rc) or (area and ra and area == ra):
-            ids.add(row.id)
-    return list(ids)
+    """Branch ids in scope for area_manager notifications (city + brand assignments)."""
+    return get_area_manager_branch_ids(user, db)
 
 
 def _has_destination_branch_id(db: Session) -> bool:

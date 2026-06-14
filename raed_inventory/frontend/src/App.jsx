@@ -1905,6 +1905,10 @@ function SmartDashboard() {
   const roles = useSelector(selectUserRoles)
   if (roles.includes('super_admin')) return <Navigate to="/supply-chain/control" replace />
   if (roles.includes('internal_auditor')) return <Navigate to="/audit/dashboard" replace />
+  if (roles.includes('area_manager') || roles.includes('kitchen_section_manager') || roles.includes('delivery_user')) {
+    return <Navigate to="/supply-chain/control" replace />
+  }
+  if (roles.includes('sales_manager')) return <Navigate to="/delivery" replace />
   if (roles.includes('branch_user') || roles.includes('branch_manager')) return <BranchDashboard />
   if (roles.includes('warehouse_user') || roles.includes('warehouse_manager')) return <WarehouseDashboard />
   if (roles.includes('operations_manager')) return <OperationsDashboard />
@@ -1925,11 +1929,11 @@ function AppRoutes() {
           <Route path="/dashboard" element={<SmartDashboard />} />
 
           {/* Branch */}
-          <Route path="/inventory" element={<InventoryListPage />} />
-          <Route path="/inventory/new" element={<InventoryEntryPage />} />
-          <Route path="/inventory/:id" element={<InventoryEntryPage />} />
-          <Route path="/orders" element={<OrdersListPage />} />
-          <Route path="/orders/exceptional" element={<ManualOrderPage orderType="exceptional" />} />
+          <Route path="/inventory" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryListPage /></RouteRoleGuard>} />
+          <Route path="/inventory/new" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryEntryPage /></RouteRoleGuard>} />
+          <Route path="/inventory/:id" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryEntryPage /></RouteRoleGuard>} />
+          <Route path="/orders" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><OrdersListPage /></RouteRoleGuard>} />
+          <Route path="/orders/exceptional" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><ManualOrderPage orderType="exceptional" /></RouteRoleGuard>} />
           <Route
             path="/orders/daily"
             element={(
@@ -1938,19 +1942,19 @@ function AppRoutes() {
               </RouteRoleGuard>
             )}
           />
-          <Route path="/orders/:id" element={<OrderDetailPage />} />
-          <Route path="/receiving" element={<OrdersListPage receiveView />} />
-          <Route path="/receiving/:id" element={<ReceivingPage />} />
-          <Route path="/branch-stock" element={<BranchStockPage />} />
+          <Route path="/orders/:id" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'warehouse_user', 'warehouse_manager', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><OrderDetailPage /></RouteRoleGuard>} />
+          <Route path="/receiving" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><OrdersListPage receiveView /></RouteRoleGuard>} />
+          <Route path="/receiving/:id" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><ReceivingPage /></RouteRoleGuard>} />
+          <Route path="/branch-stock" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><BranchStockPage /></RouteRoleGuard>} />
           <Route path="/branch-employees" element={<RouteRoleGuard allowed={['branch_manager', 'admin', 'super_admin']}><BranchEmployeesPage /></RouteRoleGuard>} />
 
           {/* Warehouse */}
-          <Route path="/warehouse/orders" element={<OrdersListPage warehouseView />} />
-          <Route path="/warehouse/orders/:id" element={<OrderDetailPage warehouseView />} />
-          <Route path="/warehouse/picking" element={<OrdersListPage warehouseView pickingView />} />
-          <Route path="/warehouse/dispatch" element={<OrdersListPage warehouseView dispatchView />} />
-          <Route path="/warehouse/stock" element={<WarehouseStockPage />} />
-          <Route path="/warehouse/reports" element={<WarehouseDashboard />} />
+          <Route path="/warehouse/orders" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><OrdersListPage warehouseView /></RouteRoleGuard>} />
+          <Route path="/warehouse/orders/:id" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><OrderDetailPage warehouseView /></RouteRoleGuard>} />
+          <Route path="/warehouse/picking" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><OrdersListPage warehouseView pickingView /></RouteRoleGuard>} />
+          <Route path="/warehouse/dispatch" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><OrdersListPage warehouseView dispatchView /></RouteRoleGuard>} />
+          <Route path="/warehouse/stock" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><WarehouseStockPage /></RouteRoleGuard>} />
+          <Route path="/warehouse/reports" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><WarehouseDashboard /></RouteRoleGuard>} />
 
           {/* Inter-branch transfer â€” ط·ظ„ط¨ ظ…ظ† ظ…ط¯ظٹط± ط§ظ„ظپط±ط¹طŒ ط¨ط§ظ†طھط¸ط§ط± ظ…ظˆط§ظپظ‚ط© ظ…ط¯ظٹط± ط§ظ„ظ…ظ†ط·ظ‚ط© */}
           <Route path="/stock/inter-branch-transfer" element={<RouteRoleGuard allowed={['branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin']}><InterBranchTransferPage /></RouteRoleGuard>} />

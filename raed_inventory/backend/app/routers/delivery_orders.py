@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.auth import get_user_roles, require_roles
+from app.core.auth import get_user_roles, is_platform_admin, is_read_only_auditor, require_roles
 from app.core.errors import AppError
 from app.core.locking import lock_row
 from app.database import get_db
@@ -46,7 +46,11 @@ def _roles(user: User) -> list[str]:
 
 
 def _is_admin(user: User) -> bool:
-    return any(r in _roles(user) for r in ("admin", "super_admin", "internal_auditor"))
+    return is_platform_admin(user)
+
+
+def _is_auditor(user: User) -> bool:
+    return is_read_only_auditor(user)
 
 
 def _is_warehouse_role(user: User) -> bool:
@@ -84,9 +88,16 @@ def _load_delivery_order(db: Session, order_id: int) -> DeliveryOrder:
 def _require_order_access(user: User, row: DeliveryOrder) -> None:
     if _is_admin(user):
         return
+    if _is_auditor(user):
+        return
     if "delivery_user" in _roles(user):
         if user.warehouse_id is None:
-            return
+            raise AppError(
+                status_code=403,
+                error_code="delivery_orders.warehouse_required",
+                message="Delivery user must be assigned to a warehouse",
+                detail={"user_id": user.id},
+            )
         if row.branch and row.branch.warehouse_id == user.warehouse_id:
             return
         raise AppError(
@@ -142,6 +153,16 @@ def _refresh_request_statuses(row: DeliveryOrder) -> None:
             request.updated_at = datetime.utcnow()
 
 
+def _require_delivery_user_warehouse(user: User) -> None:
+    if user.warehouse_id is None:
+        raise AppError(
+            status_code=403,
+            error_code="delivery_orders.warehouse_required",
+            message="Delivery user must be assigned to a warehouse",
+            detail={"user_id": user.id},
+        )
+
+
 @router.get("/ready", response_model=list[DeliveryOrderOut])
 def list_ready_delivery_orders(
     db: Session = Depends(get_db),
@@ -151,9 +172,17 @@ def list_ready_delivery_orders(
         joinedload(DeliveryOrder.branch),
         joinedload(DeliveryOrder.lines).joinedload(DeliveryOrderLine.item),
     ).filter(DeliveryOrder.status == DeliveryOrderStatus.READY)
-    if "delivery_user" in _roles(current_user) and current_user.warehouse_id and not _is_admin(current_user):
+    if "delivery_user" in _roles(current_user) and not _is_admin(current_user) and not _is_auditor(current_user):
+        _require_delivery_user_warehouse(current_user)
         q = q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
-    if _is_warehouse_role(current_user) and not _is_admin(current_user):
+    if _is_warehouse_role(current_user) and not _is_admin(current_user) and not _is_auditor(current_user):
+        if current_user.warehouse_id is None:
+            raise AppError(
+                status_code=403,
+                error_code="delivery_orders.warehouse_required",
+                message="Warehouse user must be assigned to a warehouse",
+                detail={"user_id": current_user.id},
+            )
         q = q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
     return q.order_by(DeliveryOrder.created_at.desc()).all()
 
@@ -173,9 +202,17 @@ def list_delivery_orders(
         q = q.filter(DeliveryOrder.status == status)
     if branch_id:
         q = q.filter(DeliveryOrder.branch_id == branch_id)
-    if "delivery_user" in _roles(current_user) and current_user.warehouse_id and not _is_admin(current_user):
+    if "delivery_user" in _roles(current_user) and not _is_admin(current_user) and not _is_auditor(current_user):
+        _require_delivery_user_warehouse(current_user)
         q = q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
-    if _is_warehouse_role(current_user) and not _is_admin(current_user):
+    if _is_warehouse_role(current_user) and not _is_admin(current_user) and not _is_auditor(current_user):
+        if current_user.warehouse_id is None:
+            raise AppError(
+                status_code=403,
+                error_code="delivery_orders.warehouse_required",
+                message="Warehouse user must be assigned to a warehouse",
+                detail={"user_id": current_user.id},
+            )
         q = q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
     return q.order_by(DeliveryOrder.created_at.desc()).all()
 

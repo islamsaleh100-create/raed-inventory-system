@@ -13,7 +13,10 @@ from app.core.auth import (
     get_current_active_user,
     can_access_branch,
     can_access_warehouse,
+    get_user_roles,
+    is_platform_admin,
 )
+from app.core.area_manager_scope import get_area_manager_branch_ids
 from app.core.errors import AppError
 from app.models import (
     ReplenishmentOrder, ReplenishmentOrderLine,
@@ -48,6 +51,8 @@ def _ensure_order_read_access(current_user: User, order: ReplenishmentOrder, db:
     if any(role in user_roles for role in ["branch_user", "branch_manager"]) and can_access_branch(current_user, order.branch_id, db):
         return
     if any(role in user_roles for role in ["warehouse_user", "warehouse_manager"]) and can_access_warehouse(current_user, order.warehouse_id):
+        return
+    if "area_manager" in user_roles and can_access_branch(current_user, order.branch_id, db):
         return
     raise AppError(
         status_code=403,
@@ -147,6 +152,9 @@ def list_orders(
         q = q.filter(ReplenishmentOrder.branch_id == current_user.branch_id)
     elif "warehouse_user" in user_roles or "warehouse_manager" in user_roles:
         q = q.filter(ReplenishmentOrder.warehouse_id == current_user.warehouse_id)
+    elif "area_manager" in user_roles:
+        scoped_ids = get_area_manager_branch_ids(current_user, db)
+        q = q.filter(ReplenishmentOrder.branch_id.in_(scoped_ids if scoped_ids else [-1]))
 
     if branch_id:
         q = q.filter(ReplenishmentOrder.branch_id == branch_id)
@@ -265,6 +273,9 @@ def area_manager_review(
     )
     if not order:
         raise HTTPException(status_code=404, detail="الطلبية غير موجودة")
+    if "area_manager" in get_user_roles(current_user) and not is_platform_admin(current_user):
+        if not can_access_branch(current_user, order.branch_id, db):
+            raise HTTPException(status_code=403, detail="Access denied for this order branch")
     if order.status not in (OrderStatus.branch_reviewed, OrderStatus.system_generated):
         raise HTTPException(status_code=400, detail="الطلبية ليست في حالة مناسبة للمراجعة")
 
