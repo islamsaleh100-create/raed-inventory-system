@@ -40,8 +40,11 @@ app = FastAPI(
     title=settings.APP_NAME,
     description="Branch Daily Inventory & Auto Replenishment System for Raed Food Corporation",
     version=settings.APP_VERSION,
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
+    # OpenAPI docs are disabled in production to prevent schema enumeration.
+    # Set ENVIRONMENT=local or staging to re-enable.
+    docs_url=None if settings.is_production else "/api/docs",
+    redoc_url=None if settings.is_production else "/api/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
 )
 
 # ── Rate limiting (slowapi) ───────────────────────────────────────────────────

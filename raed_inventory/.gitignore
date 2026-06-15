@@ -47,9 +47,18 @@ coverage.xml
 # ─── Local DB artifacts ────────────────────────────────────────────────
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 raed_inventory_local.db*
+_alembic_*.db*
+_official_supply_master*.db*
+raed_inventory_*.db*
+sqlite*_probe.db*
+manual_test.db*
+_chain_full.db*
+_demo_write_probe.db*
 
 # ─── Node / Frontend ───────────────────────────────────────────────────
 node_modules/

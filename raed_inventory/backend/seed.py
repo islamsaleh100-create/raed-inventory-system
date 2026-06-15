@@ -20,8 +20,18 @@ from decimal import Decimal
 
 
 def create_tables():
+    """
+    Safety-net table creation.
+    On PostgreSQL: tables must already exist via `alembic upgrade head`.
+    This function is a no-op on PostgreSQL and only creates tables on SQLite.
+    """
+    url = str(engine.url)
+    if not url.startswith("sqlite"):
+        # On PostgreSQL, trust Alembic. Do not create tables at seed time.
+        print("ℹ️  PostgreSQL detected — skipping create_all (use `alembic upgrade head` first)")
+        return
     Base.metadata.create_all(bind=engine)
-    print("✅ Tables created")
+    print("✅ Tables created (SQLite)")
 
 
 def seed_roles(db: Session):

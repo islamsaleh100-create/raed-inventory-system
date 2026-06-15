@@ -53,8 +53,17 @@ from app.models import (
 
 
 def create_tables():
+    """
+    Safety-net table creation.
+    On PostgreSQL: tables must already exist via `alembic upgrade head`.
+    This function is a no-op on PostgreSQL and only creates tables on SQLite.
+    """
+    url = str(engine.url)
+    if not url.startswith("sqlite"):
+        print("i  PostgreSQL detected -- skipping create_all (use `alembic upgrade head` first)")
+        return
     Base.metadata.create_all(bind=engine)
-    print("✅ Tables created / verified")
+    print("OK Tables created / verified (SQLite)")
 
 
 # ─── Quality Visit Checklist (ONDA Internal Visit Checklist) ─────────────────

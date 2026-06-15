@@ -403,7 +403,9 @@ def main() -> int:
     summary: dict[str, int] = {}
     try:
         ensure_local_schema_compatibility()
-        Base.metadata.create_all(bind=engine)
+        # On PostgreSQL, tables must exist via `alembic upgrade head` — skip create_all.
+        if str(engine.url).startswith("sqlite"):
+            Base.metadata.create_all(bind=engine)
 
         # 1. Brands
         brand_by_name: dict[str, Brand] = {}

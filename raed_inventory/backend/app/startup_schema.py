@@ -2,11 +2,14 @@ from sqlalchemy import inspect, text
 import logging
 
 from app.database import engine
-from app.models import Base, BranchItemAvailability, IdempotencyRequest, ItemChangeRequest
+from app.models import Base, IdempotencyRequest
 
 
 logger = logging.getLogger(__name__)
 
+# NOTE: BranchItemAvailability and ItemChangeRequest were moved from this file
+# into Alembic migration c1d2e3f4a5b6 (2026-06-14). They are no longer created
+# at runtime — use `alembic upgrade head` to create them on a fresh database.
 
 SQLITE_COMPAT_ALTERS = {
     "items": [
@@ -29,27 +32,29 @@ SQLITE_COMPAT_ALTERS = {
 }
 
 
-# Sprint 3 reduced runtime schema creation to the minimum legacy-only case.
-# All application tables should now come from Alembic revisions.
-NEW_MODULE_TABLES = [BranchItemAvailability.__table__, ItemChangeRequest.__table__]
-
-
 def ensure_local_schema_compatibility() -> None:
     """
     SQLite-only compatibility layer executed at app startup.
 
-    This helper is now intentionally limited to:
-    1. creating the idempotency_requests table if an old local SQLite DB lacks it
-    2. patching a few legacy SQLite columns that pre-date proper Alembic history
+    This helper is intentionally limited to:
+    1. Creating the idempotency_requests table if an old local SQLite DB lacks it
+       (SQLite only — PostgreSQL gets this via Alembic).
+    2. Patching a few legacy SQLite columns that pre-date proper Alembic history.
 
-    Application feature tables should be managed by Alembic, not by runtime
-    schema mutation.
+    All application feature tables must be managed by Alembic migrations.
+    Do NOT add new tables here — add a migration instead.
     """
     inspector = inspect(engine)
+    is_sqlite = str(engine.url).startswith("sqlite")
+
+    if not is_sqlite:
+        # On PostgreSQL, runtime schema creation is disabled entirely.
+        # All tables must exist via `alembic upgrade head`.
+        return
 
     with engine.begin() as conn:
         existing_before = set(inspector.get_table_names())
-        target_tables = ([IdempotencyRequest.__table__] if str(engine.url).startswith("sqlite") else []) + NEW_MODULE_TABLES
+        target_tables = [IdempotencyRequest.__table__]
         Base.metadata.create_all(bind=conn, tables=target_tables, checkfirst=True)
         created = [t.name for t in target_tables if t.name not in existing_before]
         if created:
