@@ -322,6 +322,19 @@ def _state_snapshot(row: BranchRequest) -> dict:
     }
 
 
+def _split_children_snapshot(db: Session, request_id: int) -> dict:
+    warehouse_line_ids = [
+        row[0] for row in db.query(WarehouseLine.id).filter(WarehouseLine.source_request_id == request_id).all()
+    ]
+    production_order_ids = [
+        row[0] for row in db.query(ProductionOrder.id).filter(ProductionOrder.source_request_id == request_id).all()
+    ]
+    return {
+        "warehouse_line_ids": warehouse_line_ids,
+        "production_order_ids": production_order_ids,
+    }
+
+
 def _audit_state_change(db: Session, request: Request, user: User, action: str, row: BranchRequest, old_state: dict, extra: dict | None = None) -> None:
     new_state = _state_snapshot(row)
     if extra:
@@ -565,7 +578,15 @@ def approve_branch_request(
     # Auto-split (2026-04-24 demo readiness): split immediately on approve
     # so demo flow does not require a separate /split call.
     _split_request_service(db, row)
-    _audit_state_change(db, request, current_user, "request_auto_split", row, {"status": BranchRequestStatus.AREA_APPROVED.value})
+    _audit_state_change(
+        db,
+        request,
+        current_user,
+        "request_auto_split",
+        row,
+        {"status": BranchRequestStatus.AREA_APPROVED.value},
+        _split_children_snapshot(db, row.id),
+    )
     db.commit()
     supply_chain_idempotency_service.complete(
         db,
@@ -631,7 +652,15 @@ def modify_and_approve_branch_request(
     _audit_state_change(db, request, current_user, "request_modified_and_approved", row, old_state)
     # Auto-split (2026-04-24 demo readiness)
     _split_request_service(db, row)
-    _audit_state_change(db, request, current_user, "request_auto_split", row, {"status": BranchRequestStatus.AREA_APPROVED.value})
+    _audit_state_change(
+        db,
+        request,
+        current_user,
+        "request_auto_split",
+        row,
+        {"status": BranchRequestStatus.AREA_APPROVED.value},
+        _split_children_snapshot(db, row.id),
+    )
     db.commit()
     supply_chain_idempotency_service.complete(
         db,
@@ -670,7 +699,7 @@ def split_branch_request(
     old_state = _state_snapshot(row)
     # If it's already split, the service short-circuits silently — no error.
     _split_request_service(db, row)
-    _audit_state_change(db, request, current_user, "request_split", row, old_state)
+    _audit_state_change(db, request, current_user, "request_split", row, old_state, _split_children_snapshot(db, row.id))
     db.commit()
     supply_chain_idempotency_service.complete(
         db,

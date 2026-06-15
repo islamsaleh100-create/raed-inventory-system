@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Set
 
 from app.core.area_manager_scope import get_area_manager_branch_ids
+from app.services.supply_chain_notification_service import build_supply_chain_sections
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import inspect, func
@@ -534,6 +535,28 @@ def _section_training_reeval_due_soon(db: Session, branch_ids: Optional[List[int
 # Dispatcher — based on role, collect relevant sections.
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _safe_section(db: Session, builder, *args, **kwargs) -> Dict[str, Any]:
+    try:
+        section = builder(db, *args, **kwargs)
+    except Exception:
+        db.rollback()
+        import logging
+        logging.getLogger(__name__).warning(
+            "Notification section builder failed: %s",
+            getattr(builder, "__name__", builder),
+            exc_info=True,
+        )
+        fallback_key = getattr(builder, "__name__", "unknown_section").removeprefix("_section_")
+        return {"key": fallback_key, "count": 0, "items": [], "target_url": None}
+    if not isinstance(section, dict):
+        raise ValueError(f"Notification section builder {getattr(builder, '__name__', builder)} did not return dict")
+    section.setdefault("key", getattr(builder, "__name__", "unknown_section"))
+    section.setdefault("count", 0)
+    section.setdefault("items", [])
+    section.setdefault("target_url", None)
+    return section
+
+
 def _build_sections(user: User, db: Session) -> List[Dict[str, Any]]:
     roles = get_user_roles(user)
     is_super = "super_admin" in roles
@@ -545,58 +568,58 @@ def _build_sections(user: User, db: Session) -> List[Dict[str, Any]]:
 
     # Branch
     if ({"branch_user", "branch_manager"} & set(roles)) and user.branch_id:
-        sections.append(_section_orders_to_receive(db, user.branch_id))
-        sections.append(_section_rejected_orders_for_branch(db, user.branch_id))
-        sections.append(_section_inter_branch_inbound(db, user.branch_id))
+        sections.append(_safe_section(db, _section_orders_to_receive, user.branch_id))
+        sections.append(_safe_section(db, _section_rejected_orders_for_branch, user.branch_id))
+        sections.append(_safe_section(db, _section_inter_branch_inbound, user.branch_id))
         if "branch_manager" in roles:
-            sections.append(_section_daily_inventory_pending(db, user.branch_id))
-            sections.append(_section_missing_inventory_today(db, user.branch_id))
-            # إجراءات جودة متأخرة على فرع المدير
-            sections.append(_section_overdue_quality_actions(db, branch_ids=[user.branch_id]))
+            sections.append(_safe_section(db, _section_daily_inventory_pending, user.branch_id))
+            sections.append(_safe_section(db, _section_missing_inventory_today, user.branch_id))
+            sections.append(_safe_section(db, _section_overdue_quality_actions, branch_ids=[user.branch_id]))
 
     # Warehouse
     if {"warehouse_user", "warehouse_manager"} & set(roles):
         wh_id = user.warehouse_id
-        sections.append(_section_pending_warehouse_review(db, wh_id))
-        sections.append(_section_approved_for_picking(db, wh_id))
-        sections.append(_section_in_picking(db, wh_id))
+        sections.append(_safe_section(db, _section_pending_warehouse_review, wh_id))
+        sections.append(_safe_section(db, _section_approved_for_picking, wh_id))
+        sections.append(_safe_section(db, _section_in_picking, wh_id))
 
     # Area manager — scoped to same region
     if "area_manager" in roles:
         branch_ids = _area_branch_ids(user, db)
-        sections.append(_section_inter_branch_pending_approval(db, branch_ids))
-        sections.append(_section_daily_order_area_review(db, branch_ids))
-        sections.append(_section_pending_training_assessments(db, branch_ids))
-        sections.append(_section_needs_reeval_training(db, branch_ids))
-        # تقييمات ردّها المعتمِد للمقيّم (area_manager) — محتاجة تصحيح
-        sections.append(_section_rejected_training_drafts(db, trainer_id=user.id))
-        # اقترب موعد إعادة التقييم — تحرّك الآن
-        sections.append(_section_training_reeval_due_soon(db, branch_ids))
-        # إجراءات تصحيحية متأخرة على فروع منطقته
-        sections.append(_section_overdue_quality_actions(db, branch_ids=branch_ids))
+        sections.append(_safe_section(db, _section_inter_branch_pending_approval, branch_ids))
+        sections.append(_safe_section(db, _section_daily_order_area_review, branch_ids))
+        sections.append(_safe_section(db, _section_pending_training_assessments, branch_ids))
+        sections.append(_safe_section(db, _section_needs_reeval_training, branch_ids))
+        sections.append(_safe_section(db, _section_rejected_training_drafts, trainer_id=user.id))
+        sections.append(_safe_section(db, _section_training_reeval_due_soon, branch_ids))
+        sections.append(_safe_section(db, _section_overdue_quality_actions, branch_ids=branch_ids))
 
     # Operations / Admin / Super-admin — global view
     if is_ops:
-        sections.append(_section_all_pending_warehouse(db))
-        sections.append(_section_all_area_manager_review(db))
-        sections.append(_section_all_pending_inventories(db))
+        sections.append(_safe_section(db, _section_all_pending_warehouse))
+        sections.append(_safe_section(db, _section_all_area_manager_review))
+        sections.append(_safe_section(db, _section_all_pending_inventories))
 
     # Quality
     if "quality_visitor" in roles:
-        sections.append(_section_pending_quality_visits(db, visitor_id=user.id, manager=False))
+        sections.append(_safe_section(db, _section_pending_quality_visits, visitor_id=user.id, manager=False))
     if ("quality_manager" in roles) or is_ops:
-        sections.append(_section_pending_quality_visits(db, manager=True))
-        # نظرة عامة على الإجراءات المتأخرة (كل الفروع)
-        sections.append(_section_overdue_quality_actions(db, branch_ids=None))
+        sections.append(_safe_section(db, _section_pending_quality_visits, manager=True))
+        sections.append(_safe_section(db, _section_overdue_quality_actions, branch_ids=None))
 
     # Training / Assessment — approvers
     if ("quality_manager" in roles) or ("trainer" in roles) or is_ops:
-        sections.append(_section_pending_training_assessments(
-            db, branch_ids=None if is_ops or "quality_manager" in roles
-            else [user.branch_id] if user.branch_id else []
+        sections.append(_safe_section(
+            db,
+            _section_pending_training_assessments,
+            branch_ids=None if is_ops or "quality_manager" in roles
+            else [user.branch_id] if user.branch_id else [],
         ))
 
-    # De-duplicate by key (admin might collect some keys twice through role overlap)
+    sc_sections = build_supply_chain_sections(user, db, set(roles))
+    for sc in sc_sections:
+        sections.append(sc)
+
     seen: Set[str] = set()
     unique: List[Dict[str, Any]] = []
     for s in sections:
@@ -605,17 +628,6 @@ def _build_sections(user: User, db: Session) -> List[Dict[str, Any]]:
         seen.add(s["key"])
         unique.append(s)
     return unique
-
-
-def _safe_section(builder, *args, **kwargs) -> Dict[str, Any]:
-    section = builder(*args, **kwargs)
-    if not isinstance(section, dict):
-        raise ValueError(f"Notification section builder {getattr(builder, '__name__', builder)} did not return dict")
-    section.setdefault("key", getattr(builder, "__name__", "unknown_section"))
-    section.setdefault("count", 0)
-    section.setdefault("items", [])
-    section.setdefault("target_url", None)
-    return section
 
 
 # ──────────────────────────────────────────────────────────────────────────────
