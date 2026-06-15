@@ -41,6 +41,15 @@ def _as_decimal(value) -> Decimal:
     return Decimal(str(value or 0))
 
 
+def _dispatchable_line_statuses() -> tuple[WarehouseLineStatus, ...]:
+    """Warehouse lines with issued quantity ready for delivery dispatch."""
+    return (WarehouseLineStatus.READY_FOR_DISPATCH, WarehouseLineStatus.PARTIAL)
+
+
+def _line_is_dispatchable(row: WarehouseLine) -> bool:
+    return row.status in _dispatchable_line_statuses() and _as_decimal(row.issued_qty) > 0
+
+
 def _roles(user: User) -> list[str]:
     return get_user_roles(user)
 
@@ -239,12 +248,17 @@ def create_delivery_order(
         raise AppError(status_code=400, error_code="delivery_orders.mixed_brands", message="Delivery order lines must target one brand")
 
     for line in lines:
-        if line.status != WarehouseLineStatus.READY_FOR_DISPATCH or Decimal(str(line.issued_qty or 0)) <= 0:
+        if not _line_is_dispatchable(line):
             raise AppError(
                 status_code=400,
                 error_code="delivery_orders.line_not_ready",
-                message="Only READY_FOR_DISPATCH warehouse lines can be delivered",
-                detail={"warehouse_line_id": line.id, "status": line.status.value},
+                message="Only issued warehouse lines (READY_FOR_DISPATCH or PARTIAL with issued qty) can be delivered",
+                detail={
+                    "warehouse_line_id": line.id,
+                    "status": line.status.value,
+                    "issued_qty": str(line.issued_qty),
+                    "pending_qty": str(line.pending_qty),
+                },
             )
         if _is_warehouse_role(current_user) and not _is_admin(current_user) and _line_warehouse_id(line) != current_user.warehouse_id:
             raise AppError(
@@ -433,7 +447,22 @@ def deliver_order(
     row.receiver_name = payload.receiver_name
     row.delivery_note = payload.delivery_note
     row.updated_at = datetime.utcnow()
-    _audit(db, request, current_user, "delivery_delivered", row, {"receiver_name": payload.receiver_name})
+    _audit(
+        db,
+        request,
+        current_user,
+        "delivery_delivered" if not any_partial else "delivery_partial_delivered",
+        row,
+        {
+            "receiver_name": payload.receiver_name,
+            "any_partial": any_partial,
+            "shortages": [
+                {"line_id": line.id, "shortage_qty": str(line.shortage_qty), "shortage_reason": line.shortage_reason}
+                for line in row.lines
+                if _as_decimal(line.shortage_qty) > 0
+            ],
+        },
+    )
     db.commit()
     supply_chain_idempotency_service.complete(db, record=idempotency_record, response_reference_type="delivery_order", response_reference_id=row.id)
     return _load_delivery_order(db, row.id)

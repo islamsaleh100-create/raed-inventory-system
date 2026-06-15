@@ -108,7 +108,21 @@ def _deduct_stock(db: Session, row: WarehouseLine, qty: Decimal, user: User) -> 
             detail={"warehouse_id": warehouse_id, "item_id": row.item_id, "qty": str(qty)},
         )
     stock.current_qty = _as_decimal(stock.current_qty) - qty
-    stock.reserved_qty = max(Decimal("0"), _as_decimal(stock.reserved_qty) - qty)
+    if row.source_type == WarehouseLineSourceType.BRANCH_REQUEST:
+        reserved = _as_decimal(stock.reserved_qty)
+        if reserved < qty:
+            raise AppError(
+                status_code=400,
+                error_code="warehouse_lines.reservation_release_exceeds_reserved",
+                message="Cannot release more reserved stock than currently reserved",
+                detail={
+                    "warehouse_id": warehouse_id,
+                    "item_id": row.item_id,
+                    "reserved_qty": str(reserved),
+                    "issue_qty": str(qty),
+                },
+            )
+        stock.reserved_qty = reserved - qty
     stock.last_updated = datetime.utcnow()
     stock_ledger_service.post_transaction(
         db,
@@ -254,6 +268,17 @@ def issue_line(
     _require_warehouse_access(current_user, row)
     if replayed or row.status == WarehouseLineStatus.READY_FOR_DISPATCH:
         return row
+    if row.status not in (
+        WarehouseLineStatus.AVAILABLE,
+        WarehouseLineStatus.PARTIAL,
+        WarehouseLineStatus.PENDING,
+    ):
+        raise AppError(
+            status_code=400,
+            error_code="warehouse_lines.issue_invalid_status",
+            message="Warehouse line cannot be issued in its current status",
+            detail={"warehouse_line_id": line_id, "status": row.status.value},
+        )
     qty = Decimal(str(payload.qty)) if payload.qty is not None else _as_decimal(row.pending_qty)
     if qty <= 0 or qty != _as_decimal(row.pending_qty):
         raise AppError(
@@ -297,6 +322,17 @@ def partial_issue_line(
     _require_warehouse_access(current_user, row)
     if replayed:
         return row
+    if row.status not in (
+        WarehouseLineStatus.AVAILABLE,
+        WarehouseLineStatus.PARTIAL,
+        WarehouseLineStatus.PENDING,
+    ):
+        raise AppError(
+            status_code=400,
+            error_code="warehouse_lines.partial_issue_invalid_status",
+            message="Warehouse line cannot be partially issued in its current status",
+            detail={"warehouse_line_id": line_id, "status": row.status.value},
+        )
     qty = Decimal(str(payload.qty))
     pending = _as_decimal(row.pending_qty)
     if qty <= 0 or qty > pending:
@@ -309,7 +345,11 @@ def partial_issue_line(
     _deduct_stock(db, row, qty, current_user)
     row.issued_qty = _as_decimal(row.issued_qty) + qty
     row.pending_qty = pending - qty
-    row.status = WarehouseLineStatus.PARTIAL
+    row.status = (
+        WarehouseLineStatus.READY_FOR_DISPATCH
+        if row.pending_qty == 0
+        else WarehouseLineStatus.PARTIAL
+    )
     row.delay_reason = payload.delay_reason
     row.updated_at = datetime.utcnow()
     if row.source_request_line:
