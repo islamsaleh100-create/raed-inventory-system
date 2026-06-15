@@ -15,12 +15,20 @@ import io
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.auth import get_current_active_user, require_roles
+from app.core.area_manager_scope import get_area_manager_branch_ids
+from app.core.auth import (
+    can_access_branch,
+    can_access_warehouse,
+    get_current_active_user,
+    get_user_roles,
+    is_platform_admin,
+    require_roles,
+)
 from app.database import get_db
 from app.models import (
     Branch,
@@ -41,6 +49,63 @@ from app.services import ledger_service
 router = APIRouter(prefix="/api/v1/export", tags=["Data Export"])
 
 _MGMT = ("branch_manager", "warehouse_manager", "admin", "super_admin")
+
+
+def _require_branch_export_access(current_user: User, branch_id: int, db: Session) -> None:
+    if not can_access_branch(current_user, branch_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied for this branch export",
+        )
+
+
+def _require_warehouse_export_access(current_user: User, warehouse_id: int) -> None:
+    if not can_access_warehouse(current_user, warehouse_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied for this warehouse export",
+        )
+
+
+def _scoped_branch_ids(current_user: User, db: Session, branch_id: Optional[int] = None) -> list[int]:
+    roles = get_user_roles(current_user)
+    if is_platform_admin(current_user):
+        if branch_id is not None:
+            return [branch_id]
+        return [row.id for row in db.query(Branch.id).filter(Branch.active == True).all()]  # noqa: E712
+
+    if "branch_manager" in roles or "branch_user" in roles:
+        if not current_user.branch_id:
+            raise HTTPException(status_code=403, detail="Branch user has no branch assignment")
+        if branch_id is not None and branch_id != current_user.branch_id:
+            raise HTTPException(status_code=403, detail="Access denied for this branch export")
+        return [current_user.branch_id]
+
+    if "area_manager" in roles:
+        allowed = get_area_manager_branch_ids(current_user, db)
+        if branch_id is not None:
+            if branch_id not in allowed:
+                raise HTTPException(status_code=403, detail="Access denied for this branch export")
+            return [branch_id]
+        return allowed
+
+    if "warehouse_manager" in roles or "warehouse_user" in roles:
+        if branch_id is not None:
+            branch = db.query(Branch).filter(Branch.id == branch_id).first()
+            if not branch or not can_access_warehouse(current_user, branch.warehouse_id):
+                raise HTTPException(status_code=403, detail="Access denied for this branch export")
+            return [branch_id]
+        if not current_user.warehouse_id:
+            raise HTTPException(status_code=403, detail="Warehouse user has no warehouse assignment")
+        return [
+            row.id
+            for row in db.query(Branch.id).filter(
+                Branch.active == True,  # noqa: E712
+                Branch.warehouse_id == current_user.warehouse_id,
+            ).all()
+        ]
+
+    raise HTTPException(status_code=403, detail="Export not allowed for this role")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -140,17 +205,14 @@ def export_inventory_compliance(
             detail={},
         )
 
-    branch_q = db.query(Branch).filter(Branch.active == True)
-    if branch_id:
-        branch_q = branch_q.filter(Branch.id == branch_id)
-    branches = branch_q.all()
+    branch_ids = _scoped_branch_ids(current_user, db, branch_id)
+    branches = db.query(Branch).filter(Branch.id.in_(branch_ids if branch_ids else [-1])).all()
 
     inv_q = db.query(DailyInventory).filter(
         DailyInventory.inventory_date >= date_from,
         DailyInventory.inventory_date <= date_to,
+        DailyInventory.branch_id.in_(branch_ids if branch_ids else [-1]),
     )
-    if branch_id:
-        inv_q = inv_q.filter(DailyInventory.branch_id == branch_id)
     inv_map = {(i.branch_id, i.inventory_date): i for i in inv_q.all()}
 
     dates = [date_from + timedelta(days=d) for d in range(delta + 1)]
@@ -183,6 +245,10 @@ def export_variance_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*_MGMT)),
 ):
+    if branch_id is not None:
+        _require_branch_export_access(current_user, branch_id, db)
+    elif not is_platform_admin(current_user):
+        raise HTTPException(status_code=400, detail="branch_id is required for this export")
     data = ledger_service.get_variance_report(
         db,
         branch_id=branch_id,
@@ -211,13 +277,26 @@ def export_order_summary(
     current_user: User = Depends(require_roles(*_MGMT)),
 ):
     q = db.query(ReplenishmentOrder)
+    roles = get_user_roles(current_user)
+    if "branch_manager" in roles or "branch_user" in roles:
+        q = q.filter(ReplenishmentOrder.branch_id == current_user.branch_id)
+    elif "warehouse_manager" in roles or "warehouse_user" in roles:
+        if not current_user.warehouse_id:
+            raise HTTPException(status_code=403, detail="Warehouse user has no warehouse assignment")
+        q = q.filter(ReplenishmentOrder.warehouse_id == current_user.warehouse_id)
+    elif "area_manager" in roles:
+        scoped_ids = get_area_manager_branch_ids(current_user, db)
+        q = q.filter(ReplenishmentOrder.branch_id.in_(scoped_ids if scoped_ids else [-1]))
+
     if date_from:
         q = q.filter(ReplenishmentOrder.order_date >= date_from)
     if date_to:
         q = q.filter(ReplenishmentOrder.order_date <= date_to)
     if branch_id:
+        _require_branch_export_access(current_user, branch_id, db)
         q = q.filter(ReplenishmentOrder.branch_id == branch_id)
     if warehouse_id:
+        _require_warehouse_export_access(current_user, warehouse_id)
         q = q.filter(ReplenishmentOrder.warehouse_id == warehouse_id)
 
     orders = q.all()
@@ -249,6 +328,7 @@ def export_branch_stock(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*_MGMT)),
 ):
+    _require_branch_export_access(current_user, branch_id, db)
     stocks = db.query(BranchStock).options(
         joinedload(BranchStock.item)
     ).filter(BranchStock.branch_id == branch_id).all()
@@ -281,6 +361,7 @@ def export_warehouse_stock(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*_MGMT)),
 ):
+    _require_warehouse_export_access(current_user, warehouse_id)
     rows_query = (
         db.query(Item, WarehouseStock)
         .outerjoin(
@@ -319,6 +400,7 @@ def export_branch_ledger(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*_MGMT)),
 ):
+    _require_branch_export_access(current_user, branch_id, db)
     data = ledger_service.get_branch_ledger(
         db,
         branch_id=branch_id,

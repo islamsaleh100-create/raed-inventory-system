@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.core.auth import require_roles
+from app.core.auth import require_roles, get_user_roles, is_platform_admin
+from app.core.area_manager_scope import get_area_manager_branch_ids
 from app.database import get_db
 from app.models import (
     AreaManagerAssignment,
@@ -44,25 +45,30 @@ DASHBOARD_ROLES = ("admin", "super_admin", "internal_auditor", "warehouse_manage
 @router.get("/dashboard", response_model=SupplyChainDashboardOut)
 def supply_chain_dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(*DASHBOARD_ROLES)),
+    current_user: User = Depends(require_roles(*DASHBOARD_ROLES)),
 ):
-    pending_approvals = db.query(BranchRequest).filter(BranchRequest.status == BranchRequestStatus.SUBMITTED).count()
-    in_production = db.query(ProductionOrder).filter(
+    roles = get_user_roles(current_user)
+    elevated = is_platform_admin(current_user) or "operations_manager" in roles or "internal_auditor" in roles
+
+    pending_q = db.query(BranchRequest).filter(BranchRequest.status == BranchRequestStatus.SUBMITTED)
+    production_q = db.query(ProductionOrder).filter(
         ProductionOrder.status.in_([
             ProductionOrderStatus.PENDING,
             ProductionOrderStatus.IN_PROGRESS,
             ProductionOrderStatus.WAITING_FOR_MATERIALS,
         ])
-    ).count()
-    warehouse_delays = db.query(WarehouseLine).filter(
-        WarehouseLine.status.in_([WarehouseLineStatus.PARTIAL, WarehouseLineStatus.BACKORDER])
-    ).count()
-    partial_orders = (
-        db.query(ProductionOrder).filter(ProductionOrder.status == ProductionOrderStatus.PARTIAL_READY).count()
-        + db.query(WarehouseLine).filter(WarehouseLine.status == WarehouseLineStatus.PARTIAL).count()
-        + db.query(DeliveryOrderLine).filter(DeliveryOrderLine.status == DeliveryOrderLineStatus.PARTIAL_DELIVERED).count()
     )
-    top_rows = (
+    warehouse_delay_q = db.query(WarehouseLine).filter(
+        WarehouseLine.status.in_([WarehouseLineStatus.PARTIAL, WarehouseLineStatus.BACKORDER])
+    )
+    partial_production_q = db.query(ProductionOrder).filter(
+        ProductionOrder.status == ProductionOrderStatus.PARTIAL_READY
+    )
+    partial_warehouse_q = db.query(WarehouseLine).filter(WarehouseLine.status == WarehouseLineStatus.PARTIAL)
+    partial_delivery_q = db.query(DeliveryOrderLine).filter(
+        DeliveryOrderLine.status == DeliveryOrderLineStatus.PARTIAL_DELIVERED
+    )
+    top_q = (
         db.query(
             BranchRequestLine.item_id.label("item_id"),
             Item.item_name_en.label("item_name"),
@@ -70,7 +76,97 @@ def supply_chain_dashboard(
             func.count(BranchRequestLine.id).label("request_count"),
         )
         .join(Item, Item.id == BranchRequestLine.item_id)
-        .group_by(BranchRequestLine.item_id, Item.item_name_en)
+        .join(BranchRequest, BranchRequest.id == BranchRequestLine.request_id)
+    )
+
+    if not elevated:
+        if "area_manager" in roles:
+            branch_ids = get_area_manager_branch_ids(current_user, db)
+            branch_filter = branch_ids if branch_ids else [-1]
+            pending_q = pending_q.filter(BranchRequest.branch_id.in_(branch_filter))
+            production_q = production_q.filter(ProductionOrder.destination_branch_id.in_(branch_filter))
+            warehouse_delay_q = warehouse_delay_q.filter(WarehouseLine.branch_id.in_(branch_filter))
+            partial_production_q = partial_production_q.filter(ProductionOrder.destination_branch_id.in_(branch_filter))
+            partial_warehouse_q = partial_warehouse_q.filter(WarehouseLine.branch_id.in_(branch_filter))
+            partial_delivery_q = partial_delivery_q.join(
+                DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id
+            ).filter(DeliveryOrder.branch_id.in_(branch_filter))
+            top_q = top_q.filter(BranchRequest.branch_id.in_(branch_filter))
+        elif any(r in roles for r in ("warehouse_user", "warehouse_manager")):
+            if not current_user.warehouse_id:
+                pending_approvals = in_production = warehouse_delays = partial_orders = 0
+                top_rows = []
+                return {
+                    "pending_approvals": pending_approvals,
+                    "in_production": in_production,
+                    "warehouse_delays": warehouse_delays,
+                    "partial_orders": partial_orders,
+                    "top_requested_items": [],
+                }
+            wh_branch_ids = [
+                row.id
+                for row in db.query(Branch.id).filter(Branch.warehouse_id == current_user.warehouse_id).all()
+            ]
+            wh_filter = wh_branch_ids if wh_branch_ids else [-1]
+            pending_q = pending_q.filter(BranchRequest.branch_id.in_(wh_filter))
+            warehouse_delay_q = warehouse_delay_q.join(Branch, Branch.id == WarehouseLine.branch_id).filter(
+                Branch.warehouse_id == current_user.warehouse_id
+            )
+            partial_warehouse_q = partial_warehouse_q.join(Branch, Branch.id == WarehouseLine.branch_id).filter(
+                Branch.warehouse_id == current_user.warehouse_id
+            )
+            top_q = top_q.filter(BranchRequest.branch_id.in_(wh_filter))
+            production_q = production_q.filter(ProductionOrder.id == -1)
+            partial_production_q = partial_production_q.filter(ProductionOrder.id == -1)
+            partial_delivery_q = partial_delivery_q.join(DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id).join(
+                Branch, Branch.id == DeliveryOrder.branch_id
+            ).filter(Branch.warehouse_id == current_user.warehouse_id)
+        elif "delivery_user" in roles:
+            if not current_user.warehouse_id:
+                return {
+                    "pending_approvals": 0,
+                    "in_production": 0,
+                    "warehouse_delays": 0,
+                    "partial_orders": 0,
+                    "top_requested_items": [],
+                }
+            wh_branch_ids = [
+                row.id
+                for row in db.query(Branch.id).filter(Branch.warehouse_id == current_user.warehouse_id).all()
+            ]
+            wh_filter = wh_branch_ids if wh_branch_ids else [-1]
+            partial_delivery_q = partial_delivery_q.join(
+                DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id
+            ).filter(DeliveryOrder.branch_id.in_(wh_filter))
+            pending_q = pending_q.filter(BranchRequest.id == -1)
+            production_q = production_q.filter(ProductionOrder.id == -1)
+            warehouse_delay_q = warehouse_delay_q.filter(WarehouseLine.id == -1)
+            partial_production_q = partial_production_q.filter(ProductionOrder.id == -1)
+            partial_warehouse_q = partial_warehouse_q.filter(WarehouseLine.id == -1)
+            top_q = top_q.filter(BranchRequest.id == -1)
+        elif "kitchen_section_manager" in roles:
+            section_ids = [
+                row.kitchen_section_id
+                for row in db.query(KitchenSectionAssignment.kitchen_section_id).filter(
+                    KitchenSectionAssignment.user_id == current_user.id,
+                    KitchenSectionAssignment.active == True,  # noqa: E712
+                ).all()
+            ]
+            section_filter = section_ids if section_ids else [-1]
+            production_q = production_q.filter(ProductionOrder.kitchen_section_id.in_(section_filter))
+            partial_production_q = partial_production_q.filter(ProductionOrder.kitchen_section_id.in_(section_filter))
+            pending_q = pending_q.filter(BranchRequest.id == -1)
+            warehouse_delay_q = warehouse_delay_q.filter(WarehouseLine.id == -1)
+            partial_warehouse_q = partial_warehouse_q.filter(WarehouseLine.id == -1)
+            partial_delivery_q = partial_delivery_q.filter(DeliveryOrderLine.id == -1)
+            top_q = top_q.filter(BranchRequest.id == -1)
+
+    pending_approvals = pending_q.count()
+    in_production = production_q.count()
+    warehouse_delays = warehouse_delay_q.count()
+    partial_orders = partial_production_q.count() + partial_warehouse_q.count() + partial_delivery_q.count()
+    top_rows = (
+        top_q.group_by(BranchRequestLine.item_id, Item.item_name_en)
         .order_by(func.sum(BranchRequestLine.qty_requested).desc())
         .limit(10)
         .all()

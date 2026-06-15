@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.errors import AppError
-from app.core.auth import get_user_roles, require_roles
+from app.core.auth import get_user_roles, is_platform_admin, is_read_only_auditor, require_roles
 from app.core.locking import lock_row
 from app.database import get_db
 from app.models import (
@@ -75,7 +75,7 @@ def _warehouse_id_for_line(row: WarehouseLine) -> int:
 
 
 def _has_global_access(user: User) -> bool:
-    return any(r in get_user_roles(user) for r in ("admin", "super_admin", "internal_auditor"))
+    return is_platform_admin(user) or is_read_only_auditor(user)
 
 
 def _require_warehouse_access(user: User, row: WarehouseLine) -> None:

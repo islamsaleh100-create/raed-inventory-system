@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.auth import get_user_roles, require_roles
+from app.core.auth import get_user_roles, is_platform_admin, is_read_only_auditor, require_roles
 from app.core.errors import AppError
 from app.core.locking import lock_row
 from app.database import get_db
@@ -55,7 +55,7 @@ def _roles(user: User) -> list[str]:
 
 
 def _is_admin(user: User) -> bool:
-    return any(r in _roles(user) for r in ("admin", "super_admin", "internal_auditor"))
+    return is_platform_admin(user)
 
 
 def _is_branch_role(user: User) -> bool:
@@ -139,7 +139,7 @@ def _area_scope_filter(db: Session, user: User, q):
         .join(
             AreaManagerAssignment,
             (AreaManagerAssignment.brand_id == BranchRequest.brand_id)
-            & (func.lower(AreaManagerAssignment.city) == func.lower(Branch.city))
+            & (AreaManagerAssignment.city == Branch.city)
             & (AreaManagerAssignment.user_id == user.id)
             & (AreaManagerAssignment.active == True)
             & ((AreaManagerAssignment.ended_at.is_(None)) | (AreaManagerAssignment.ended_at > now)),
@@ -150,6 +150,8 @@ def _area_scope_filter(db: Session, user: User, q):
 
 def _can_view(db: Session, user: User, row: BranchRequest) -> bool:
     if _is_admin(user):
+        return True
+    if is_read_only_auditor(user):
         return True
     if _is_branch_role(user):
         return user.branch_id == row.branch_id

@@ -2,6 +2,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
+
+from app.core.area_manager_scope import branch_in_area_manager_scope
 from app.database import get_db
 from app.core.security import decode_access_token
 from app.models import User, UserRole, Role, RolePermission, Permission, Branch, UserStatus
@@ -87,41 +89,41 @@ def get_user_roles(user: User) -> List[str]:
     return [ur.role.name.value for ur in user.user_roles]
 
 
-def _same_region(b1: Branch, b2: Branch) -> bool:
-    """Two branches belong to the same area_manager scope if city (primary) or area (fallback) matches."""
-    c1 = (getattr(b1, "city", None) or "").strip().lower()
-    c2 = (getattr(b2, "city", None) or "").strip().lower()
-    if c1 and c2 and c1 == c2:
-        return True
-    a1 = (getattr(b1, "area", None) or "").strip().lower()
-    a2 = (getattr(b2, "area", None) or "").strip().lower()
-    return bool(a1 and a2 and a1 == a2)
+def is_super_admin(user: User) -> bool:
+    return "super_admin" in get_user_roles(user)
 
 
-def can_access_branch(user: User, branch_id: int, db: Optional[Session] = None) -> bool:
+def is_platform_admin(user: User) -> bool:
+    """admin or super_admin — operational admin, not internal_auditor."""
+    roles = get_user_roles(user)
+    return "super_admin" in roles or "admin" in roles
+
+
+def is_read_only_auditor(user: User) -> bool:
+    return "internal_auditor" in get_user_roles(user)
+
+
+def can_access_branch(
+    user: User,
+    branch_id: int,
+    db: Optional[Session] = None,
+    brand_id: Optional[int] = None,
+) -> bool:
     """
     Branch-level access check.
 
-    area_manager scope is bounded by the city/area of the user's home branch.
-    Callers that need area_manager access MUST pass `db` so the region comparison
-    can be performed; without `db` area_manager is denied cross-branch access
-    (safe default — prevents accidental global access).
+    area_manager scope uses AreaManagerAssignment (city + brand_id).
+    Callers MUST pass `db` for area_manager checks; without `db` access is denied.
     """
     user_roles = get_user_roles(user)
     if any(role in user_roles for role in ["super_admin", "admin", "operations_manager"]):
         return True
+    if "internal_auditor" in user_roles:
+        return True
     if "area_manager" in user_roles:
-        if not user.branch_id:
-            return False
-        if user.branch_id == branch_id:
-            return True
         if db is None:
             return False
-        user_branch = db.query(Branch).filter(Branch.id == user.branch_id).first()
-        target_branch = db.query(Branch).filter(Branch.id == branch_id).first()
-        if not user_branch or not target_branch:
-            return False
-        return _same_region(user_branch, target_branch)
+        return branch_in_area_manager_scope(user, db, branch_id, brand_id=brand_id)
     if any(role in user_roles for role in ["branch_user", "branch_manager"]):
         return user.branch_id == branch_id
     return False

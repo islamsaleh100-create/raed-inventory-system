@@ -1,6 +1,6 @@
 """
-تحويل بين الفروع تحت area_manager: نفس المدينة → 200، مدينة مختلفة → 403.
-يعتمد على can_access_branch(..., db) و _same_region في app.core.auth.
+تحويل بين الفروع تحت area_manager: نفس المدينة + brand assignment → 200، خارج النطاق → 403.
+يعتمد على AreaManagerAssignment و can_access_branch في app.core.auth.
 """
 from decimal import Decimal
 
@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
 from app.models import (
+    AreaManagerAssignment,
     Branch,
+    BranchBrand,
+    Brand,
     BranchStock,
     Item,
     ItemCategory,
@@ -60,6 +63,13 @@ def _seed_minimal_graph(db: Session):
     db.add_all([b_riyadh_a, b_riyadh_b, b_eastern])
     db.flush()
 
+    brand = Brand(name="Test Brand", active=True)
+    db.add(brand)
+    db.flush()
+    for branch in (b_riyadh_a, b_riyadh_b, b_eastern):
+        db.add(BranchBrand(branch_id=branch.id, brand_id=brand.id))
+    db.flush()
+
     role = Role(
         name=RoleName.area_manager,
         display_name="مدير منطقة",
@@ -81,6 +91,14 @@ def _seed_minimal_graph(db: Session):
     db.add(am_user)
     db.flush()
     db.add(UserRole(user_id=am_user.id, role_id=role.id))
+    db.add(
+        AreaManagerAssignment(
+            user_id=am_user.id,
+            city="الرياض",
+            brand_id=brand.id,
+            active=True,
+        )
+    )
 
     cat = ItemCategory(code="CAT-T", name_ar="تصنيف", name_en="Cat")
     db.add(cat)
