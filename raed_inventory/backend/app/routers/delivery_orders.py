@@ -28,6 +28,7 @@ from app.models import (
 from app.schemas import DeliveryOrderCreate, DeliveryOrderDeliverPayload, DeliveryOrderOut
 from app.services import audit_service, stock_ledger_service
 from app.services import supply_chain_idempotency_service
+from app.services.supply_chain_serializers import delivery_order_out
 
 
 router = APIRouter(prefix="/api/v1/delivery-orders", tags=["Delivery Orders"])
@@ -193,7 +194,8 @@ def list_ready_delivery_orders(
                 detail={"user_id": current_user.id},
             )
         q = q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
-    return q.order_by(DeliveryOrder.created_at.desc()).all()
+    rows = q.order_by(DeliveryOrder.created_at.desc()).all()
+    return [delivery_order_out(row) for row in rows]
 
 
 @router.get("", response_model=list[DeliveryOrderOut])
@@ -223,7 +225,8 @@ def list_delivery_orders(
                 detail={"user_id": current_user.id},
             )
         q = q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
-    return q.order_by(DeliveryOrder.created_at.desc()).all()
+    rows = q.order_by(DeliveryOrder.created_at.desc()).all()
+    return [delivery_order_out(row) for row in rows]
 
 
 @router.post("", response_model=DeliveryOrderOut, status_code=201)
@@ -313,7 +316,7 @@ def get_delivery_order(
 ):
     row = _load_delivery_order(db, order_id)
     _require_order_access(current_user, row)
-    return row
+    return delivery_order_out(row)
 
 
 @router.post("/{order_id}/out-for-delivery", response_model=DeliveryOrderOut)

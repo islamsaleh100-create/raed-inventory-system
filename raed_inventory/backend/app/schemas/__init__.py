@@ -559,6 +559,7 @@ class BranchRequestOut(BaseModel):
     id: int
     request_no: str
     branch_id: int
+    branch_name: Optional[str] = None
     brand_id: int
     brand_name_snapshot: Optional[str] = None
     status: BranchRequestStatus
@@ -584,11 +585,51 @@ class BranchRequestListResponse(BaseModel):
     items: List[BranchRequestOut]
 
 
+class BranchRequestTimelineEventOut(BaseModel):
+    key: str
+    label_ar: str
+    at: datetime
+    owner_role_ar: Optional[str] = None
+    detail: Optional[str] = None
+    source: str
+
+
+class BranchRequestFulfillmentLineOut(BaseModel):
+    request_line_id: int
+    item_id: int
+    item_name: str
+    requested_qty: Decimal
+    issued_qty: Decimal
+    delivered_qty: Decimal
+    remaining_qty: Decimal
+    delay_reason: Optional[str] = None
+    line_status: str
+    route_ar: Optional[str] = None
+
+
+class BranchRequestStatusSummaryOut(BaseModel):
+    current_status_ar: str
+    current_owner_ar: str
+    next_action_ar: str
+    last_updated_at: datetime
+
+
+class BranchRequestDetailOut(BaseModel):
+    request: BranchRequestOut
+    branch_name: str
+    timeline: List[BranchRequestTimelineEventOut]
+    fulfillment_lines: List[BranchRequestFulfillmentLineOut]
+    status_summary: BranchRequestStatusSummaryOut
+    timeline_gaps: List[str] = []
+
+
 class ProductionOrderOut(BaseModel):
     id: int
     source_request_id: int
     source_request_line_id: int
     destination_branch_id: int
+    branch_name: Optional[str] = None
+    destination_warehouse_name: Optional[str] = None
     brand_id: int
     kitchen_section_id: int
     item_id: int
@@ -641,6 +682,7 @@ class WarehouseLineOut(BaseModel):
     source_request_line_id: Optional[int] = None
     source_type: WarehouseLineSourceType
     branch_id: int
+    branch_name: Optional[str] = None
     brand_id: int
     kitchen_section_id: Optional[int] = None
     item_id: int
@@ -699,6 +741,7 @@ class DeliveryOrderOut(BaseModel):
     id: int
     source_request_id: Optional[int] = None
     branch_id: int
+    branch_name: Optional[str] = None
     brand_id: int
     status: DeliveryOrderStatus
     ready_at: Optional[datetime] = None

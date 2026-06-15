@@ -61,7 +61,7 @@ const NAVIGATION = [
       roles: ['branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager', 'warehouse_user', 'warehouse_manager', 'delivery_user', 'operations_manager', 'admin', 'super_admin'],
       items: [
         { to: '/supply-chain/control', icon: LayoutDashboard, labelKey: 'nav.supply_chain_control', roles: ['branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager', 'warehouse_user', 'warehouse_manager', 'delivery_user', 'operations_manager', 'admin', 'super_admin'] },
-        { to: '/supply-chain/branch-requests', icon: ClipboardList, labelKey: 'nav.supply_chain_branch_requests', roles: ['branch_user', 'branch_manager', 'admin', 'super_admin'] },
+        { to: '/supply-chain/branch-requests', icon: ClipboardList, labelKey: 'nav.supply_chain_branch_requests', roles: ['branch_user', 'branch_manager', 'area_manager', 'admin', 'super_admin'] },
         { to: '/supply-chain/approvals', icon: Users, labelKey: 'nav.supply_chain_approvals', roles: ['area_manager', 'admin', 'super_admin'] },
         { to: '/supply-chain/kitchen', icon: Package, labelKey: 'nav.supply_chain_kitchen', roles: ['kitchen_section_manager', 'admin', 'super_admin'] },
         { to: '/supply-chain/warehouse', icon: Warehouse, labelKey: 'nav.supply_chain_warehouse', roles: ['warehouse_user', 'warehouse_manager', 'admin', 'super_admin'] },
@@ -145,6 +145,28 @@ const NAVIGATION = [
   },
 ]
 
+const TRIAL_SUPPLY_CHAIN_ROLES = [
+  'branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager',
+  'warehouse_user', 'warehouse_manager', 'delivery_user',
+]
+
+/** Legacy paths hidden for LAN trial operational roles (admin/super_admin keep full nav). */
+const LEGACY_TRIAL_HIDDEN_PATHS = new Set([
+  '/orders', '/orders/daily', '/orders/exceptional', '/receiving',
+  '/warehouse/orders', '/warehouse/picking', '/warehouse/dispatch', '/warehouse/stock', '/warehouse/reports',
+  '/delivery', '/delivery/daily-entry', '/delivery/statements', '/delivery/reconciliation',
+  '/delivery/closures', '/delivery/compliance', '/delivery/import', '/delivery/branches',
+  '/delivery/branch-stats', '/delivery/brands', '/delivery/unmatched',
+])
+
+function isLegacyHiddenForTrial(item, roles) {
+  if (roles.includes('admin') || roles.includes('super_admin')) return false
+  if (!TRIAL_SUPPLY_CHAIN_ROLES.some((r) => roles.includes(r))) return false
+  if (LEGACY_TRIAL_HIDDEN_PATHS.has(item.to)) return true
+  if (item.to.startsWith('/delivery-analytics')) return true
+  return false
+}
+
 function NavItem({ item, roles, onClick }) {
   const location = useLocation()
   const t = useT()
@@ -154,7 +176,8 @@ function NavItem({ item, roles, onClick }) {
       && item.to !== '/supply-chain/control'
       && location.pathname.startsWith(item.to))
   const isElevatedUser = roles.includes('admin') || roles.includes('super_admin')
-  const visible = isElevatedUser || item.roles.length === 0 || item.roles.some((r) => roles.includes(r))
+  const visible = !isLegacyHiddenForTrial(item, roles)
+    && (isElevatedUser || item.roles.length === 0 || item.roles.some((r) => roles.includes(r)))
   if (!visible) return null
 
   return (
@@ -231,13 +254,19 @@ export default function AppLayoutV2({ children }) {
             const sectionVisible = !section.roles || section.roles.some((r) => roles.includes(r)) || isElevatedUser
             if (!sectionVisible) return null
 
+            const visibleItems = section.items.filter((item) => {
+              if (isLegacyHiddenForTrial(item, roles)) return false
+              return isElevatedUser || item.roles.length === 0 || item.roles.some((r) => roles.includes(r))
+            })
+            if (visibleItems.length === 0) return null
+
             return (
               <div key={section.sectionKey}>
                 <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 mb-1">
                   {t(section.sectionKey)}
                 </p>
                 <div className="space-y-0.5">
-                  {section.items.map((item) => (
+                  {visibleItems.map((item) => (
                     <NavItem
                       key={item.to}
                       item={item}

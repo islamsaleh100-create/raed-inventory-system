@@ -34,6 +34,7 @@ from app.models import (
 from app.schemas import (
     BranchRequestApprovePayload,
     BranchRequestCreate,
+    BranchRequestDetailOut,
     BranchRequestListResponse,
     BranchRequestModifyApprovePayload,
     BranchRequestOut,
@@ -42,6 +43,7 @@ from app.schemas import (
     ItemOut,
 )
 from app.services import audit_service
+from app.services.branch_request_detail_service import build_branch_request_detail
 from app.services.branch_request_split_service import split_branch_request as _split_request_service
 from app.services import supply_chain_idempotency_service
 
@@ -82,6 +84,12 @@ def _get_request(db: Session, request_id: int) -> BranchRequest:
             detail={"request_id": request_id},
         )
     return row
+
+
+def _branch_request_out(row: BranchRequest) -> BranchRequestOut:
+    base = BranchRequestOut.model_validate(row)
+    branch_name = row.branch.branch_name if row.branch else None
+    return base.model_copy(update={"branch_name": branch_name})
 
 
 def _get_request_for_update(db: Session, request_id: int) -> BranchRequest:
@@ -475,7 +483,12 @@ def list_branch_requests(
 
     total = q.count()
     items = q.order_by(BranchRequest.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    return {"total": total, "page": page, "page_size": page_size, "items": items}
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "items": [_branch_request_out(item) for item in items],
+    }
 
 
 @router.get("/{request_id}", response_model=BranchRequestOut)
@@ -486,7 +499,22 @@ def get_branch_request(
 ):
     row = _get_request(db, request_id)
     _require_view(db, current_user, row)
-    return row
+    return _branch_request_out(row)
+
+
+@router.get("/{request_id}/detail", response_model=BranchRequestDetailOut)
+def get_branch_request_detail(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*SCOPED_ROLES)),
+):
+    row = _get_request(db, request_id)
+    _require_view(db, current_user, row)
+    payload = build_branch_request_detail(db, row)
+    return {
+        **payload,
+        "request": _branch_request_out(row),
+    }
 
 
 @router.patch("/{request_id}", response_model=BranchRequestOut)

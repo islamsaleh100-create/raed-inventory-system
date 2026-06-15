@@ -43,6 +43,7 @@ from app.schemas import (
 )
 from app.services import audit_service, stock_ledger_service
 from app.services import supply_chain_idempotency_service
+from app.services.supply_chain_serializers import production_order_out
 
 
 router = APIRouter(prefix="/api/v1/production-orders", tags=["Production Orders"])
@@ -268,7 +269,10 @@ def list_production_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*PRODUCTION_ROLES)),
 ):
-    q = db.query(ProductionOrder).options(joinedload(ProductionOrder.item))
+    q = db.query(ProductionOrder).options(
+        joinedload(ProductionOrder.item),
+        joinedload(ProductionOrder.destination_branch).joinedload(Branch.warehouse),
+    )
     if not _broad_access(current_user):
         q = q.join(Branch, Branch.id == ProductionOrder.destination_branch_id)
         scopes = _kitchen_scopes(db, current_user)
@@ -291,7 +295,8 @@ def list_production_orders(
         q = q.filter(ProductionOrder.status == status)
     if kitchen_section_id:
         q = q.filter(ProductionOrder.kitchen_section_id == kitchen_section_id)
-    return q.order_by(ProductionOrder.created_at.desc()).all()
+    rows = q.order_by(ProductionOrder.created_at.desc()).all()
+    return [production_order_out(row) for row in rows]
 
 
 @router.get("/daily-kitchen-lines")

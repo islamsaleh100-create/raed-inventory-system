@@ -385,6 +385,7 @@ export const supplyChainApi = {
 
   listBranchRequests: (params) => api.get('/branch-requests', { params }),
   getBranchRequest: (id) => api.get(`/branch-requests/${id}`),
+  getBranchRequestDetail: (id) => api.get(`/branch-requests/${id}/detail`),
   listAllowedItems: (params) => api.get('/branch-requests/allowed-items', { params }),
   createBranchRequest: (data) => api.post('/branch-requests', data),
   updateBranchRequest: (id, data) => api.patch(`/branch-requests/${id}`, data),

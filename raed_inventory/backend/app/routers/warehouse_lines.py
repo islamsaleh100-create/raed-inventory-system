@@ -22,6 +22,7 @@ from app.models import (
 from app.schemas import WarehouseDelayPayload, WarehouseIssuePayload, WarehouseLineOut
 from app.services import audit_service, stock_ledger_service
 from app.services import supply_chain_idempotency_service
+from app.services.supply_chain_serializers import warehouse_line_out
 
 
 router = APIRouter(prefix="/api/v1/warehouse-lines", tags=["Warehouse Lines"])
@@ -153,7 +154,8 @@ def list_warehouse_lines(
         q = q.filter(WarehouseLine.branch_id == branch_id)
     if not _has_global_access(current_user):
         q = q.join(Branch, Branch.id == WarehouseLine.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
-    return q.order_by(WarehouseLine.created_at.desc()).all()
+    rows = q.order_by(WarehouseLine.created_at.desc()).all()
+    return [warehouse_line_out(row) for row in rows]
 
 
 @router.get("/{line_id}", response_model=WarehouseLineOut)
@@ -164,7 +166,7 @@ def get_warehouse_line(
 ):
     row = _get_line(db, line_id)
     _require_warehouse_access(current_user, row)
-    return row
+    return warehouse_line_out(row)
 
 
 @router.post("/{line_id}/receive", response_model=WarehouseLineOut)

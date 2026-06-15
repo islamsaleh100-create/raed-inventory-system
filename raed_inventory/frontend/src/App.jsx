@@ -37,6 +37,7 @@ import {
   SupplyChainWarehousePage,
   SupplyChainDeliveryPage,
 } from './pages/supply_chain/SupplyChainPages'
+import { BranchRequestDetailPage } from './pages/supply_chain/BranchRequestDetailPage'
 import {
   DeliveryDashboardPage,
   DeliveryBranchStatsPage,
@@ -2045,6 +2046,7 @@ function AppRoutes() {
           {/* Supply Chain V1 demo screens */}
           <Route path="/supply-chain" element={<Navigate to="/dashboard" replace />} />
           <Route path="/supply-chain/control" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/supply-chain/branch-requests/:id" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><BranchRequestDetailPage /></RouteRoleGuard>} />
           <Route path="/supply-chain/branch-requests" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><SupplyChainBranchRequestsPage /></RouteRoleGuard>} />
           <Route path="/supply-chain/approvals" element={<RouteRoleGuard allowed={['area_manager', 'internal_auditor', 'admin', 'super_admin']}><SupplyChainApprovalsPage /></RouteRoleGuard>} />
           <Route path="/supply-chain/kitchen" element={<RouteRoleGuard allowed={['kitchen_section_manager', 'internal_auditor', 'admin', 'super_admin']}><SupplyChainKitchenPage /></RouteRoleGuard>} />

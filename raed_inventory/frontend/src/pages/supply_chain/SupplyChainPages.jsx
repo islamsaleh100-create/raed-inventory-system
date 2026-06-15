@@ -5,6 +5,8 @@ import { useSelector } from 'react-redux'
 import { selectUser, selectUserRoles } from '../../store'
 import { useT } from '../../i18n'
 import { dashboardApi, masterApi, notificationsApi, supplyChainApi } from '../../services/api'
+import ConfirmDialog from '../../components/common/ConfirmDialog'
+import { FulfillmentTable } from './BranchRequestDetailPage'
 
 const STATUS_BADGE = {
   DRAFT: 'bg-gray-100 text-gray-700',
@@ -93,6 +95,36 @@ function formatDate(value) {
   } catch {
     return value
   }
+}
+
+function branchDisplay(lineOrOrder) {
+  return lineOrOrder?.branch_name
+    || lineOrOrder?.branch?.branch_name
+    || lineOrOrder?.branch?.branch_name_ar
+    || '—'
+}
+
+function sourceRouteLabel(line) {
+  const src = String(line?.resolved_source_type || line?.source_type || '').toUpperCase()
+  if (src.includes('KITCHEN') && src.includes('WAREHOUSE')) return 'مطبخ / مستودع'
+  if (src.includes('KITCHEN')) return 'مطبخ'
+  if (src.includes('WAREHOUSE')) return 'مستودع'
+  if (src.includes('BOTH')) return 'مطبخ / مستودع'
+  return 'حسب إعداد الصنف'
+}
+
+function countApprovalRoutes(lines) {
+  let kitchen = 0
+  let warehouse = 0
+  let mixed = 0
+  lines.forEach((line) => {
+    const label = sourceRouteLabel(line)
+    if (label.includes('مطبخ') && label.includes('مستودع')) mixed += 1
+    else if (label.includes('مطبخ')) kitchen += 1
+    else if (label.includes('مستودع')) warehouse += 1
+    else mixed += 1
+  })
+  return { kitchen, warehouse, mixed }
 }
 
 function itemLabel(item) {
@@ -268,7 +300,7 @@ export function SupplyChainBranchRequestsPage() {
   }
 
   return (
-    <PageShell title="طلبات الفروع" subtitle="إنشاء طلب فرع جديد وتجربة مسار الـ demo من الواجهة">
+    <PageShell title="طلبات الفروع" subtitle="إنشاء ومتابعة طلبات التوريد للفروع">
       {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يستطيع استعراض الطلبات والأصناف القابلة للطلب لكل فرع، لكنه لا ينشئ أو يرسل طلبات جديدة من هذه الصفحة." />}
       <div className="grid xl:grid-cols-[1.2fr,1fr] gap-6">
         <div className="card p-5 space-y-4">
@@ -277,7 +309,7 @@ export function SupplyChainBranchRequestsPage() {
               <div>
                 <label className="label">الفرع</label>
                 <select id="sc-branch-request-branch" aria-label="Branch" value={selectedBranchId} onChange={(e) => setSelectedBranchId(e.target.value)} className="input-field">
-                  <option value="">ط§ط®طھط± ط§ظ„ظپط±ط¹</option>
+                  <option value="">اختر الفرع</option>
                   {branches.map((branch) => (
                     <option key={branch.id} value={branch.id}>{branch.branch_name || branch.branch_name_ar || branch.name}</option>
                   ))}
@@ -301,7 +333,7 @@ export function SupplyChainBranchRequestsPage() {
 
           {canSelectBranch && !selectedBranchId && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
-              ط§ط®طھط± ط§ظ„ظپط±ط¹ ط£ظˆظ„ظ‹ط§ ظ„ط¹ط±ط¶ ط§ظ„ط¨ط±ط§ظ†ط¯ط§طھ ظˆط§ظ„ط£طµظ†ط§ظپ ط§ظ„ظ…طھط§ط­ط© ظ„ظ‡.
+              اختر الفرع أولًا لعرض البراندات والأصناف المتاحة له.
             </div>
           )}
 
@@ -374,21 +406,29 @@ export function SupplyChainBranchRequestsPage() {
                 <th>البراند</th>
                 <th>الحالة</th>
                 <th>الإنشاء</th>
+                <th>الإجراء</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={4} className="text-center py-8 text-gray-400">جارٍ التحميل...</td></tr>
+                <tr><td colSpan={5} className="text-center py-8 text-gray-400">جارٍ التحميل...</td></tr>
               ) : requests.length === 0 ? (
-                <tr><td colSpan={4} className="text-center py-8 text-gray-400">لا توجد طلبات بعد</td></tr>
+                <tr><td colSpan={5} className="text-center py-8 text-gray-400">لا توجد طلبات بعد</td></tr>
               ) : requests.map((request) => {
                 const brand = availableBrands.find((entry) => entry.brand.id === request.brand_id)?.brand
                 return (
                   <tr key={request.id}>
-                    <td className="font-medium">{request.request_no}</td>
+                    <td className="font-medium">
+                      <Link to={`/supply-chain/branch-requests/${request.id}`} className="text-blue-700 hover:underline">
+                        {request.request_no}
+                      </Link>
+                    </td>
                     <td>{brand?.name || `#${request.brand_id}`}</td>
                     <td><StatusBadge status={request.status} /></td>
                     <td>{formatDate(request.created_at)}</td>
+                    <td>
+                      <Link to={`/supply-chain/branch-requests/${request.id}`} className="btn-secondary text-xs">تفاصيل</Link>
+                    </td>
                   </tr>
                 )
               })}
@@ -409,6 +449,8 @@ export function SupplyChainApprovalsPage() {
   const [approvalNote, setApprovalNote] = React.useState('')
   const [rejectNote, setRejectNote] = React.useState('')
   const [lineApprovals, setLineApprovals] = React.useState({})
+  const [approveConfirmOpen, setApproveConfirmOpen] = React.useState(false)
+  const [pendingApproveAction, setPendingApproveAction] = React.useState(null)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -440,12 +482,23 @@ export function SupplyChainApprovalsPage() {
     if (!selected) return
     try {
       await supplyChainApi.approveBranchRequest(selected.id, { approval_note: approvalNote || null })
-      toast.success('تمت الموافقة والـ split تلقائيًا')
+      toast.success('تمت الموافقة — سيتم إرسال الأسطر للمطبخ والمستودع')
       await load()
       setSelected(null)
     } catch (error) {
       toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر اعتماد الطلب')
     }
+  }
+
+  const openApproveConfirm = (action) => {
+    setPendingApproveAction(() => action)
+    setApproveConfirmOpen(true)
+  }
+
+  const runApproveConfirm = async () => {
+    setApproveConfirmOpen(false)
+    if (pendingApproveAction) await pendingApproveAction()
+    setPendingApproveAction(null)
   }
 
   const modifyApprove = async () => {
@@ -488,7 +541,28 @@ export function SupplyChainApprovalsPage() {
   }
 
   return (
-    <PageShell title="موافقات مدير المنطقة" subtitle="الاعتماد هنا يطلق auto split تلقائيًا بدون خطوة إضافية">
+    <PageShell title="موافقات مدير المنطقة" subtitle="الاعتماد يرسل الأسطر تلقائيًا للمطبخ أو المستودع حسب نوع الصنف">
+      <ConfirmDialog
+        open={approveConfirmOpen && !!selected}
+        title="تأكيد الاعتماد"
+        onCancel={() => { setApproveConfirmOpen(false); setPendingApproveAction(null) }}
+        onConfirm={runApproveConfirm}
+      >
+        {selected && (() => {
+          const counts = countApprovalRoutes(selected.lines)
+          return (
+            <>
+              <p>هذا الاعتماد سيرسل:</p>
+              <ul className="list-disc list-inside">
+                <li>{counts.kitchen} سطر/أسطر إلى المطبخ</li>
+                <li>{counts.warehouse} سطر/أسطر إلى المستودع</li>
+                {counts.mixed > 0 && <li>{counts.mixed} سطر/أسطر (مسار افتراضي / مختلط)</li>}
+              </ul>
+              <p className="font-medium pt-2">هل أنت متأكد؟</p>
+            </>
+          )
+        })()}
+      </ConfirmDialog>
       <div className="grid xl:grid-cols-[380px,1fr] gap-6">
         <div className="card divide-y divide-gray-100">
           {loading ? (
@@ -518,6 +592,7 @@ export function SupplyChainApprovalsPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">{selected.request_no}</h2>
                   <p className="text-sm text-gray-500">عدد الأسطر: {selected.lines.length}</p>
+                  <Link to={`/supply-chain/branch-requests/${selected.id}`} className="text-sm text-blue-700 hover:underline">عرض التفاصيل والمسار</Link>
                 </div>
                 <StatusBadge status={selected.status} />
               </div>
@@ -548,7 +623,7 @@ export function SupplyChainApprovalsPage() {
                             disabled={isAuditor}
                           />
                         </td>
-                        <td>{line.source_type}</td>
+                        <td>{sourceRouteLabel(line)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -569,8 +644,8 @@ export function SupplyChainApprovalsPage() {
                   </div>
 
                   <div className="flex gap-3 flex-wrap">
-                    <button type="button" onClick={approve} className="btn-primary">اعتماد</button>
-                    <button type="button" onClick={modifyApprove} className="btn-secondary">تعديل واعتماد</button>
+                    <button type="button" onClick={() => openApproveConfirm(approve)} className="btn-primary">اعتماد</button>
+                    <button type="button" onClick={() => openApproveConfirm(modifyApprove)} className="btn-secondary">تعديل واعتماد</button>
                     <button type="button" onClick={reject} className="btn-secondary !bg-red-50 !text-red-700 !border-red-200">رفض</button>
                   </div>
                 </>
@@ -591,6 +666,7 @@ export function SupplyChainKitchenPage() {
   const [productionOrders, setProductionOrders] = React.useState([])
   const [selectedDaily, setSelectedDaily] = React.useState(null)
   const [partialQty, setPartialQty] = React.useState({})
+  const [sendConfirm, setSendConfirm] = React.useState(null)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -766,8 +842,31 @@ export function SupplyChainKitchenPage() {
     )
   }
 
+  const confirmSendProduction = (order) => {
+    setSendConfirm({
+      title: 'تأكيد الإرسال للمستودع',
+      body: (
+        <>
+          <p><strong>الصنف:</strong> {itemLabel(order.item)}</p>
+          <p><strong>الكمية الجاهزة:</strong> {numberValue(order.qty_ready)}</p>
+          <p><strong>الفرع:</strong> {branchDisplay(order)}</p>
+          <p><strong>المستودع:</strong> {order.destination_warehouse_name || 'مستودع الفرع'}</p>
+        </>
+      ),
+      onConfirm: () => action(() => supplyChainApi.sendProductionToWarehouse(order.id), 'تم إرسال الكمية للمستودع'),
+    })
+  }
+
   return (
     <PageShell title="أوامر أقسام المطبخ" subtitle="الطلبات مجمعة حسب الفرع ورقم الطلبية">
+      <ConfirmDialog
+        open={!!sendConfirm}
+        title={sendConfirm?.title || ''}
+        onCancel={() => setSendConfirm(null)}
+        onConfirm={() => { sendConfirm?.onConfirm?.(); setSendConfirm(null) }}
+      >
+        {sendConfirm?.body}
+      </ConfirmDialog>
       {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يرى أوامر الإنتاج وحالاتها فقط." />}
       <div className="card table-container">
         <table className="table">
@@ -803,7 +902,7 @@ export function SupplyChainKitchenPage() {
                 {productionOrders.map((order) => (
                   <tr key={`production-${order.id}`}>
                     <td className="font-medium">PO-{order.id}</td>
-                    <td>{order.destination_branch?.branch_name || order.destination_branch?.branch_name_ar || order.destination_branch_id}</td>
+                    <td>{branchDisplay(order)}</td>
                     <td>1</td>
                     <td>{numberValue(order.qty_ready)}</td>
                     <td>{numberValue(order.qty_sent_to_warehouse || 0)}</td>
@@ -836,7 +935,7 @@ export function SupplyChainKitchenPage() {
                             </button>
                           </div>
                           <button type="button" className="btn-secondary text-xs" onClick={() => action(() => supplyChainApi.markProductionReady(order.id), 'تم تعليم الأمر جاهزًا')}>جاهز</button>
-                          <button type="button" className="btn-primary text-xs" onClick={() => action(() => supplyChainApi.sendProductionToWarehouse(order.id), 'تم إرسال الكمية للمستودع')}>إرسال للمستودع</button>
+                          <button type="button" className="btn-primary text-xs" onClick={() => confirmSendProduction(order)}>إرسال للمستودع</button>
                         </div>
                       )}
                     </td>
@@ -971,6 +1070,13 @@ export function SupplyChainWarehousePage() {
   const [tab, setTab] = React.useState('ALL')
   const [issueQty, setIssueQty] = React.useState({})
   const [delayReason, setDelayReason] = React.useState({})
+  const [issueConfirm, setIssueConfirm] = React.useState(null)
+
+  const sourceTypeLabel = {
+    BRANCH_REQUEST: 'طلب فرع',
+    KITCHEN_OUTPUT: 'مخرجات مطبخ',
+    KITCHEN_MATERIAL_REQUEST: 'طلب خامات',
+  }
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -1007,8 +1113,58 @@ export function SupplyChainWarehousePage() {
     await run(() => supplyChainApi.createDeliveryOrder({ warehouse_line_ids: [lineId] }), 'تم إنشاء أمر تسليم')
   }
 
+  const openFullIssueConfirm = (line) => {
+    const issue = Number(line.pending_qty || line.requested_qty || 0)
+    setIssueConfirm({
+      title: 'تأكيد الصرف الكامل',
+      body: (
+        <>
+          <p><strong>الفرع:</strong> {branchDisplay(line)}</p>
+          <p><strong>الصنف:</strong> {itemLabel(line.item)}</p>
+          <p><strong>المطلوب:</strong> {numberValue(line.requested_qty)}</p>
+          <p><strong>كمية الصرف:</strong> {issue}</p>
+          <p><strong>المتبقي بعد الصرف:</strong> 0</p>
+        </>
+      ),
+      onConfirm: () => run(() => supplyChainApi.issueWarehouseLine(line.id), 'تم الصرف بالكامل'),
+    })
+  }
+
+  const openPartialIssueConfirm = (line) => {
+    const qty = Number(issueQty[line.id] || 0)
+    const pending = Number(line.pending_qty || 0)
+    setIssueConfirm({
+      title: 'تأكيد الصرف الجزئي',
+      body: (
+        <>
+          <p><strong>الفرع:</strong> {branchDisplay(line)}</p>
+          <p><strong>الصنف:</strong> {itemLabel(line.item)}</p>
+          <p><strong>المطلوب:</strong> {numberValue(line.requested_qty)}</p>
+          <p><strong>كمية الصرف:</strong> {qty}</p>
+          <p><strong>المتبقي:</strong> {Math.max(0, pending - qty)}</p>
+          <p><strong>سبب التأخير:</strong> {delayReason[line.id] || '—'}</p>
+        </>
+      ),
+      onConfirm: () => run(
+        () => supplyChainApi.partialIssueWarehouseLine(line.id, {
+          qty,
+          delay_reason: delayReason[line.id] || '',
+        }),
+        'تم الصرف الجزئي',
+      ),
+    })
+  }
+
   return (
     <PageShell title="تنفيذ المستودع" subtitle="يعرض فقط warehouse_lines الخاصة بمستودع المستخدم">
+      <ConfirmDialog
+        open={!!issueConfirm}
+        title={issueConfirm?.title || ''}
+        onCancel={() => setIssueConfirm(null)}
+        onConfirm={() => { issueConfirm?.onConfirm?.(); setIssueConfirm(null) }}
+      >
+        {issueConfirm?.body}
+      </ConfirmDialog>
       {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يرى خطوط المستودع وحالات الصرف والتأخير فقط، ولا يمكنه الاستلام أو الصرف أو إنشاء أوامر تسليم من هذه الصفحة." />}
       <div className="flex gap-2 flex-wrap">
         {[
@@ -1030,6 +1186,7 @@ export function SupplyChainWarehousePage() {
               <th>الفرع</th>
               <th>النوع</th>
               <th>المطلوب</th>
+              <th>المصروف</th>
               <th>المتبقي</th>
               <th>الملاحظات / سبب التأخير</th>
               <th>الحالة</th>
@@ -1038,17 +1195,18 @@ export function SupplyChainWarehousePage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="text-center py-8 text-gray-400">جارٍ التحميل...</td></tr>
+              <tr><td colSpan={10} className="text-center py-8 text-gray-400">جارٍ التحميل...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-8 text-gray-400">لا توجد بيانات لهذا التبويب</td></tr>
+              <tr><td colSpan={10} className="text-center py-8 text-gray-400">لا توجد بيانات لهذا التبويب</td></tr>
             ) : filtered.map((line) => (
               <tr key={line.id}>
                 <td className="font-medium">WL-{line.id}</td>
                 <td>{itemLabel(line.item)}</td>
-                <td>{line.branch?.branch_name || line.branch?.branch_name_ar || line.branch_id || '—'}</td>
-                <td>{line.source_type}</td>
+                <td>{branchDisplay(line)}</td>
+                <td>{sourceTypeLabel[line.source_type] || line.source_type}</td>
                 <td>{numberValue(line.requested_qty)}</td>
-                <td>{numberValue(line.pending_qty)}</td>
+                <td>{numberValue(line.issued_qty)}</td>
+                <td className={Number(line.pending_qty) > 0 ? 'text-amber-700 font-medium' : ''}>{numberValue(line.pending_qty)}</td>
                 <td className="max-w-56 whitespace-pre-wrap text-sm text-gray-600">
                   {String(line.delay_reason || '').startsWith('daily_order:') ? 'من طلبية يومية' : (line.delay_reason || line.notes || '—')}
                 </td>
@@ -1062,7 +1220,7 @@ export function SupplyChainWarehousePage() {
                         {line.source_type === 'BRANCH_REQUEST' && line.status === 'PENDING' && (
                           <button type="button" className="btn-secondary text-xs" onClick={() => run(() => supplyChainApi.receiveWarehouseLine(line.id), 'تم الاستلام / الإقرار')}>استلام</button>
                         )}
-                        <button type="button" className="btn-secondary text-xs" onClick={() => run(() => supplyChainApi.issueWarehouseLine(line.id), 'تم الصرف بالكامل')}>صرف كامل</button>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => openFullIssueConfirm(line)}>صرف كامل</button>
                         <button type="button" className="btn-secondary text-xs" onClick={() => createDelivery(line.id)}>إنشاء أمر تسليم</button>
                       </div>
                       <div className="flex gap-2 flex-wrap">
@@ -1084,13 +1242,7 @@ export function SupplyChainWarehousePage() {
                         <button
                           type="button"
                           className="btn-secondary text-xs"
-                          onClick={() => run(
-                            () => supplyChainApi.partialIssueWarehouseLine(line.id, {
-                              qty: Number(issueQty[line.id] || 0),
-                              delay_reason: delayReason[line.id] || '',
-                            }),
-                            'تم الصرف الجزئي',
-                          )}
+                          onClick={() => openPartialIssueConfirm(line)}
                         >
                           صرف جزئي
                         </button>
@@ -1124,6 +1276,8 @@ export function SupplyChainDeliveryPage() {
   const [orders, setOrders] = React.useState([])
   const [receiverName, setReceiverName] = React.useState({})
   const [deliveryNote, setDeliveryNote] = React.useState({})
+  const [deliverConfirm, setDeliverConfirm] = React.useState(null)
+  const [expandedOrderId, setExpandedOrderId] = React.useState(null)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -1149,8 +1303,49 @@ export function SupplyChainDeliveryPage() {
     }
   }
 
+  const openDeliverConfirm = (order) => {
+    const name = (receiverName[order.id] || '').trim()
+    if (!name) {
+      toast.error('اسم المستلم مطلوب')
+      return
+    }
+    const dispatched = (order.lines || []).reduce((sum, line) => sum + Number(line.qty_dispatched || 0), 0)
+    const delivered = (order.lines || []).reduce((sum, line) => sum + Number(line.qty_delivered || line.qty_dispatched || 0), 0)
+    const shortage = (order.lines || []).reduce((sum, line) => sum + Number(line.shortage_qty || 0), 0)
+    setDeliverConfirm({
+      order,
+      body: (
+        <>
+          <p><strong>الفرع:</strong> {branchDisplay(order)}</p>
+          <p><strong>الكمية المخرجة:</strong> {dispatched}</p>
+          <p><strong>الكمية المسلّمة:</strong> {delivered || dispatched}</p>
+          <p><strong>اسم المستلم:</strong> {name}</p>
+          {shortage > 0 && <p><strong>النقص:</strong> {shortage}</p>}
+        </>
+      ),
+    })
+  }
+
   return (
     <PageShell title="أوامر التسليم" subtitle="إخراج أمر التسليم ثم إغلاقه كتسليم نهائي من نفس الصفحة">
+      <ConfirmDialog
+        open={!!deliverConfirm}
+        title="تأكيد التسليم"
+        onCancel={() => setDeliverConfirm(null)}
+        onConfirm={() => {
+          const order = deliverConfirm.order
+          run(
+            () => supplyChainApi.deliverOrder(order.id, {
+              receiver_name: receiverName[order.id],
+              delivery_note: deliveryNote[order.id] || null,
+            }),
+            'تم تسجيل التسليم',
+          )
+          setDeliverConfirm(null)
+        }}
+      >
+        {deliverConfirm?.body}
+      </ConfirmDialog>
       {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يرى أوامر التوصيل وبيانات التسليم فقط، ولا يمكنه إخراج الطلب للتسليم أو تأكيد التسليم من هذه الصفحة." />}
       <div className="card table-container">
         <table className="table">
@@ -1169,9 +1364,10 @@ export function SupplyChainDeliveryPage() {
             ) : orders.length === 0 ? (
               <tr><td colSpan={5} className="text-center py-8 text-gray-400">لا توجد أوامر تسليم</td></tr>
             ) : orders.map((order) => (
-              <tr key={order.id}>
+              <React.Fragment key={order.id}>
+              <tr>
                 <td className="font-medium">DO-{order.id}</td>
-                <td>{order.branch_id}</td>
+                <td>{branchDisplay(order)}</td>
                 <td><StatusBadge status={order.status} /></td>
                 <td>{order.lines?.length || 0}</td>
                 <td>
@@ -1182,13 +1378,14 @@ export function SupplyChainDeliveryPage() {
                       <div className="flex gap-2 flex-wrap">
                         <button type="button" className="btn-secondary text-xs" onClick={() => run(() => supplyChainApi.markOutForDelivery(order.id), 'تم إخراج الطلب للتسليم')}>خرج للتسليم</button>
                         <button type="button" className="btn-secondary text-xs" onClick={() => window.open(supplyChainApi.deliveryLabelsUrl(order.id), '_blank', 'noopener,noreferrer')}>طباعة Label</button>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>تفاصيل</button>
                       </div>
                       <div className="flex gap-2 flex-wrap">
                         <input
                           value={receiverName[order.id] || ''}
                           onChange={(e) => setReceiverName((prev) => ({ ...prev, [order.id]: e.target.value }))}
                           className="input-field w-40 text-xs"
-                          placeholder="اسم المستلم"
+                          placeholder="اسم المستلم *"
                         />
                         <input
                           value={deliveryNote[order.id] || ''}
@@ -1199,13 +1396,7 @@ export function SupplyChainDeliveryPage() {
                         <button
                           type="button"
                           className="btn-primary text-xs"
-                          onClick={() => run(
-                            () => supplyChainApi.deliverOrder(order.id, {
-                              receiver_name: receiverName[order.id] || null,
-                              delivery_note: deliveryNote[order.id] || null,
-                            }),
-                            'تم تأكيد التسليم',
-                          )}
+                          onClick={() => openDeliverConfirm(order)}
                         >
                           تم التسليم
                         </button>
@@ -1214,6 +1405,33 @@ export function SupplyChainDeliveryPage() {
                   )}
                 </td>
               </tr>
+              {expandedOrderId === order.id && (
+                <tr>
+                  <td colSpan={5} className="bg-gray-50 p-4">
+                    <table className="table text-sm">
+                      <thead>
+                        <tr>
+                          <th>الصنف</th>
+                          <th>المخرج</th>
+                          <th>المُسلّم</th>
+                          <th>النقص</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(order.lines || []).map((line) => (
+                          <tr key={line.id}>
+                            <td>{itemLabel(line.item)}</td>
+                            <td>{numberValue(line.qty_dispatched)}</td>
+                            <td>{numberValue(line.qty_delivered)}</td>
+                            <td>{numberValue(line.shortage_qty)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
