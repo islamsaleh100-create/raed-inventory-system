@@ -7,12 +7,15 @@ modify-and-approve, and from the manual endpoint without behaviour drift.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+
+logger = logging.getLogger(__name__)
 from app.core.locking import lock_row
 from app.models import (
     BranchRequest,
@@ -131,6 +134,29 @@ def split_branch_request(db: Session, request: BranchRequest) -> BranchRequest:
                     )
                 )
             line.status = BranchRequestLineStatus.SPLIT_TO_PRODUCTION
+
+        else:
+            item = line.item
+            logger.error(
+                "Unresolvable split source: request_id=%s item_id=%s source_type=%s resolved=%s",
+                request.id,
+                line.item_id,
+                getattr(item, "source_type", None),
+                line.resolved_source_type,
+            )
+            raise AppError(
+                status_code=400,
+                error_code="split.unresolvable_source_type",
+                message="Cannot split line: source type could not be resolved",
+                detail={
+                    "request_id": request.id,
+                    "item_id": line.item_id,
+                    "source_type": item.source_type.value if item and item.source_type else None,
+                    "resolved_source_type": (
+                        line.resolved_source_type.value if line.resolved_source_type else None
+                    ),
+                },
+            )
 
     request.status = BranchRequestStatus.SPLIT
     request.updated_at = datetime.utcnow()

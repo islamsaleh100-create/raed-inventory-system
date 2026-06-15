@@ -89,6 +89,11 @@ def _auth(token: str) -> dict[str, str]:
 
 
 def test_import_supply_item_master_imports_rows_and_logs_invalid(db: Session, tmp_path: Path):
+    for name in ("Pizza",):
+        if not db.query(KitchenSection).filter(KitchenSection.name == name).first():
+            db.add(KitchenSection(name=name, active=True))
+    db.flush()
+
     workbook = _workbook(
         tmp_path / "classified_supply_items.xlsx",
         [
@@ -155,6 +160,11 @@ def test_allowed_items_hides_not_requestable_and_hidden_items(client, db: Sessio
 
 
 def test_import_maps_general_and_shared_rows_to_expected_brands(db: Session, tmp_path: Path):
+    for name in ("Meat & Chicken",):
+        if not db.query(KitchenSection).filter(KitchenSection.name == name).first():
+            db.add(KitchenSection(name=name, active=True))
+    db.flush()
+
     workbook = _workbook(
         tmp_path / "classified_supply_items_shared.xlsx",
         [

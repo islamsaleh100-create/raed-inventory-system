@@ -11,18 +11,11 @@ from app.startup_schema import ensure_local_schema_compatibility  # noqa: E402
 from app.services.supply_item_master_import_service import import_supply_item_master  # noqa: E402
 
 
-DEFAULT_WORKBOOKS = (
-    Path(r"C:\raed_inventory_system\raed_items_final_classification.xlsx"),
-    Path(r"C:\Users\islam\Downloads\classified_supply_items.xlsx"),
-)
+DEFAULT_WORKBOOK = Path(r"C:\raed_inventory_system\classified_supply_items.xlsx")
 
 
 def main() -> int:
-    workbook_path = (
-        Path(sys.argv[1])
-        if len(sys.argv) > 1
-        else next((path for path in DEFAULT_WORKBOOKS if path.exists()), DEFAULT_WORKBOOKS[0])
-    )
+    workbook_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_WORKBOOK
     if not workbook_path.exists():
         print(json.dumps({"error": f"Workbook not found: {workbook_path}"}, ensure_ascii=False))
         return 1

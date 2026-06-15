@@ -21,6 +21,7 @@ from app.models import (
     Brand,
     Item,
     ItemBrand,
+    ItemType,
     ProductionOrder,
     ProductionOrderStatus,
     SupplyDefaultSource,
@@ -374,6 +375,7 @@ def list_allowed_items(
         Item.branch_requestable == True,
         Item.visible_in_branch_ui == True,
         Item.source_type != SupplySourceType.NOT_REQUESTABLE,
+        Item.item_type != ItemType.raw_material,
         Item.item_code.notlike("DEMO-%"),
         Item.is_deleted == False,
     ).order_by(Item.category_id.asc(), Item.item_name_ar.asc(), Item.item_code.asc()).all()

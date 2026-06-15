@@ -115,11 +115,21 @@ def list_items(
         base_visible = and_(
             Item.visible_in_branch_ui == True,
             Item.source_type != SupplySourceType.NOT_REQUESTABLE,
+            Item.item_type != ItemType.raw_material,
             Item.item_code.notlike("DEMO-%"),
         )
         q = q.filter(or_(branch_item_availability.active == True, base_visible) if branch_item_availability is not None else base_visible)
     if requestable_only:
-        q = q.filter(or_(branch_item_availability.active == True, Item.branch_requestable == True) if branch_item_availability is not None else Item.branch_requestable == True)
+        requestable_filter = and_(
+            Item.branch_requestable == True,
+            Item.source_type != SupplySourceType.NOT_REQUESTABLE,
+            Item.item_type != ItemType.raw_material,
+        )
+        q = q.filter(
+            or_(branch_item_availability.active == True, requestable_filter)
+            if branch_item_availability is not None
+            else requestable_filter
+        )
     if item_type:
         try:
             q = q.filter(Item.item_type == ItemType(item_type))
