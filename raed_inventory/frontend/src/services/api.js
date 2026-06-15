@@ -377,6 +377,7 @@ export const salesChannelsApi = {
 }
 
 export const supplyChainApi = {
+  dashboard: () => api.get('/supply-chain/dashboard'),
   listBrands: (params) => api.get('/master/brands', { params }),
   listKitchenSections: (params) => api.get('/master/kitchen-sections', { params }),
   listKitchens: (params) => api.get('/master/kitchens', { params }),

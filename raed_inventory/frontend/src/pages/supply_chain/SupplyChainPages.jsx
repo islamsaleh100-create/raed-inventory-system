@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectUser, selectUserRoles } from '../../store'
 import { useT } from '../../i18n'
-import { dashboardApi, masterApi, supplyChainApi } from '../../services/api'
+import { dashboardApi, masterApi, notificationsApi, supplyChainApi } from '../../services/api'
 
 const STATUS_BADGE = {
   DRAFT: 'bg-gray-100 text-gray-700',
@@ -1433,22 +1433,26 @@ function AuditListCard({ rows, to, openLabel }) {
   )
 }
 
-function QueuePreviewBlock({ title, rows, to, emptyHint }) {
-  if (!rows || rows.length === 0) return null
+function QueuePreviewBlock({ title, rows, to, emptyHint, emptyText }) {
+  const isEmpty = !rows || rows.length === 0
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
         {to && <Link to={to} className="text-xs text-primary-600 hover:underline">{emptyHint}</Link>}
       </div>
-      <ul className="space-y-2 text-sm text-gray-700">
-        {rows.map((row) => (
-          <li key={row.id} className="flex justify-between gap-2 border-b border-gray-100 pb-1.5 last:border-0">
-            <span className="truncate">{row.label}</span>
-            {row.status && <StatusBadge status={row.status} />}
-          </li>
-        ))}
-      </ul>
+      {isEmpty ? (
+        <p className="text-sm text-gray-500">{emptyText || 'No items.'}</p>
+      ) : (
+        <ul className="space-y-2 text-sm text-gray-700">
+          {rows.map((row) => (
+            <li key={row.id} className="flex justify-between gap-2 border-b border-gray-100 pb-1.5 last:border-0">
+              <span className="truncate">{row.label}</span>
+              {row.status && <StatusBadge status={row.status} />}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -1471,6 +1475,20 @@ export function SupplyChainControlDashboard() {
     deliveryReady: null,
     opsAlerts: null,
     kitchenSites: null,
+    requestsToday: null,
+    inProduction: null,
+    warehouseDelays: null,
+    partialOrders: null,
+    backorders: null,
+    readyForDelivery: null,
+    outForDelivery: null,
+    deliveredToday: null,
+    productionReady: null,
+    sentToWarehouse: null,
+    myRequests: null,
+    shortages: null,
+    partialWarehouse: null,
+    notificationUnread: null,
   })
   const [queues, setQueues] = React.useState({
     submittedRequests: [],
@@ -1486,12 +1504,15 @@ export function SupplyChainControlDashboard() {
 
   const isAdmin = roles.includes('admin') || roles.includes('super_admin')
   const isSuperAdmin = roles.includes('super_admin')
-  const isArea = roles.includes('area_manager') || isAdmin
-  const isBranchOnly = (roles.includes('branch_user') || roles.includes('branch_manager')) && !isArea
-  const isKitchen = roles.includes('kitchen_section_manager') || isAdmin
-  const isWh = roles.includes('warehouse_user') || roles.includes('warehouse_manager') || isAdmin
-  const isDel = roles.includes('delivery_user') || isAdmin
-  const isOps = roles.includes('operations_manager') || isAdmin
+  const isOpsManager = roles.includes('operations_manager')
+  const isAreaManager = roles.includes('area_manager')
+  const isBranchOnly = (roles.includes('branch_user') || roles.includes('branch_manager')) && !isAreaManager && !isAdmin
+  const isKitchen = roles.includes('kitchen_section_manager')
+  const isWh = roles.includes('warehouse_user') || roles.includes('warehouse_manager')
+  const isDel = roles.includes('delivery_user')
+  const isOps = isOpsManager || isAdmin
+  const showAdminKpis = isAdmin || isOpsManager
+  const isArea = isAreaManager || isAdmin
 
   const loadAll = React.useCallback(async () => {
     setLoading(true)
@@ -1505,6 +1526,20 @@ export function SupplyChainControlDashboard() {
       deliveryReady: null,
       opsAlerts: null,
       kitchenSites: null,
+      requestsToday: null,
+      inProduction: null,
+      warehouseDelays: null,
+      partialOrders: null,
+      backorders: null,
+      readyForDelivery: null,
+      outForDelivery: null,
+      deliveredToday: null,
+      productionReady: null,
+      sentToWarehouse: null,
+      myRequests: null,
+      shortages: null,
+      partialWarehouse: null,
+      notificationUnread: null,
     }
     const nextQueues = {
       submittedRequests: [],
@@ -1519,6 +1554,36 @@ export function SupplyChainControlDashboard() {
     let adminOverview = null
     try {
       const tasks = []
+
+      tasks.push(
+        supplyChainApi.dashboard().then((r) => {
+          const d = r.data || {}
+          nextKpis.pendingApprovals = d.pending_approvals ?? 0
+          nextKpis.inProduction = d.in_production ?? 0
+          nextKpis.warehouseDelays = d.warehouse_delays ?? 0
+          nextKpis.partialOrders = d.partial_orders ?? 0
+          nextKpis.requestsToday = d.requests_today ?? 0
+          nextKpis.warehousePending = d.warehouse_pending ?? 0
+          nextKpis.backorders = d.backorders ?? 0
+          nextKpis.readyForDelivery = d.ready_for_delivery ?? 0
+          nextKpis.outForDelivery = d.out_for_delivery ?? 0
+          nextKpis.deliveredToday = d.delivered_today ?? 0
+          nextKpis.productionReady = d.production_ready ?? 0
+          nextKpis.sentToWarehouse = d.sent_to_warehouse ?? 0
+          nextKpis.myRequests = d.my_requests ?? 0
+          nextKpis.shortages = d.shortages ?? 0
+          nextKpis.partialWarehouse = d.partial_warehouse ?? 0
+          nextKpis.deliveryReady = d.ready_for_delivery ?? 0
+          nextKpis.branchRequestsTotal = d.my_requests ?? d.requests_today ?? 0
+        }).catch(() => {}),
+      )
+
+      tasks.push(
+        notificationsApi.summary().then((r) => {
+          nextKpis.notificationUnread = r.data?.total ?? r.data?.unread_count ?? r.data?.unread ?? 0
+        }).catch(() => {}),
+      )
+
       if (isSuperAdmin) {
         tasks.push(
           dashboardApi.superAdminOverview().then((r) => {
@@ -1529,7 +1594,6 @@ export function SupplyChainControlDashboard() {
       if (isBranchOnly) {
         tasks.push(
           supplyChainApi.listBranchRequests({ page: 1, page_size: 5 }).then((r) => {
-            nextKpis.branchRequestsTotal = r.data?.total ?? 0
             nextQueues.branchRequests = (r.data?.items || []).map((x) => ({
               id: x.id,
               label: `${x.request_no || `BR-${x.id}`} · ${x.status}`,
@@ -1541,7 +1605,6 @@ export function SupplyChainControlDashboard() {
       if (isArea) {
         tasks.push(
           supplyChainApi.listBranchRequests({ status: 'SUBMITTED', page: 1, page_size: 5 }).then((r) => {
-            nextKpis.pendingApprovals = r.data?.total ?? 0
             nextQueues.submittedRequests = (r.data?.items || []).map((x) => ({
               id: x.id,
               label: `${x.request_no || `BR-${x.id}`}`,
@@ -1576,17 +1639,6 @@ export function SupplyChainControlDashboard() {
       }
       if (isWh) {
         tasks.push(
-          supplyChainApi.listWarehouseLines({ status: 'PENDING' }).then((r) => {
-            const arr = Array.isArray(r.data) ? r.data : []
-            nextKpis.warehousePending = arr.length
-            nextQueues.warehousePending = arr.slice(0, 5).map((line) => ({
-              id: line.id,
-              label: `WL-${line.id} · ${itemLabel(line.item)} · ${line.source_type}`,
-              status: line.status,
-            }))
-          }).catch(() => {}),
-        )
-        tasks.push(
           supplyChainApi.listWarehouseLines({ status: 'AVAILABLE' }).then((r) => {
             const arr = Array.isArray(r.data) ? r.data : []
             nextKpis.warehouseAvailable = arr.length
@@ -1597,12 +1649,21 @@ export function SupplyChainControlDashboard() {
             }))
           }).catch(() => {}),
         )
+        tasks.push(
+          supplyChainApi.listWarehouseLines({ status: 'PENDING' }).then((r) => {
+            const arr = Array.isArray(r.data) ? r.data : []
+            nextQueues.warehousePending = arr.slice(0, 5).map((line) => ({
+              id: line.id,
+              label: `WL-${line.id} · ${itemLabel(line.item)} · ${line.source_type}`,
+              status: line.status,
+            }))
+          }).catch(() => {}),
+        )
       }
       if (isDel) {
         tasks.push(
           supplyChainApi.listReadyDeliveryOrders().then((r) => {
             const arr = Array.isArray(r.data) ? r.data : []
-            nextKpis.deliveryReady = arr.length
             nextQueues.deliveryReady = arr.slice(0, 5).map((o) => ({
               id: o.id,
               label: `DO-${o.id} · فرع ${o.branch_id}`,
@@ -1689,7 +1750,7 @@ export function SupplyChainControlDashboard() {
                 <SummaryHeroCard title="Warehouse pending" value={superAdminOverview.summary?.warehouse_pending} subtitle="سطر مستودع مفتوح" to="/supply-chain/warehouse" linkLabel={open} tone="slate" />
                 <SummaryHeroCard title="Out for delivery" value={superAdminOverview.summary?.out_for_delivery} subtitle="طلبات خرجت للتسليم" to="/supply-chain/delivery" linkLabel={open} tone="primary" />
                 <SummaryHeroCard title="Delivered today" value={superAdminOverview.summary?.delivered} subtitle="طلبات أغلقت اليوم" to="/supply-chain/delivery" linkLabel={open} tone="emerald" />
-                <SummaryHeroCard title="Delayed total" value={superAdminOverview.summary?.delayed} subtitle="عناصر متأخرة عبر السلسلة" to="/supply-chain/control" linkLabel={open} tone="red" />
+                <SummaryHeroCard title="Delayed total" value={superAdminOverview.summary?.delayed} subtitle="عناصر متأخرة عبر السلسلة" to="/supply-chain/approvals" linkLabel={open} tone="red" />
                 <SummaryHeroCard title="Partial total" value={superAdminOverview.summary?.partial} subtitle="حالات جزئية تحتاج متابعة" to="/supply-chain/warehouse" linkLabel={open} tone="amber" />
                 <SummaryHeroCard title="Active branches" value={superAdminOverview.summary?.active_branches} subtitle="فروع تشغيلية فعّالة" to="/admin/branches" linkLabel={open} tone="slate" />
                 <SummaryHeroCard title="Active users" value={superAdminOverview.summary?.active_users} subtitle="مستخدمون فعّالون بالنظام" to="/admin/users" linkLabel={open} tone="slate" />
@@ -1852,42 +1913,71 @@ export function SupplyChainControlDashboard() {
             </div>
           )}
 
+          {!isSuperAdmin && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {showAdminKpis && (
+              <>
+                <KpiCard title="Requests today" value={kpis.requestsToday} to="/supply-chain/branch-requests" linkLabel={open} />
+                <KpiCard title="Pending approvals" value={kpis.pendingApprovals} to="/supply-chain/approvals" linkLabel={open} />
+                <KpiCard title="In production" value={kpis.inProduction} to="/supply-chain/kitchen" linkLabel={open} />
+                <KpiCard title="Warehouse pending" value={kpis.warehousePending} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Partial orders" value={kpis.partialOrders} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Backorders" value={kpis.backorders} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Ready for delivery" value={kpis.readyForDelivery} to="/supply-chain/delivery" linkLabel={open} />
+                <KpiCard title="Delivered today" value={kpis.deliveredToday} to="/supply-chain/delivery" linkLabel={open} />
+              </>
+            )}
             {isBranchOnly && (
-              <KpiCard
-                title={t('supply_chain_control_page.branch_requests_total')}
-                value={kpis.branchRequestsTotal}
-                to="/supply-chain/branch-requests"
-                linkLabel={open}
-              />
+              <>
+                <KpiCard title="My requests today" value={kpis.requestsToday} to="/supply-chain/branch-requests" linkLabel={open} />
+                <KpiCard title="Pending approval" value={kpis.pendingApprovals} to="/supply-chain/branch-requests" linkLabel={open} />
+                <KpiCard title="In production" value={kpis.inProduction} to="/supply-chain/branch-requests" linkLabel={open} />
+                <KpiCard title="Warehouse processing" value={kpis.warehousePending} to="/supply-chain/branch-requests" linkLabel={open} />
+                <KpiCard title="Out for delivery" value={kpis.outForDelivery} to="/supply-chain/branch-requests" linkLabel={open} />
+                <KpiCard title="Delivered today" value={kpis.deliveredToday} to="/supply-chain/branch-requests" linkLabel={open} />
+                <KpiCard title="Partial orders" value={kpis.partialOrders} to="/supply-chain/branch-requests" linkLabel={open} />
+              </>
             )}
-            {isArea && (
-              <KpiCard
-                title={t('supply_chain_control_page.pending_approvals')}
-                value={kpis.pendingApprovals}
-                to="/supply-chain/approvals"
-                linkLabel={open}
-              />
+            {isAreaManager && !isAdmin && (
+              <>
+                <KpiCard title={t('supply_chain_control_page.pending_approvals')} value={kpis.pendingApprovals} to="/supply-chain/approvals" linkLabel={open} />
+                <KpiCard title="Delayed requests" value={kpis.warehouseDelays} to="/supply-chain/approvals" linkLabel={open} />
+                <KpiCard title="Partial orders" value={kpis.partialOrders} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Backorders" value={kpis.backorders} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Delivered today" value={kpis.deliveredToday} to="/supply-chain/delivery" linkLabel={open} />
+              </>
             )}
-            {isKitchen && (
+            {isKitchen && !isAdmin && (
               <>
                 <KpiCard title={t('supply_chain_control_page.production_pending')} value={kpis.productionPending} to="/supply-chain/kitchen" linkLabel={open} />
                 <KpiCard title={t('supply_chain_control_page.production_in_progress')} value={kpis.productionInProgress} to="/supply-chain/kitchen" linkLabel={open} />
+                <KpiCard title="Ready" value={kpis.productionReady} to="/supply-chain/kitchen" linkLabel={open} />
+                <KpiCard title="Sent to warehouse" value={kpis.sentToWarehouse} to="/supply-chain/kitchen" linkLabel={open} />
+                <KpiCard title="Waiting / delayed" value={kpis.warehouseDelays} to="/supply-chain/kitchen" linkLabel={open} />
               </>
             )}
-            {isWh && (
+            {isWh && !isAdmin && (
               <>
                 <KpiCard title={t('supply_chain_control_page.warehouse_pending')} value={kpis.warehousePending} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Ready from kitchen" value={kpis.sentToWarehouse} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Partial orders" value={kpis.partialWarehouse} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Backorders" value={kpis.backorders} to="/supply-chain/warehouse" linkLabel={open} />
+                <KpiCard title="Delay reasons" value={kpis.warehouseDelays} to="/supply-chain/warehouse" linkLabel={open} />
                 <KpiCard title={t('supply_chain_control_page.warehouse_available')} value={kpis.warehouseAvailable} to="/supply-chain/warehouse" linkLabel={open} />
               </>
             )}
-            {isDel && (
-              <KpiCard title={t('supply_chain_control_page.delivery_ready')} value={kpis.deliveryReady} to="/supply-chain/delivery" linkLabel={open} />
+            {isDel && !isAdmin && (
+              <>
+                <KpiCard title="Ready for delivery" value={kpis.readyForDelivery} to="/supply-chain/delivery" linkLabel={open} />
+                <KpiCard title="Out for delivery" value={kpis.outForDelivery} to="/supply-chain/delivery" linkLabel={open} />
+                <KpiCard title="Delivered today" value={kpis.deliveredToday} to="/supply-chain/delivery" linkLabel={open} />
+                <KpiCard title="Shortages" value={kpis.shortages} to="/supply-chain/delivery" linkLabel={open} />
+              </>
             )}
-            {isOps && (
+            {isOpsManager && !isAdmin && (
               <KpiCard title={t('supply_chain_control_page.ops_alerts_total')} value={kpis.opsAlerts} to="/operations" linkLabel={open} />
             )}
-            {(isAdmin || isKitchen || isWh || isArea) && (
+            {(isAdmin || (isKitchen && !isAdmin) || (isWh && !isAdmin) || (isAreaManager && !isAdmin)) && (
               <KpiCard
                 title={t('supply_chain_control_page.kitchen_sites')}
                 value={kpis.kitchenSites}
@@ -1895,34 +1985,38 @@ export function SupplyChainControlDashboard() {
                 linkLabel={open}
               />
             )}
+            <KpiCard title="Notifications" value={kpis.notificationUnread} to="/notifications" linkLabel={open} />
           </div>
+          )}
 
+          {!isSuperAdmin && (
           <div>
             <h2 className="text-sm font-semibold text-gray-700 mb-3">{t('supply_chain_control_page.queue_preview')}</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {isArea && (
-                <QueuePreviewBlock title={t('supply_chain_control_page.pending_approvals')} rows={queues.submittedRequests} to="/supply-chain/approvals" emptyHint={open} />
+              {isAreaManager && !isAdmin && (
+                <QueuePreviewBlock title={t('supply_chain_control_page.pending_approvals')} rows={queues.submittedRequests} to="/supply-chain/approvals" emptyHint={open} emptyText="No pending approvals." />
               )}
               {isBranchOnly && (
-                <QueuePreviewBlock title={t('supply_chain_control_page.branch_requests_total')} rows={queues.branchRequests} to="/supply-chain/branch-requests" emptyHint={open} />
+                <QueuePreviewBlock title={t('supply_chain_control_page.branch_requests_total')} rows={queues.branchRequests} to="/supply-chain/branch-requests" emptyHint={open} emptyText="No branch requests yet." />
               )}
-              {isKitchen && (
+              {isKitchen && !isAdmin && (
                 <>
-                  <QueuePreviewBlock title={t('supply_chain_control_page.production_pending')} rows={queues.productionPending} to="/supply-chain/kitchen" emptyHint={open} />
-                  <QueuePreviewBlock title={t('supply_chain_control_page.production_in_progress')} rows={queues.productionInProgress} to="/supply-chain/kitchen" emptyHint={open} />
+                  <QueuePreviewBlock title={t('supply_chain_control_page.production_pending')} rows={queues.productionPending} to="/supply-chain/kitchen" emptyHint={open} emptyText="No production orders pending." />
+                  <QueuePreviewBlock title={t('supply_chain_control_page.production_in_progress')} rows={queues.productionInProgress} to="/supply-chain/kitchen" emptyHint={open} emptyText="No production orders in progress." />
                 </>
               )}
-              {isWh && (
+              {isWh && !isAdmin && (
                 <>
-                  <QueuePreviewBlock title={t('supply_chain_control_page.warehouse_pending')} rows={queues.warehousePending} to="/supply-chain/warehouse" emptyHint={open} />
-                  <QueuePreviewBlock title={t('supply_chain_control_page.warehouse_available')} rows={queues.warehouseAvailable} to="/supply-chain/warehouse" emptyHint={open} />
+                  <QueuePreviewBlock title={t('supply_chain_control_page.warehouse_pending')} rows={queues.warehousePending} to="/supply-chain/warehouse" emptyHint={open} emptyText="No warehouse lines pending." />
+                  <QueuePreviewBlock title={t('supply_chain_control_page.warehouse_available')} rows={queues.warehouseAvailable} to="/supply-chain/warehouse" emptyHint={open} emptyText="No warehouse lines ready to issue." />
                 </>
               )}
-              {isDel && (
-                <QueuePreviewBlock title={t('supply_chain_control_page.delivery_ready')} rows={queues.deliveryReady} to="/supply-chain/delivery" emptyHint={open} />
+              {isDel && !isAdmin && (
+                <QueuePreviewBlock title={t('supply_chain_control_page.delivery_ready')} rows={queues.deliveryReady} to="/supply-chain/delivery" emptyHint={open} emptyText="No deliveries assigned." />
               )}
             </div>
           </div>
+          )}
 
           {isOps && alertsDetail && (
             <div className="card p-4">

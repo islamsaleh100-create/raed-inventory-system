@@ -290,7 +290,7 @@ export function WarehouseDashboard() {
         />
         <KpiCard
           title={t('dashboard.wh_kpi_ready')}
-          value={data?.ready_to_dispatch || 0}
+          value={data?.ready_to_dispatch ?? data?.orders_in_picking ?? 0}
           icon={Truck}
           iconBg="bg-blue-100"
           iconColor="text-blue-600"

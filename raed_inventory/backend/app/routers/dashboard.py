@@ -3,7 +3,7 @@ Dashboard & Reports Router
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, case
 from typing import Optional
 from datetime import date, datetime, timedelta
@@ -54,7 +54,12 @@ def branch_dashboard(
     )
 
     # Stock alerts
-    stock = db.query(BranchStock).filter(BranchStock.branch_id == branch_id).all()
+    stock = (
+        db.query(BranchStock)
+        .options(joinedload(BranchStock.item))
+        .filter(BranchStock.branch_id == branch_id)
+        .all()
+    )
     items_below_min = sum(1 for s in stock if s.current_qty < s.item.min_qty if s.item)
     items_out_of_stock = sum(1 for s in stock if s.current_qty <= 0)
 
@@ -236,6 +241,7 @@ def warehouse_dashboard(
         "under_review": under_review,
         "approved_orders": approved_orders,
         "orders_in_picking": in_picking,
+        "ready_to_dispatch": in_picking,
         "dispatched_today": dispatched_today,
         "stock_shortage_items": shortage_items,
         "fill_rate": fill_rate,
@@ -317,19 +323,24 @@ def operations_dashboard(
     )
 
     top_items_data = []
-    for item_id, total in top_items:
-        item = db.query(Item).filter(Item.id == item_id).first()
-        if item:
-            top_items_data.append(
-                {
-                    "item_code": item.item_code,
-                    "item_name_ar": item.item_name_ar,
-                    "item_name_en": item.item_name_en,
-                    "total_requested": float(total),
-                }
-            )
+    if top_items:
+        item_ids = [row[0] for row in top_items]
+        items_by_id = {
+            row.id: row
+            for row in db.query(Item).filter(Item.id.in_(item_ids)).all()
+        }
+        for item_id, total in top_items:
+            item = items_by_id.get(item_id)
+            if item:
+                top_items_data.append(
+                    {
+                        "item_code": item.item_code,
+                        "item_name_ar": item.item_name_ar,
+                        "item_name_en": item.item_name_en,
+                        "total_requested": float(total),
+                    }
+                )
 
-    # Branches with most shortages
     shortage_by_branch = (
         db.query(
             ReplenishmentOrder.branch_id,
@@ -347,18 +358,24 @@ def operations_dashboard(
     )
 
     shortage_branch_data = []
-    for branch_id, count in shortage_by_branch:
-        branch = db.query(Branch).filter(Branch.id == branch_id).first()
-        if branch:
-            shortage_branch_data.append(
-                {
-                    "branch_id": branch_id,
-                    "branch_name": branch.branch_name
-                    if hasattr(branch, "branch_name")
-                    else "",
-                    "shortage_count": count,
-                }
-            )
+    if shortage_by_branch:
+        branch_ids = [row[0] for row in shortage_by_branch]
+        branches_by_id = {
+            row.id: row
+            for row in db.query(Branch).filter(Branch.id.in_(branch_ids)).all()
+        }
+        for branch_id, count in shortage_by_branch:
+            branch = branches_by_id.get(branch_id)
+            if branch:
+                shortage_branch_data.append(
+                    {
+                        "branch_id": branch_id,
+                        "branch_name": branch.branch_name
+                        if hasattr(branch, "branch_name")
+                        else "",
+                        "shortage_count": count,
+                    }
+                )
 
     return {
         "total_branches": total_branches,
@@ -381,7 +398,12 @@ def branch_stock_status(
 ):
     if not can_access_branch(current_user, branch_id, db):
         raise HTTPException(status_code=403, detail="Access denied for this branch")
-    stocks = db.query(BranchStock).filter(BranchStock.branch_id == branch_id).all()
+    stocks = (
+        db.query(BranchStock)
+        .options(joinedload(BranchStock.item))
+        .filter(BranchStock.branch_id == branch_id)
+        .all()
+    )
 
     result = []
     for s in stocks:
@@ -424,13 +446,14 @@ def warehouse_stock_status(
         raise HTTPException(status_code=403, detail="Access denied for this warehouse")
     stocks = (
         db.query(WarehouseStock)
+        .options(joinedload(WarehouseStock.item))
         .filter(WarehouseStock.warehouse_id == warehouse_id)
         .all()
     )
 
     return [
         {
-            "item_id": s.item.id,
+            "item_id": s.item.id if s.item else s.item_id,
             "item_code": s.item.item_code,
             "item_name_ar": s.item.item_name_ar,
             "current_qty": float(s.current_qty),

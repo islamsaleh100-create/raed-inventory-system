@@ -39,7 +39,40 @@ from app.schemas import SupplyChainDashboardOut
 
 router = APIRouter(prefix="/api/v1/supply-chain", tags=["Supply Chain"])
 
-DASHBOARD_ROLES = ("admin", "super_admin", "internal_auditor", "warehouse_manager", "warehouse_user", "kitchen_section_manager", "delivery_user", "area_manager")
+DASHBOARD_ROLES = (
+    "admin",
+    "super_admin",
+    "internal_auditor",
+    "operations_manager",
+    "warehouse_manager",
+    "warehouse_user",
+    "kitchen_section_manager",
+    "delivery_user",
+    "area_manager",
+    "branch_user",
+    "branch_manager",
+)
+
+
+def _empty_supply_chain_dashboard() -> dict:
+    return {
+        "pending_approvals": 0,
+        "in_production": 0,
+        "warehouse_delays": 0,
+        "partial_orders": 0,
+        "top_requested_items": [],
+        "requests_today": 0,
+        "warehouse_pending": 0,
+        "backorders": 0,
+        "ready_for_delivery": 0,
+        "out_for_delivery": 0,
+        "delivered_today": 0,
+        "production_ready": 0,
+        "sent_to_warehouse": 0,
+        "my_requests": 0,
+        "shortages": 0,
+        "partial_warehouse": 0,
+    }
 
 
 @router.get("/dashboard", response_model=SupplyChainDashboardOut)
@@ -68,6 +101,28 @@ def supply_chain_dashboard(
     partial_delivery_q = db.query(DeliveryOrderLine).filter(
         DeliveryOrderLine.status == DeliveryOrderLineStatus.PARTIAL_DELIVERED
     )
+    today_start = datetime.combine(date.today(), time.min)
+    requests_today_q = db.query(BranchRequest).filter(BranchRequest.created_at >= today_start)
+    my_requests_q = db.query(BranchRequest).filter(
+        BranchRequest.status.notin_([BranchRequestStatus.DELIVERED, BranchRequestStatus.AREA_REJECTED])
+    )
+    production_ready_q = db.query(ProductionOrder).filter(
+        ProductionOrder.status.in_([ProductionOrderStatus.READY, ProductionOrderStatus.PARTIAL_READY])
+    )
+    sent_wh_q = db.query(ProductionOrder).filter(ProductionOrder.status == ProductionOrderStatus.SENT_TO_WAREHOUSE)
+    warehouse_pending_q = db.query(WarehouseLine).filter(
+        WarehouseLine.status.in_([WarehouseLineStatus.PENDING, WarehouseLineStatus.AVAILABLE])
+    )
+    backorder_q = db.query(WarehouseLine).filter(WarehouseLine.status == WarehouseLineStatus.BACKORDER)
+    ready_delivery_q = db.query(DeliveryOrder).filter(DeliveryOrder.status == DeliveryOrderStatus.READY)
+    out_delivery_q = db.query(DeliveryOrder).filter(DeliveryOrder.status == DeliveryOrderStatus.OUT_FOR_DELIVERY)
+    delivered_today_q = db.query(DeliveryOrder).filter(
+        DeliveryOrder.status.in_([DeliveryOrderStatus.DELIVERED, DeliveryOrderStatus.PARTIAL_DELIVERED]),
+        DeliveryOrder.delivered_at >= today_start,
+    )
+    shortages_q = db.query(DeliveryOrderLine).filter(
+        DeliveryOrderLine.status == DeliveryOrderLineStatus.PARTIAL_DELIVERED
+    )
     top_q = (
         db.query(
             BranchRequestLine.item_id.label("item_id"),
@@ -91,18 +146,22 @@ def supply_chain_dashboard(
             partial_delivery_q = partial_delivery_q.join(
                 DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id
             ).filter(DeliveryOrder.branch_id.in_(branch_filter))
+            requests_today_q = requests_today_q.filter(BranchRequest.branch_id.in_(branch_filter))
+            my_requests_q = my_requests_q.filter(BranchRequest.branch_id.in_(branch_filter))
+            production_ready_q = production_ready_q.filter(ProductionOrder.destination_branch_id.in_(branch_filter))
+            sent_wh_q = sent_wh_q.filter(ProductionOrder.destination_branch_id.in_(branch_filter))
+            warehouse_pending_q = warehouse_pending_q.filter(WarehouseLine.branch_id.in_(branch_filter))
+            backorder_q = backorder_q.filter(WarehouseLine.branch_id.in_(branch_filter))
+            ready_delivery_q = ready_delivery_q.filter(DeliveryOrder.branch_id.in_(branch_filter))
+            out_delivery_q = out_delivery_q.filter(DeliveryOrder.branch_id.in_(branch_filter))
+            delivered_today_q = delivered_today_q.filter(DeliveryOrder.branch_id.in_(branch_filter))
+            shortages_q = shortages_q.join(
+                DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id
+            ).filter(DeliveryOrder.branch_id.in_(branch_filter))
             top_q = top_q.filter(BranchRequest.branch_id.in_(branch_filter))
         elif any(r in roles for r in ("warehouse_user", "warehouse_manager")):
             if not current_user.warehouse_id:
-                pending_approvals = in_production = warehouse_delays = partial_orders = 0
-                top_rows = []
-                return {
-                    "pending_approvals": pending_approvals,
-                    "in_production": in_production,
-                    "warehouse_delays": warehouse_delays,
-                    "partial_orders": partial_orders,
-                    "top_requested_items": [],
-                }
+                return _empty_supply_chain_dashboard()
             wh_branch_ids = [
                 row.id
                 for row in db.query(Branch.id).filter(Branch.warehouse_id == current_user.warehouse_id).all()
@@ -121,21 +180,43 @@ def supply_chain_dashboard(
             partial_delivery_q = partial_delivery_q.join(DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id).join(
                 Branch, Branch.id == DeliveryOrder.branch_id
             ).filter(Branch.warehouse_id == current_user.warehouse_id)
+            warehouse_pending_q = warehouse_pending_q.join(Branch, Branch.id == WarehouseLine.branch_id).filter(
+                Branch.warehouse_id == current_user.warehouse_id
+            )
+            backorder_q = backorder_q.join(Branch, Branch.id == WarehouseLine.branch_id).filter(
+                Branch.warehouse_id == current_user.warehouse_id
+            )
+            ready_delivery_q = ready_delivery_q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(
+                Branch.warehouse_id == current_user.warehouse_id
+            )
+            out_delivery_q = out_delivery_q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(
+                Branch.warehouse_id == current_user.warehouse_id
+            )
+            delivered_today_q = delivered_today_q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(
+                Branch.warehouse_id == current_user.warehouse_id
+            )
+            shortages_q = shortages_q.join(DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id).join(
+                Branch, Branch.id == DeliveryOrder.branch_id
+            ).filter(Branch.warehouse_id == current_user.warehouse_id)
+            requests_today_q = requests_today_q.filter(BranchRequest.branch_id.in_(wh_filter))
+            my_requests_q = my_requests_q.filter(BranchRequest.branch_id.in_(wh_filter))
+            production_ready_q = production_ready_q.filter(ProductionOrder.id == -1)
+            sent_wh_q = sent_wh_q.filter(ProductionOrder.id == -1)
         elif "delivery_user" in roles:
             if not current_user.warehouse_id:
-                return {
-                    "pending_approvals": 0,
-                    "in_production": 0,
-                    "warehouse_delays": 0,
-                    "partial_orders": 0,
-                    "top_requested_items": [],
-                }
+                return _empty_supply_chain_dashboard()
             wh_branch_ids = [
                 row.id
                 for row in db.query(Branch.id).filter(Branch.warehouse_id == current_user.warehouse_id).all()
             ]
             wh_filter = wh_branch_ids if wh_branch_ids else [-1]
             partial_delivery_q = partial_delivery_q.join(
+                DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id
+            ).filter(DeliveryOrder.branch_id.in_(wh_filter))
+            ready_delivery_q = ready_delivery_q.filter(DeliveryOrder.branch_id.in_(wh_filter))
+            out_delivery_q = out_delivery_q.filter(DeliveryOrder.branch_id.in_(wh_filter))
+            delivered_today_q = delivered_today_q.filter(DeliveryOrder.branch_id.in_(wh_filter))
+            shortages_q = shortages_q.join(
                 DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id
             ).filter(DeliveryOrder.branch_id.in_(wh_filter))
             pending_q = pending_q.filter(BranchRequest.id == -1)
@@ -155,27 +236,52 @@ def supply_chain_dashboard(
             section_filter = section_ids if section_ids else [-1]
             production_q = production_q.filter(ProductionOrder.kitchen_section_id.in_(section_filter))
             partial_production_q = partial_production_q.filter(ProductionOrder.kitchen_section_id.in_(section_filter))
+            production_ready_q = production_ready_q.filter(ProductionOrder.kitchen_section_id.in_(section_filter))
+            sent_wh_q = sent_wh_q.filter(ProductionOrder.kitchen_section_id.in_(section_filter))
             pending_q = pending_q.filter(BranchRequest.id == -1)
             warehouse_delay_q = warehouse_delay_q.filter(WarehouseLine.id == -1)
             partial_warehouse_q = partial_warehouse_q.filter(WarehouseLine.id == -1)
             partial_delivery_q = partial_delivery_q.filter(DeliveryOrderLine.id == -1)
+            warehouse_pending_q = warehouse_pending_q.filter(WarehouseLine.id == -1)
+            backorder_q = backorder_q.filter(WarehouseLine.id == -1)
+            ready_delivery_q = ready_delivery_q.filter(DeliveryOrder.id == -1)
+            out_delivery_q = out_delivery_q.filter(DeliveryOrder.id == -1)
+            delivered_today_q = delivered_today_q.filter(DeliveryOrder.id == -1)
+            shortages_q = shortages_q.filter(DeliveryOrderLine.id == -1)
+            requests_today_q = requests_today_q.filter(BranchRequest.id == -1)
+            my_requests_q = my_requests_q.filter(BranchRequest.id == -1)
             top_q = top_q.filter(BranchRequest.id == -1)
+        elif any(r in roles for r in ("branch_user", "branch_manager")):
+            if not current_user.branch_id:
+                return _empty_supply_chain_dashboard()
+            bf = [current_user.branch_id]
+            pending_q = pending_q.filter(BranchRequest.branch_id.in_(bf))
+            requests_today_q = requests_today_q.filter(BranchRequest.branch_id.in_(bf))
+            my_requests_q = my_requests_q.filter(BranchRequest.branch_id.in_(bf))
+            production_q = production_q.filter(ProductionOrder.destination_branch_id.in_(bf))
+            production_ready_q = production_ready_q.filter(ProductionOrder.destination_branch_id.in_(bf))
+            sent_wh_q = sent_wh_q.filter(ProductionOrder.destination_branch_id.in_(bf))
+            warehouse_delay_q = warehouse_delay_q.filter(WarehouseLine.branch_id.in_(bf))
+            warehouse_pending_q = warehouse_pending_q.filter(WarehouseLine.branch_id.in_(bf))
+            backorder_q = backorder_q.filter(WarehouseLine.branch_id.in_(bf))
+            partial_production_q = partial_production_q.filter(ProductionOrder.destination_branch_id.in_(bf))
+            partial_warehouse_q = partial_warehouse_q.filter(WarehouseLine.branch_id.in_(bf))
+            partial_delivery_q = partial_delivery_q.join(
+                DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id
+            ).filter(DeliveryOrder.branch_id.in_(bf))
+            ready_delivery_q = ready_delivery_q.filter(DeliveryOrder.branch_id.in_(bf))
+            out_delivery_q = out_delivery_q.filter(DeliveryOrder.branch_id.in_(bf))
+            delivered_today_q = delivered_today_q.filter(DeliveryOrder.branch_id.in_(bf))
+            shortages_q = shortages_q.join(
+                DeliveryOrder, DeliveryOrder.id == DeliveryOrderLine.delivery_order_id
+            ).filter(DeliveryOrder.branch_id.in_(bf))
+            top_q = top_q.filter(BranchRequest.branch_id.in_(bf))
 
-    pending_approvals = pending_q.count()
-    in_production = production_q.count()
-    warehouse_delays = warehouse_delay_q.count()
-    partial_orders = partial_production_q.count() + partial_warehouse_q.count() + partial_delivery_q.count()
-    top_rows = (
-        top_q.group_by(BranchRequestLine.item_id, Item.item_name_en)
-        .order_by(func.sum(BranchRequestLine.qty_requested).desc())
-        .limit(10)
-        .all()
-    )
     return {
-        "pending_approvals": pending_approvals,
-        "in_production": in_production,
-        "warehouse_delays": warehouse_delays,
-        "partial_orders": partial_orders,
+        "pending_approvals": pending_q.count(),
+        "in_production": production_q.count(),
+        "warehouse_delays": warehouse_delay_q.count(),
+        "partial_orders": partial_production_q.count() + partial_warehouse_q.count() + partial_delivery_q.count(),
         "top_requested_items": [
             {
                 "item_id": row.item_id,
@@ -183,8 +289,24 @@ def supply_chain_dashboard(
                 "qty_requested": str(row.qty_requested),
                 "request_count": row.request_count,
             }
-            for row in top_rows
+            for row in (
+                top_q.group_by(BranchRequestLine.item_id, Item.item_name_en)
+                .order_by(func.sum(BranchRequestLine.qty_requested).desc())
+                .limit(10)
+                .all()
+            )
         ],
+        "requests_today": requests_today_q.count(),
+        "warehouse_pending": warehouse_pending_q.count(),
+        "backorders": backorder_q.count(),
+        "ready_for_delivery": ready_delivery_q.count(),
+        "out_for_delivery": out_delivery_q.count(),
+        "delivered_today": delivered_today_q.count(),
+        "production_ready": production_ready_q.count(),
+        "sent_to_warehouse": sent_wh_q.count(),
+        "my_requests": my_requests_q.count(),
+        "shortages": shortages_q.count(),
+        "partial_warehouse": partial_warehouse_q.count(),
     }
 
 

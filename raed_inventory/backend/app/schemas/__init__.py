@@ -767,11 +767,22 @@ class PurchaseRequestOut(BaseModel):
 
 
 class SupplyChainDashboardOut(BaseModel):
-    pending_approvals: int
-    in_production: int
-    warehouse_delays: int
-    partial_orders: int
-    top_requested_items: List[dict[str, Any]]
+    pending_approvals: int = 0
+    in_production: int = 0
+    warehouse_delays: int = 0
+    partial_orders: int = 0
+    top_requested_items: List[dict[str, Any]] = Field(default_factory=list)
+    requests_today: int = 0
+    warehouse_pending: int = 0
+    backorders: int = 0
+    ready_for_delivery: int = 0
+    out_for_delivery: int = 0
+    delivered_today: int = 0
+    production_ready: int = 0
+    sent_to_warehouse: int = 0
+    my_requests: int = 0
+    shortages: int = 0
+    partial_warehouse: int = 0
 
 
 class EvaluationQuestionPayload(BaseModel):

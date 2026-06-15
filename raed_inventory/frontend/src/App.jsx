@@ -1900,19 +1900,26 @@ function ProtectedRoute({ children }) {
   return children
 }
 
-// Smart dashboard selector based on role
+// Smart dashboard — single /dashboard route, role-based widgets
 function SmartDashboard() {
   const roles = useSelector(selectUserRoles)
-  if (roles.includes('super_admin')) return <Navigate to="/supply-chain/control" replace />
   if (roles.includes('internal_auditor')) return <Navigate to="/audit/dashboard" replace />
-  if (roles.includes('area_manager') || roles.includes('kitchen_section_manager') || roles.includes('delivery_user')) {
-    return <Navigate to="/supply-chain/control" replace />
-  }
   if (roles.includes('sales_manager')) return <Navigate to="/delivery" replace />
-  if (roles.includes('branch_user') || roles.includes('branch_manager')) return <BranchDashboard />
-  if (roles.includes('warehouse_user') || roles.includes('warehouse_manager')) return <WarehouseDashboard />
-  if (roles.includes('operations_manager')) return <OperationsDashboard />
-  if (roles.includes('admin')) return <OperationsDashboard />
+  const supplyChainHome = [
+    'super_admin',
+    'admin',
+    'operations_manager',
+    'area_manager',
+    'kitchen_section_manager',
+    'warehouse_user',
+    'warehouse_manager',
+    'delivery_user',
+    'branch_user',
+    'branch_manager',
+  ]
+  if (supplyChainHome.some((role) => roles.includes(role))) {
+    return <SupplyChainControlDashboard />
+  }
   return <BranchDashboard />
 }
 
@@ -2036,8 +2043,8 @@ function AppRoutes() {
           <Route path="/audit/trail" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><AuditTrailPage /></RouteRoleGuard>} />
 
           {/* Supply Chain V1 demo screens */}
-          <Route path="/supply-chain" element={<Navigate to="/supply-chain/control" replace />} />
-          <Route path="/supply-chain/control" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager', 'warehouse_user', 'warehouse_manager', 'delivery_user', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><SupplyChainControlDashboard /></RouteRoleGuard>} />
+          <Route path="/supply-chain" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/supply-chain/control" element={<Navigate to="/dashboard" replace />} />
           <Route path="/supply-chain/branch-requests" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><SupplyChainBranchRequestsPage /></RouteRoleGuard>} />
           <Route path="/supply-chain/approvals" element={<RouteRoleGuard allowed={['area_manager', 'internal_auditor', 'admin', 'super_admin']}><SupplyChainApprovalsPage /></RouteRoleGuard>} />
           <Route path="/supply-chain/kitchen" element={<RouteRoleGuard allowed={['kitchen_section_manager', 'internal_auditor', 'admin', 'super_admin']}><SupplyChainKitchenPage /></RouteRoleGuard>} />
