@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { notificationsApi } from '../../services/api'
+import { useLanguage, useT } from '../../i18n'
 import { notificationSectionLabel } from '../../utils/operationalLabels'
 
 const POLL_INTERVAL_MS = 60_000
