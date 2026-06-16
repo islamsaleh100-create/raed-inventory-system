@@ -51,6 +51,21 @@ def _get_line(db: Session, line_id: int) -> WarehouseLine:
     return row
 
 
+def _serialize_warehouse_line(db: Session, line_or_id: WarehouseLine | int) -> WarehouseLineOut:
+    """UI list/detail/mutation responses must include branch_name and stock fields."""
+    row = _get_line(db, line_or_id) if isinstance(line_or_id, int) else line_or_id
+    stock = None
+    try:
+        wh_id = _warehouse_id_for_line(row)
+        stock = db.query(WarehouseStock).filter(
+            WarehouseStock.warehouse_id == wh_id,
+            WarehouseStock.item_id == row.item_id,
+        ).first()
+    except AppError:
+        pass
+    return warehouse_line_out(row, stock=stock)
+
+
 def _audit(db: Session, request: Request, user: User, action: str, row: WarehouseLine, values: dict | None = None) -> None:
     audit_service.log(
         db,
@@ -154,7 +169,11 @@ def list_warehouse_lines(
 ):
     from app.models import Item
 
-    q = db.query(WarehouseLine).options(joinedload(WarehouseLine.item), joinedload(WarehouseLine.branch))
+    q = db.query(WarehouseLine).options(
+        joinedload(WarehouseLine.item),
+        joinedload(WarehouseLine.branch),
+        joinedload(WarehouseLine.source_request_line),
+    )
     if status:
         q = q.filter(WarehouseLine.status == status)
     if branch_id:
@@ -192,12 +211,7 @@ def get_warehouse_line(
 ):
     row = _get_line(db, line_id)
     _require_warehouse_access(current_user, row)
-    wh_id = _warehouse_id_for_line(row)
-    stock = db.query(WarehouseStock).filter(
-        WarehouseStock.warehouse_id == wh_id,
-        WarehouseStock.item_id == row.item_id,
-    ).first()
-    return warehouse_line_out(row, stock=stock)
+    return _serialize_warehouse_line(db, row)
 
 
 @router.post("/{line_id}/receive", response_model=WarehouseLineOut)
@@ -224,7 +238,7 @@ def receive_line(
     row = _get_line(db, line_id)
     _require_warehouse_access(current_user, row)
     if replayed:
-        return row
+        return _serialize_warehouse_line(db, row)
 
     if row.source_type == WarehouseLineSourceType.KITCHEN_MATERIAL_REQUEST:
         raise AppError(
@@ -243,7 +257,7 @@ def receive_line(
             supply_chain_idempotency_service.complete(
                 db, record=idempotency_record, response_reference_type="warehouse_line", response_reference_id=row.id
             )
-            return _get_line(db, row.id)
+            return _serialize_warehouse_line(db, row.id)
         raise AppError(
             status_code=400,
             error_code="warehouse_lines.receive_invalid_status",
@@ -267,13 +281,13 @@ def receive_line(
         supply_chain_idempotency_service.complete(
             db, record=idempotency_record, response_reference_type="warehouse_line", response_reference_id=row.id
         )
-        return _get_line(db, row.id)
+        return _serialize_warehouse_line(db, row.id)
 
     if row.status == WarehouseLineStatus.AVAILABLE:
         supply_chain_idempotency_service.complete(
             db, record=idempotency_record, response_reference_type="warehouse_line", response_reference_id=row.id
         )
-        return _get_line(db, row.id)
+        return _serialize_warehouse_line(db, row.id)
 
     raise AppError(
         status_code=400,
@@ -300,7 +314,7 @@ def issue_line(
     row = _get_line(db, line_id)
     _require_warehouse_access(current_user, row)
     if replayed or row.status == WarehouseLineStatus.READY_FOR_DISPATCH:
-        return row
+        return _serialize_warehouse_line(db, row)
     if row.status not in (
         WarehouseLineStatus.AVAILABLE,
         WarehouseLineStatus.PARTIAL,
@@ -330,7 +344,7 @@ def issue_line(
     _audit(db, request, current_user, "warehouse_issue", row, {"qty": str(qty)})
     db.commit()
     supply_chain_idempotency_service.complete(db, record=idempotency_record, response_reference_type="warehouse_line", response_reference_id=row.id)
-    return _get_line(db, row.id)
+    return _serialize_warehouse_line(db, row.id)
 
 
 @router.post("/{line_id}/partial-issue", response_model=WarehouseLineOut)
@@ -354,7 +368,7 @@ def partial_issue_line(
     row = _get_line(db, line_id)
     _require_warehouse_access(current_user, row)
     if replayed:
-        return row
+        return _serialize_warehouse_line(db, row)
     if row.status not in (
         WarehouseLineStatus.AVAILABLE,
         WarehouseLineStatus.PARTIAL,
@@ -390,7 +404,7 @@ def partial_issue_line(
     _audit(db, request, current_user, "warehouse_partial_issue", row, {"qty": str(qty), "delay_reason": payload.delay_reason})
     db.commit()
     supply_chain_idempotency_service.complete(db, record=idempotency_record, response_reference_type="warehouse_line", response_reference_id=row.id)
-    return _get_line(db, row.id)
+    return _serialize_warehouse_line(db, row.id)
 
 
 @router.post("/{line_id}/delay-reason", response_model=WarehouseLineOut)
@@ -409,4 +423,4 @@ def add_delay_reason(
     row.updated_at = datetime.utcnow()
     _audit(db, request, current_user, "warehouse_delay_reason_added", row, {"delay_reason": payload.delay_reason})
     db.commit()
-    return _get_line(db, row.id)
+    return _serialize_warehouse_line(db, row.id)

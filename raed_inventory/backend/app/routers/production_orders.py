@@ -99,6 +99,11 @@ def _get_order(db: Session, order_id: int) -> ProductionOrder:
     return row
 
 
+def _serialize_production_order(db: Session, order_or_id: ProductionOrder | int) -> ProductionOrderOut:
+    row = _get_order(db, order_or_id) if isinstance(order_or_id, int) else order_or_id
+    return production_order_out(row)
+
+
 def _require_section_access(db: Session, user: User, row: ProductionOrder) -> None:
     if _broad_access(user):
         return
@@ -547,7 +552,7 @@ def get_production_order(
 ):
     row = _get_order(db, order_id)
     _require_section_access(db, current_user, row)
-    return row
+    return _serialize_production_order(db, row)
 
 
 @router.post("/{order_id}/start", response_model=ProductionOrderOut)
@@ -566,7 +571,7 @@ def start_production_order(
     row = _get_order(db, order_id)
     _require_section_access(db, current_user, row)
     if replayed or row.status == ProductionOrderStatus.IN_PROGRESS:
-        return row
+        return _serialize_production_order(db, row)
     if row.status != ProductionOrderStatus.PENDING:
         raise AppError(status_code=400, error_code="production_orders.invalid_status", message="Only pending orders can start")
     row.status = ProductionOrderStatus.IN_PROGRESS
@@ -576,7 +581,7 @@ def start_production_order(
     _audit(db, request, current_user, "production_started", row, {"status": row.status.value})
     db.commit()
     supply_chain_idempotency_service.complete(db, record=idempotency_record, response_reference_type="production_order", response_reference_id=row.id)
-    return _get_order(db, row.id)
+    return _serialize_production_order(db, row.id)
 
 
 @router.post("/{order_id}/mark-partial-ready", response_model=ProductionOrderOut)
@@ -609,7 +614,7 @@ def mark_partial_ready(
     row.updated_at = datetime.utcnow()
     _audit(db, request, current_user, "production_partial_ready", row, {"qty_ready": str(row.qty_ready)})
     db.commit()
-    return _get_order(db, row.id)
+    return _serialize_production_order(db, row.id)
 
 
 @router.post("/{order_id}/mark-ready", response_model=ProductionOrderOut)
@@ -628,7 +633,7 @@ def mark_ready(
     row = _get_order(db, order_id)
     _require_section_access(db, current_user, row)
     if replayed or row.status == ProductionOrderStatus.READY:
-        return row
+        return _serialize_production_order(db, row)
     if row.status not in (ProductionOrderStatus.IN_PROGRESS, ProductionOrderStatus.PARTIAL_READY):
         raise AppError(
             status_code=400,
@@ -642,7 +647,7 @@ def mark_ready(
     _audit(db, request, current_user, "production_ready", row, {"qty_ready": str(row.qty_ready)})
     db.commit()
     supply_chain_idempotency_service.complete(db, record=idempotency_record, response_reference_type="production_order", response_reference_id=row.id)
-    return _get_order(db, row.id)
+    return _serialize_production_order(db, row.id)
 
 
 @router.post("/{order_id}/send-to-warehouse", response_model=ProductionOrderOut)
@@ -661,7 +666,7 @@ def send_to_warehouse(
     row = _get_order(db, order_id)
     _require_section_access(db, current_user, row)
     if replayed:
-        return row
+        return _serialize_production_order(db, row)
     if row.status not in (ProductionOrderStatus.READY, ProductionOrderStatus.PARTIAL_READY, ProductionOrderStatus.SENT_TO_WAREHOUSE):
         raise AppError(
             status_code=400,
@@ -762,7 +767,7 @@ def send_to_warehouse(
     )
     db.commit()
     supply_chain_idempotency_service.complete(db, record=idempotency_record, response_reference_type="production_order", response_reference_id=row.id)
-    return _get_order(db, row.id)
+    return _serialize_production_order(db, row.id)
 
 
 @router.post("/{order_id}/request-materials", response_model=KitchenMaterialRequestOut, status_code=201)

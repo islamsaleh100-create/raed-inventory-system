@@ -96,6 +96,11 @@ def _load_delivery_order(db: Session, order_id: int) -> DeliveryOrder:
     return row
 
 
+def _serialize_delivery_order(db: Session, order_or_id: DeliveryOrder | int) -> DeliveryOrderOut:
+    row = _load_delivery_order(db, order_or_id) if isinstance(order_or_id, int) else order_or_id
+    return delivery_order_out(row)
+
+
 def _require_order_access(user: User, row: DeliveryOrder) -> None:
     if _is_admin(user):
         return
@@ -326,7 +331,7 @@ def create_delivery_order(
         ))
     _audit(db, request, current_user, "delivery_order_created", order, {"warehouse_line_ids": payload.warehouse_line_ids})
     db.commit()
-    return _load_delivery_order(db, order.id)
+    return _serialize_delivery_order(db, order.id)
 
 
 @router.get("/{order_id}", response_model=DeliveryOrderOut)
@@ -363,7 +368,7 @@ def out_for_delivery(
                 response_reference_type="delivery_order",
                 response_reference_id=row.id,
             )
-        return _load_delivery_order(db, row.id)
+        return _serialize_delivery_order(db, row.id)
     if row.status != DeliveryOrderStatus.READY:
         raise AppError(status_code=400, error_code="delivery_orders.invalid_status", message="Only READY orders can go out for delivery")
     row.status = DeliveryOrderStatus.OUT_FOR_DELIVERY
@@ -374,7 +379,7 @@ def out_for_delivery(
     _audit(db, request, current_user, "delivery_out_for_delivery", row, {"status": row.status.value})
     db.commit()
     supply_chain_idempotency_service.complete(db, record=idempotency_record, response_reference_type="delivery_order", response_reference_id=row.id)
-    return _load_delivery_order(db, row.id)
+    return _serialize_delivery_order(db, row.id)
 
 
 @router.post("/{order_id}/deliver", response_model=DeliveryOrderOut)
@@ -401,7 +406,7 @@ def deliver_order(
                 response_reference_type="delivery_order",
                 response_reference_id=row.id,
             )
-        return _load_delivery_order(db, row.id)
+        return _serialize_delivery_order(db, row.id)
     if row.status != DeliveryOrderStatus.OUT_FOR_DELIVERY:
         raise AppError(status_code=400, error_code="delivery_orders.invalid_status", message="Only OUT_FOR_DELIVERY orders can be delivered")
 
@@ -489,7 +494,7 @@ def deliver_order(
     )
     db.commit()
     supply_chain_idempotency_service.complete(db, record=idempotency_record, response_reference_type="delivery_order", response_reference_id=row.id)
-    return _load_delivery_order(db, row.id)
+    return _serialize_delivery_order(db, row.id)
 
 
 @router.get("/{order_id}/labels", response_class=HTMLResponse)
