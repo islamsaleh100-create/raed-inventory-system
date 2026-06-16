@@ -6,6 +6,42 @@ import toast from 'react-hot-toast'
 import { loginStart, loginSuccess, loginFail } from '../../store'
 import { authApi } from '../../services/api'
 import { useT, useLanguage } from '../../i18n'
+import {
+  LAN_TRIAL_LOGIN_GROUPS,
+  LAN_TRIAL_LOGIN_NOTICE_KEY,
+  LAN_TRIAL_LOGIN_TITLE_KEY,
+  resolveLanTrialPassword,
+} from '../../config/lanTrialLoginCards'
+
+function LanTrialLoginCards({ loading, onQuickLogin, t }) {
+  return (
+    <div className="space-y-4 max-h-[28rem] overflow-y-auto pe-1">
+      {LAN_TRIAL_LOGIN_GROUPS.map((group) => (
+        <div key={group.groupKey}>
+          <p className="text-xs font-semibold text-gray-500 mb-2">{t(group.groupKey)}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            {group.accounts.map((account) => (
+              <button
+                key={account.username}
+                type="button"
+                disabled={loading}
+                onClick={() => onQuickLogin(
+                  account.username,
+                  resolveLanTrialPassword(account.passwordKind),
+                )}
+                className="text-right bg-gray-50 hover:bg-gray-100 border border-gray-200
+                  rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <p className="font-medium text-gray-700">{t(account.labelKey)}</p>
+                <p className="text-gray-400 mt-0.5">{account.username}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -59,11 +95,11 @@ export default function LoginPage() {
           ? '/supply-chain/control'
           : isInternalAuditor
             ? '/audit/dashboard'
-          : isAdmin
-            ? '/dashboard'
-            : prefersSupplyChainHome
-              ? '/supply-chain/control'
-              : '/dashboard',
+            : isAdmin
+              ? '/dashboard'
+              : prefersSupplyChainHome
+                ? '/supply-chain/control'
+                : '/dashboard',
       )
     } catch (err) {
       const msg = formatLoginError(err)
@@ -85,8 +121,7 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
+      <div className="w-full max-w-lg">
         <header className="text-center mb-8">
           <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-3xl flex items-center justify-center mx-auto mb-4 border border-white/20">
             <span className="text-white font-black text-4xl">{lang === 'ar' ? 'ر' : 'R'}</span>
@@ -95,7 +130,6 @@ export default function LoginPage() {
           <p className="text-primary-200 text-sm mt-1">{t('auth.company_subtitle')}</p>
         </header>
 
-        {/* Form */}
         <section className="bg-white rounded-2xl shadow-2xl p-8" aria-labelledby="login-title">
           <h2 id="login-title" className="text-xl font-bold text-gray-900 mb-6">{t('auth.login')}</h2>
 
@@ -156,36 +190,15 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo credentials hint — dev-only (import.meta.env.DEV يمنعها في production) */}
           {import.meta.env.DEV && (
-            <div className="mt-6 pt-5 border-t border-gray-100">
-              <p className="text-xs text-gray-400 text-center mb-3">{t('auth.demo_hint')}</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {[
-                  { labelKey: 'auth.demo_super_admin',              u: 'super.admin',  p: 'Raed@2025' },
-                  { labelKey: 'auth.demo_admin',                    u: 'admin',        p: 'Admin@2025' },
-                  { labelKey: 'auth.demo_operations_manager',       u: 'ops.mgr',      p: 'Raed@2025' },
-                  { labelKey: 'auth.demo_area_manager',             u: 'am_riyadh',    p: 'Raed@2025' },
-                  { labelKey: 'auth.demo_quality_manager',          u: 'qa.mgr',       p: 'Raed@2025' },
-                  { labelKey: 'auth.demo_branch_manager_olaya',     u: 'branch.mgr1',  p: 'Raed@2025' },
-                  { labelKey: 'auth.demo_branch_manager_malaz',     u: 'branch.user1', p: 'Raed@2025' },
-                  { labelKey: 'auth.demo_warehouse_manager_riyadh', u: 'wh.mgr1',      p: 'Raed@2025' },
-                  { labelKey: 'auth.demo_warehouse_manager_dammam', u: 'wh.user1',     p: 'Raed@2025' },
-                  { labelKey: 'auth.demo_sales_manager',            u: 'sales.mgr',    p: 'Raed@2025' },
-                ].map((d) => (
-                  <button
-                    key={d.u}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => quickLogin(d.u, d.p)}
-                    className="text-right bg-gray-50 hover:bg-gray-100 border border-gray-200
-                      rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    <p className="font-medium text-gray-700">{t(d.labelKey)}</p>
-                    <p className="text-gray-400 mt-0.5">{d.u}</p>
-                  </button>
-                ))}
-              </div>
+            <div className="mt-6 pt-5 border-t border-gray-100 space-y-3">
+              <p className="text-sm font-bold text-primary-700 text-center">
+                {t(LAN_TRIAL_LOGIN_TITLE_KEY)}
+              </p>
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+                {t(LAN_TRIAL_LOGIN_NOTICE_KEY)}
+              </p>
+              <LanTrialLoginCards loading={loading} onQuickLogin={quickLogin} t={t} />
             </div>
           )}
         </section>
