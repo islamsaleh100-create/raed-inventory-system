@@ -250,6 +250,40 @@ function SupplyChainFilterBar({
   )
 }
 
+const WAREHOUSE_ISSUE_STATUSES = new Set(['PENDING', 'AVAILABLE', 'PARTIAL'])
+
+function canReceiveWarehouseLine(line) {
+  return line?.source_type === 'BRANCH_REQUEST' && line?.status === 'PENDING'
+}
+
+function canIssueWarehouseLine(line) {
+  return WAREHOUSE_ISSUE_STATUSES.has(line?.status) && Number(line?.pending_qty) > 0
+}
+
+function canCreateDeliveryFromLine(line) {
+  return Number(line?.issued_qty) > 0 && ['READY_FOR_DISPATCH', 'PARTIAL'].includes(line?.status)
+}
+
+function productionCanStart(status) {
+  return status === 'PENDING'
+}
+
+function productionCanMarkReady(status) {
+  return ['IN_PROGRESS', 'WAITING_FOR_MATERIALS', 'PARTIAL_READY'].includes(status)
+}
+
+function productionCanPartialReady(status) {
+  return ['IN_PROGRESS', 'WAITING_FOR_MATERIALS', 'PARTIAL_READY'].includes(status)
+}
+
+function productionCanSendToWarehouse(status) {
+  return ['READY', 'PARTIAL_READY'].includes(status)
+}
+
+function productionIsClosed(status) {
+  return status === 'SENT_TO_WAREHOUSE'
+}
+
 async function loadAllowedBrands(branchId, brands) {
   const checks = await Promise.all(brands.map(async (brand) => {
     try {
@@ -267,7 +301,10 @@ export function SupplyChainBranchRequestsPage() {
   const user = useSelector(selectUser)
   const roles = useSelector(selectUserRoles)
   const isAuditor = roles.includes('internal_auditor')
+  const isAreaManager = roles.includes('area_manager') && !roles.includes('admin') && !roles.includes('super_admin')
+  const canCreateRequest = (roles.includes('branch_user') || roles.includes('branch_manager')) && !isAuditor
   const canSelectBranch = roles.includes('admin') || roles.includes('super_admin') || isAuditor
+  const usesScopedList = isAreaManager || (isAuditor && !user?.branch_id)
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
   const [requests, setRequests] = React.useState([])
@@ -282,17 +319,18 @@ export function SupplyChainBranchRequestsPage() {
   const [listFilters, setListFilters] = React.useState({ ...EMPTY_FILTERS })
 
   const reloadRequests = React.useCallback(async (branchId = selectedBranchId, filters = listFilters) => {
-    if (!branchId) {
+    if (!branchId && !usesScopedList) {
       setRequests([])
       return
     }
-    const res = await supplyChainApi.listBranchRequests({
-      branch_id: branchId,
+    const params = {
       page_size: 100,
       ...buildFilterParams(filters),
-    })
+    }
+    if (branchId) params.branch_id = Number(branchId)
+    const res = await supplyChainApi.listBranchRequests(params)
     setRequests(res.data?.items || [])
-  }, [selectedBranchId, listFilters])
+  }, [selectedBranchId, listFilters, usesScopedList])
 
   React.useEffect(() => {
     let mounted = true
@@ -319,6 +357,8 @@ export function SupplyChainBranchRequestsPage() {
           setSelectedBrandId((prev) => prev || firstBrandId)
           setAllowedItems(allowed[0]?.items || [])
           await reloadRequests(effectiveBranchId)
+        } else if (usesScopedList) {
+          await reloadRequests(undefined, listFilters)
         }
       } catch (error) {
         toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر تحميل بيانات طلبات الفروع')
@@ -350,6 +390,10 @@ export function SupplyChainBranchRequestsPage() {
   }, [allowedItems])
 
   React.useEffect(() => {
+    if (usesScopedList) {
+      reloadRequests(undefined, listFilters).catch(() => {})
+      return
+    }
     if (!selectedBranchId) {
       setAvailableBrands([])
       setSelectedBrandId('')
@@ -369,9 +413,13 @@ export function SupplyChainBranchRequestsPage() {
   }, [selectedBranchId, allBrands])
 
   React.useEffect(() => {
+    if (usesScopedList) {
+      reloadRequests(undefined, listFilters).catch(() => {})
+      return
+    }
     if (!selectedBranchId) return
     reloadRequests(selectedBranchId, listFilters).catch(() => {})
-  }, [listFilters, selectedBranchId, reloadRequests])
+  }, [listFilters, selectedBranchId, reloadRequests, usesScopedList])
 
   const addLine = () => setLines((prev) => [...prev, { item_id: '', qty_requested: '', source_type: '', notes: '' }])
 
@@ -424,9 +472,13 @@ export function SupplyChainBranchRequestsPage() {
   }
 
   return (
-    <PageShell title="طلبات الفروع" subtitle="إنشاء ومتابعة طلبات التوريد للفروع">
+    <PageShell
+      title="طلبات الفروع"
+      subtitle={usesScopedList ? 'متابعة طلبات التوريد ضمن نطاقك' : 'إنشاء ومتابعة طلبات التوريد للفروع'}
+    >
       {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يستطيع استعراض الطلبات والأصناف القابلة للطلب لكل فرع، لكنه لا ينشئ أو يرسل طلبات جديدة من هذه الصفحة." />}
-      <div className="grid xl:grid-cols-[1.2fr,1fr] gap-6">
+      <div className={`grid gap-6 ${canCreateRequest ? 'xl:grid-cols-[1.2fr,1fr]' : ''}`}>
+        {canCreateRequest && (
         <div className="card p-5 space-y-4">
           <div className="grid md:grid-cols-3 gap-4">
             {canSelectBranch && (
@@ -517,11 +569,12 @@ export function SupplyChainBranchRequestsPage() {
             {!isAuditor && <button type="button" onClick={() => handleCreate(true)} disabled={saving} className="btn-primary">{saving ? 'جارٍ الحفظ...' : 'حفظ وإرسال'}</button>}
           </div>
         </div>
+        )}
 
         <div className="card table-container">
           <div className="p-4 border-b border-gray-100 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900">طلبات الفرع</h2>
+              <h2 className="font-semibold text-gray-900">{usesScopedList ? 'طلبات ضمن النطاق' : 'طلبات الفرع'}</h2>
               <button type="button" onClick={() => reloadRequests()} className="btn-secondary text-sm">تحديث</button>
             </div>
             <SupplyChainFilterBar
@@ -1080,32 +1133,42 @@ export function SupplyChainKitchenPage() {
                     <td>
                       {isAuditor ? (
                         <span className="text-sm text-gray-500">قراءة فقط</span>
+                      ) : productionIsClosed(order.status) ? (
+                        <span className="text-sm text-gray-500">مكتمل</span>
                       ) : (
                         <div className="flex flex-wrap gap-2">
-                          <button type="button" className="btn-secondary text-xs" onClick={() => action(() => supplyChainApi.startProductionOrder(order.id), 'تم بدء التنفيذ')}>بدء</button>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={partialQty[order.id] || ''}
-                              onChange={(e) => setPartialQty((prev) => ({ ...prev, [order.id]: e.target.value }))}
-                              className="input-field w-24 text-xs"
-                              placeholder="جزئي"
-                            />
-                            <button
-                              type="button"
-                              className="btn-secondary text-xs"
-                              onClick={() => action(
-                                () => supplyChainApi.markProductionPartialReady(order.id, { qty_ready: Number(partialQty[order.id] || 0) }),
-                                'تم تسجيل جاهزية جزئية',
-                              )}
-                            >
-                              جاهز جزئيًا
-                            </button>
-                          </div>
-                          <button type="button" className="btn-secondary text-xs" onClick={() => action(() => supplyChainApi.markProductionReady(order.id), 'تم تعليم الأمر جاهزًا')}>جاهز</button>
-                          <button type="button" className="btn-primary text-xs" onClick={() => confirmSendProduction(order)}>إرسال للمستودع</button>
+                          {productionCanStart(order.status) && (
+                            <button type="button" className="btn-primary text-xs" onClick={() => action(() => supplyChainApi.startProductionOrder(order.id), 'تم بدء التنفيذ')}>بدء</button>
+                          )}
+                          {productionCanPartialReady(order.status) && (
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={partialQty[order.id] || ''}
+                                onChange={(e) => setPartialQty((prev) => ({ ...prev, [order.id]: e.target.value }))}
+                                className="input-field w-24 text-xs"
+                                placeholder="جزئي"
+                              />
+                              <button
+                                type="button"
+                                className="btn-secondary text-xs"
+                                onClick={() => action(
+                                  () => supplyChainApi.markProductionPartialReady(order.id, { qty_ready: Number(partialQty[order.id] || 0) }),
+                                  'تم تسجيل جاهزية جزئية',
+                                )}
+                              >
+                                جاهز جزئيًا
+                              </button>
+                            </div>
+                          )}
+                          {productionCanMarkReady(order.status) && (
+                            <button type="button" className="btn-secondary text-xs" onClick={() => action(() => supplyChainApi.markProductionReady(order.id), 'تم تعليم الأمر جاهزًا')}>جاهز</button>
+                          )}
+                          {productionCanSendToWarehouse(order.status) && (
+                            <button type="button" className="btn-primary text-xs" onClick={() => confirmSendProduction(order)}>إرسال للمستودع</button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -1443,12 +1506,20 @@ export function SupplyChainWarehousePage() {
                   ) : (
                     <div className="space-y-2">
                       <div className="flex gap-2 flex-wrap">
-                        {line.source_type === 'BRANCH_REQUEST' && line.status === 'PENDING' && (
+                        {canReceiveWarehouseLine(line) && (
                           <button type="button" className="btn-secondary text-xs" onClick={() => run(() => supplyChainApi.receiveWarehouseLine(line.id), 'تم الاستلام / الإقرار')}>استلام</button>
                         )}
-                        <button type="button" className="btn-secondary text-xs" onClick={() => openFullIssueConfirm(line)}>صرف كامل</button>
-                        <button type="button" className="btn-secondary text-xs" onClick={() => openCreateDeliveryConfirm(line)}>إنشاء أمر تسليم</button>
+                        {canIssueWarehouseLine(line) && (
+                          <button type="button" className="btn-secondary text-xs" onClick={() => openFullIssueConfirm(line)}>صرف كامل</button>
+                        )}
+                        {canCreateDeliveryFromLine(line) && (
+                          <button type="button" className="btn-secondary text-xs" onClick={() => openCreateDeliveryConfirm(line)}>إنشاء أمر تسليم</button>
+                        )}
+                        {!canReceiveWarehouseLine(line) && !canIssueWarehouseLine(line) && !canCreateDeliveryFromLine(line) && (
+                          <span className="text-xs text-gray-500">لا إجراءات متاحة</span>
+                        )}
                       </div>
+                      {canIssueWarehouseLine(line) && (
                       <div className="flex gap-2 flex-wrap">
                         <input
                           type="number"
@@ -1483,6 +1554,7 @@ export function SupplyChainWarehousePage() {
                           تسجيل تأخير
                         </button>
                       </div>
+                      )}
                     </div>
                   )}
                 </td>
@@ -1648,10 +1720,13 @@ export function SupplyChainDeliveryPage() {
                   ) : (
                     <div className="space-y-2">
                       <div className="flex gap-2 flex-wrap">
-                        <button type="button" className="btn-secondary text-xs" onClick={() => openOutForDeliveryConfirm(order)}>خرج للتسليم</button>
+                        {order.status === 'READY' && (
+                          <button type="button" className="btn-secondary text-xs" onClick={() => openOutForDeliveryConfirm(order)}>خرج للتسليم</button>
+                        )}
                         <button type="button" className="btn-secondary text-xs" onClick={() => window.open(supplyChainApi.deliveryLabelsUrl(order.id), '_blank', 'noopener,noreferrer')}>طباعة Label</button>
                         <button type="button" className="btn-secondary text-xs" onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>تفاصيل</button>
                       </div>
+                      {order.status === 'OUT_FOR_DELIVERY' && (
                       <div className="flex gap-2 flex-wrap">
                         <input
                           value={receiverName[order.id] || ''}
@@ -1673,6 +1748,10 @@ export function SupplyChainDeliveryPage() {
                           تم التسليم
                         </button>
                       </div>
+                      )}
+                      {order.status === 'DELIVERED' || order.status === 'PARTIAL_DELIVERED' ? (
+                        <span className="text-xs text-gray-500">مكتمل</span>
+                      ) : null}
                     </div>
                   )}
                 </td>

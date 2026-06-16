@@ -58,14 +58,14 @@ const NAVIGATION = [
   },
     {
       sectionKey: 'nav.section_supply_chain',
-      roles: ['branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager', 'warehouse_user', 'warehouse_manager', 'delivery_user', 'operations_manager', 'admin', 'super_admin'],
+      roles: ['branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager', 'warehouse_user', 'warehouse_manager', 'delivery_user', 'operations_manager', 'internal_auditor', 'admin', 'super_admin'],
       items: [
-        { to: '/supply-chain/control', icon: LayoutDashboard, labelKey: 'nav.supply_chain_control', roles: ['branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager', 'warehouse_user', 'warehouse_manager', 'delivery_user', 'operations_manager', 'admin', 'super_admin'] },
-        { to: '/supply-chain/branch-requests', icon: ClipboardList, labelKey: 'nav.supply_chain_branch_requests', roles: ['branch_user', 'branch_manager', 'area_manager', 'admin', 'super_admin'] },
-        { to: '/supply-chain/approvals', icon: Users, labelKey: 'nav.supply_chain_approvals', roles: ['area_manager', 'admin', 'super_admin'] },
-        { to: '/supply-chain/kitchen', icon: Package, labelKey: 'nav.supply_chain_kitchen', roles: ['kitchen_section_manager', 'admin', 'super_admin'] },
-        { to: '/supply-chain/warehouse', icon: Warehouse, labelKey: 'nav.supply_chain_warehouse', roles: ['warehouse_user', 'warehouse_manager', 'admin', 'super_admin'] },
-        { to: '/supply-chain/delivery', icon: Truck, labelKey: 'nav.supply_chain_delivery', roles: ['delivery_user', 'admin', 'super_admin'] },
+        { to: '/supply-chain/control', icon: LayoutDashboard, labelKey: 'nav.supply_chain_control', roles: ['branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager', 'warehouse_user', 'warehouse_manager', 'delivery_user', 'operations_manager', 'internal_auditor', 'admin', 'super_admin'] },
+        { to: '/supply-chain/branch-requests', icon: ClipboardList, labelKey: 'nav.supply_chain_branch_requests', roles: ['branch_user', 'branch_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin'] },
+        { to: '/supply-chain/approvals', icon: Users, labelKey: 'nav.supply_chain_approvals', roles: ['area_manager', 'internal_auditor', 'admin', 'super_admin'] },
+        { to: '/supply-chain/kitchen', icon: Package, labelKey: 'nav.supply_chain_kitchen', roles: ['kitchen_section_manager', 'internal_auditor', 'admin', 'super_admin'] },
+        { to: '/supply-chain/warehouse', icon: Warehouse, labelKey: 'nav.supply_chain_warehouse', roles: ['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin'] },
+        { to: '/supply-chain/delivery', icon: Truck, labelKey: 'nav.supply_chain_delivery', roles: ['delivery_user', 'internal_auditor', 'admin', 'super_admin'] },
       ]
     },
     {
