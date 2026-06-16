@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import get_user_roles, is_platform_admin, is_read_only_auditor, require_roles
@@ -141,11 +141,12 @@ def _resolve_allowed_items_brand_id(db: Session, branch_id: int, brand_id: int |
     )
 
 
-def _area_scope_filter(db: Session, user: User, q):
+def _area_scope_filter(db: Session, user: User, q, *, branch_joined: bool = False):
     now = datetime.utcnow()
+    if not branch_joined:
+        q = q.join(Branch, Branch.id == BranchRequest.branch_id)
     return (
-        q.join(Branch, Branch.id == BranchRequest.branch_id)
-        .join(
+        q.join(
             AreaManagerAssignment,
             (AreaManagerAssignment.brand_id == BranchRequest.brand_id)
             & (AreaManagerAssignment.city == Branch.city)
@@ -461,10 +462,14 @@ def list_branch_requests(
     status: Optional[BranchRequestStatus] = None,
     brand_id: Optional[int] = None,
     branch_id: Optional[int] = None,
+    search: Optional[str] = Query(None, description="Request no, branch name, or item name/code"),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*SCOPED_ROLES)),
 ):
     q = db.query(BranchRequest).options(
+        joinedload(BranchRequest.branch),
         joinedload(BranchRequest.lines).joinedload(BranchRequestLine.item),
     )
     if status:
@@ -473,13 +478,42 @@ def list_branch_requests(
         q = q.filter(BranchRequest.brand_id == brand_id)
     if branch_id:
         q = q.filter(BranchRequest.branch_id == branch_id)
+    if date_from:
+        q = q.filter(BranchRequest.created_at >= date_from)
+    if date_to:
+        q = q.filter(BranchRequest.created_at <= date_to)
+    branch_joined = False
+    if search:
+        term = f"%{search.strip()}%"
+        q = q.outerjoin(Branch, Branch.id == BranchRequest.branch_id)
+        branch_joined = True
+        item_exists = (
+            db.query(BranchRequestLine.id)
+            .join(Item, Item.id == BranchRequestLine.item_id)
+            .filter(
+                BranchRequestLine.request_id == BranchRequest.id,
+                or_(
+                    Item.item_name_ar.ilike(term),
+                    Item.item_name_en.ilike(term),
+                    Item.item_code.ilike(term),
+                ),
+            )
+            .exists()
+        )
+        q = q.filter(
+            or_(
+                BranchRequest.request_no.ilike(term),
+                Branch.branch_name.ilike(term),
+                item_exists,
+            )
+        ).distinct()
 
     if _is_admin(current_user):
         pass
     elif _is_branch_role(current_user):
         q = q.filter(BranchRequest.branch_id == current_user.branch_id)
     elif _is_area_manager(current_user):
-        q = _area_scope_filter(db, current_user, q)
+        q = _area_scope_filter(db, current_user, q, branch_joined=branch_joined)
 
     total = q.count()
     items = q.order_by(BranchRequest.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()

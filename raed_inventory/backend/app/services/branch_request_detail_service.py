@@ -14,11 +14,13 @@ from app.models import (
     BranchRequestStatus,
     DeliveryOrder,
     DeliveryOrderLine,
+    DeliveryOrderStatus,
     ProductionOrder,
     ProductionOrderStatus,
     SupplyDefaultSource,
     WarehouseLine,
     WarehouseLineSourceType,
+    WarehouseLineStatus,
 )
 from app.services import audit_service
 
@@ -83,17 +85,63 @@ def _route_label(line: BranchRequestLine) -> str:
     return "مستودع"
 
 
-def _owner_for_request(status: BranchRequestStatus) -> tuple[str, str]:
-    mapping = {
-        BranchRequestStatus.DRAFT: ("الفرع", "إرسال الطلب لمدير المنطقة"),
-        BranchRequestStatus.SUBMITTED: ("مدير المنطقة", "مراجعة الطلب والموافقة أو الرفض"),
-        BranchRequestStatus.AREA_APPROVED: ("النظام", "تقسيم الطلب إلى مطبخ ومستودع"),
-        BranchRequestStatus.AREA_REJECTED: ("—", "لا يوجد إجراء — الطلب مرفوض"),
-        BranchRequestStatus.SPLIT: ("المطبخ / المستودع", "بدء التنفيذ (إنتاج أو صرف)"),
-        BranchRequestStatus.IN_EXECUTION: ("المطبخ / المستودع / التسليم", "إكمال الصرف والتسليم"),
-        BranchRequestStatus.DELIVERED: ("—", "لا يوجد إجراء — الطلب مكتمل"),
-    }
-    return mapping.get(status, ("—", "متابعة حالة الطلب"))
+def _resolve_workflow_owner_next(
+    row: BranchRequest,
+    production_orders: list[ProductionOrder],
+    warehouse_lines: list[WarehouseLine],
+    delivery_orders: list[DeliveryOrder],
+) -> tuple[str, str]:
+    """Map real workflow state to Current Owner + Next Required Action (Arabic)."""
+    if row.status == BranchRequestStatus.DRAFT:
+        return "الفرع", "إرسال الطلب لمدير المنطقة"
+    if row.status == BranchRequestStatus.SUBMITTED:
+        return "مدير المنطقة", "بانتظار موافقة مدير المنطقة"
+    if row.status == BranchRequestStatus.AREA_REJECTED:
+        return "مكتمل", "مكتمل (مرفوض)"
+    if row.status == BranchRequestStatus.DELIVERED:
+        return "مكتمل", "مكتمل"
+
+    kitchen_open = [
+        po for po in production_orders
+        if po.status in (
+            ProductionOrderStatus.PENDING,
+            ProductionOrderStatus.IN_PROGRESS,
+            ProductionOrderStatus.WAITING_FOR_MATERIALS,
+            ProductionOrderStatus.PARTIAL_READY,
+            ProductionOrderStatus.READY,
+        )
+    ]
+    if kitchen_open:
+        return "المطبخ", "بانتظار الإنتاج في المطبخ"
+
+    wh_pending = [
+        wl for wl in warehouse_lines
+        if _dec(wl.pending_qty) > 0
+        and wl.status not in (WarehouseLineStatus.DELIVERED,)
+    ]
+    wh_ready_not_issued = [
+        wl for wl in warehouse_lines
+        if wl.status in (WarehouseLineStatus.PENDING, WarehouseLineStatus.AVAILABLE)
+        and _dec(wl.issued_qty) == 0
+    ]
+    if wh_pending or wh_ready_not_issued:
+        return "المستودع", "بانتظار الصرف من المستودع"
+
+    delivery_open = [
+        d for d in delivery_orders
+        if d.status in (
+            DeliveryOrderStatus.READY,
+            DeliveryOrderStatus.OUT_FOR_DELIVERY,
+            DeliveryOrderStatus.PARTIAL_DELIVERED,
+        )
+    ]
+    if delivery_open:
+        return "التسليم", "بانتظار التسليم"
+
+    if row.status in (BranchRequestStatus.SPLIT, BranchRequestStatus.IN_EXECUTION, BranchRequestStatus.AREA_APPROVED):
+        return "المستودع", "متابعة التنفيذ"
+
+    return "—", "متابعة حالة الطلب"
 
 
 def _audit_events(db: Session, *, entity_type: str, entity_id: int) -> list[dict]:
@@ -295,7 +343,7 @@ def build_branch_request_detail(db: Session, row: BranchRequest) -> dict:
         for line in row.lines
     ]
 
-    owner, next_action = _owner_for_request(row.status)
+    owner, next_action = _resolve_workflow_owner_next(row, production_orders, warehouse_lines, delivery_orders)
     last_updated = row.updated_at or row.created_at
 
     gaps: list[str] = []

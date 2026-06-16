@@ -691,6 +691,9 @@ class WarehouseLineOut(BaseModel):
     pending_qty: Decimal
     status: WarehouseLineStatus
     delay_reason: Optional[str] = None
+    current_stock: Optional[Decimal] = None
+    reserved_stock: Optional[Decimal] = None
+    available_stock: Optional[Decimal] = None
     created_at: datetime
     updated_at: datetime
     item: Optional[ItemOut] = None

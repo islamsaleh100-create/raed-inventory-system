@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.errors import AppError
@@ -22,7 +23,7 @@ from app.models import (
 from app.schemas import WarehouseDelayPayload, WarehouseIssuePayload, WarehouseLineOut
 from app.services import audit_service, stock_ledger_service
 from app.services import supply_chain_idempotency_service
-from app.services.supply_chain_serializers import warehouse_line_out
+from app.services.supply_chain_serializers import enrich_warehouse_lines, warehouse_line_out
 
 
 router = APIRouter(prefix="/api/v1/warehouse-lines", tags=["Warehouse Lines"])
@@ -144,18 +145,43 @@ def _deduct_stock(db: Session, row: WarehouseLine, qty: Decimal, user: User) -> 
 def list_warehouse_lines(
     status: Optional[WarehouseLineStatus] = None,
     branch_id: Optional[int] = Query(None),
+    item_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None, description="Item name/code or branch name"),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*WAREHOUSE_ROLES)),
 ):
+    from app.models import Item
+
     q = db.query(WarehouseLine).options(joinedload(WarehouseLine.item), joinedload(WarehouseLine.branch))
     if status:
         q = q.filter(WarehouseLine.status == status)
     if branch_id:
         q = q.filter(WarehouseLine.branch_id == branch_id)
-    if not _has_global_access(current_user):
-        q = q.join(Branch, Branch.id == WarehouseLine.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
+    if item_id:
+        q = q.filter(WarehouseLine.item_id == item_id)
+    if date_from:
+        q = q.filter(WarehouseLine.created_at >= date_from)
+    if date_to:
+        q = q.filter(WarehouseLine.created_at <= date_to)
+    scoped_wh = None if _has_global_access(current_user) else current_user.warehouse_id
+    if scoped_wh is not None or search:
+        q = q.join(Branch, Branch.id == WarehouseLine.branch_id)
+        if scoped_wh is not None:
+            q = q.filter(Branch.warehouse_id == scoped_wh)
+    if search:
+        term = f"%{search.strip()}%"
+        q = q.join(Item, Item.id == WarehouseLine.item_id).filter(
+            or_(
+                Branch.branch_name.ilike(term),
+                Item.item_name_ar.ilike(term),
+                Item.item_name_en.ilike(term),
+                Item.item_code.ilike(term),
+            )
+        )
     rows = q.order_by(WarehouseLine.created_at.desc()).all()
-    return [warehouse_line_out(row) for row in rows]
+    return enrich_warehouse_lines(db, rows, warehouse_id_resolver=_warehouse_id_for_line)
 
 
 @router.get("/{line_id}", response_model=WarehouseLineOut)
@@ -166,7 +192,12 @@ def get_warehouse_line(
 ):
     row = _get_line(db, line_id)
     _require_warehouse_access(current_user, row)
-    return warehouse_line_out(row)
+    wh_id = _warehouse_id_for_line(row)
+    stock = db.query(WarehouseStock).filter(
+        WarehouseStock.warehouse_id == wh_id,
+        WarehouseStock.item_id == row.item_id,
+    ).first()
+    return warehouse_line_out(row, stock=stock)
 
 
 @router.post("/{line_id}/receive", response_model=WarehouseLineOut)

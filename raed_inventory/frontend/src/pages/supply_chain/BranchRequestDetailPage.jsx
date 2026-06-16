@@ -129,11 +129,11 @@ export function BranchRequestDetailPage() {
           <div className="font-semibold mt-1">{status_summary.current_status_ar}</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-gray-500">المسؤول الآن</div>
+          <div className="text-xs text-gray-500">المالك الحالي</div>
           <div className="font-semibold mt-1">{status_summary.current_owner_ar}</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-gray-500">الإجراء التالي</div>
+          <div className="text-xs text-gray-500">الإجراء المطلوب التالي</div>
           <div className="font-semibold mt-1">{status_summary.next_action_ar}</div>
         </div>
         <div className="card p-4">

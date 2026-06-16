@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import get_user_roles, is_platform_admin, is_read_only_auditor, require_roles
@@ -202,6 +203,9 @@ def list_ready_delivery_orders(
 def list_delivery_orders(
     status: Optional[DeliveryOrderStatus] = None,
     branch_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None, description="Branch name or delivery order id"),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*DELIVERY_VIEW_ROLES)),
 ):
@@ -213,9 +217,14 @@ def list_delivery_orders(
         q = q.filter(DeliveryOrder.status == status)
     if branch_id:
         q = q.filter(DeliveryOrder.branch_id == branch_id)
+    if date_from:
+        q = q.filter(DeliveryOrder.created_at >= date_from)
+    if date_to:
+        q = q.filter(DeliveryOrder.created_at <= date_to)
+    needs_branch_join = bool(search)
     if "delivery_user" in _roles(current_user) and not _is_admin(current_user) and not _is_auditor(current_user):
         _require_delivery_user_warehouse(current_user)
-        q = q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
+        needs_branch_join = True
     if _is_warehouse_role(current_user) and not _is_admin(current_user) and not _is_auditor(current_user):
         if current_user.warehouse_id is None:
             raise AppError(
@@ -224,7 +233,19 @@ def list_delivery_orders(
                 message="Warehouse user must be assigned to a warehouse",
                 detail={"user_id": current_user.id},
             )
-        q = q.join(Branch, Branch.id == DeliveryOrder.branch_id).filter(Branch.warehouse_id == current_user.warehouse_id)
+        needs_branch_join = True
+    if needs_branch_join:
+        q = q.join(Branch, Branch.id == DeliveryOrder.branch_id)
+    if search:
+        term = search.strip()
+        if term.isdigit():
+            q = q.filter(or_(Branch.branch_name.ilike(f"%{term}%"), DeliveryOrder.id == int(term)))
+        else:
+            q = q.filter(Branch.branch_name.ilike(f"%{term}%"))
+    if "delivery_user" in _roles(current_user) and not _is_admin(current_user) and not _is_auditor(current_user):
+        q = q.filter(Branch.warehouse_id == current_user.warehouse_id)
+    elif _is_warehouse_role(current_user) and not _is_admin(current_user) and not _is_auditor(current_user):
+        q = q.filter(Branch.warehouse_id == current_user.warehouse_id)
     rows = q.order_by(DeliveryOrder.created_at.desc()).all()
     return [delivery_order_out(row) for row in rows]
 

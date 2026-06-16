@@ -136,6 +136,120 @@ function numberValue(value) {
   return String(value)
 }
 
+const EMPTY_FILTERS = {
+  search: '',
+  status: '',
+  branch_id: '',
+  item_id: '',
+  date_from: '',
+  date_to: '',
+}
+
+const BRANCH_REQUEST_STATUS_OPTIONS = [
+  ['', 'كل الحالات'],
+  ['DRAFT', 'مسودة'],
+  ['SUBMITTED', 'مرسل'],
+  ['AREA_APPROVED', 'موافق عليه'],
+  ['AREA_REJECTED', 'مرفوض'],
+  ['SPLIT', 'تم التقسيم'],
+  ['IN_EXECUTION', 'قيد التنفيذ'],
+  ['DELIVERED', 'تم التسليم'],
+]
+
+const WAREHOUSE_LINE_STATUS_OPTIONS = [
+  ['', 'كل الحالات'],
+  ['PENDING', 'بانتظار'],
+  ['AVAILABLE', 'متاح'],
+  ['PARTIAL', 'صرف جزئي'],
+  ['BACKORDER', 'نقص'],
+  ['DELIVERED', 'تم التسليم'],
+]
+
+const DELIVERY_STATUS_OPTIONS = [
+  ['', 'كل الحالات'],
+  ['READY', 'جاهز للتسليم'],
+  ['OUT_FOR_DELIVERY', 'خرج للتسليم'],
+  ['DELIVERED', 'تم التسليم'],
+  ['PARTIAL_DELIVERED', 'تسليم جزئي'],
+]
+
+function buildFilterParams(filters) {
+  const params = {}
+  if (filters.search?.trim()) params.search = filters.search.trim()
+  if (filters.status) params.status = filters.status
+  if (filters.branch_id) params.branch_id = Number(filters.branch_id)
+  if (filters.item_id) params.item_id = Number(filters.item_id)
+  if (filters.date_from) params.date_from = `${filters.date_from}T00:00:00`
+  if (filters.date_to) params.date_to = `${filters.date_to}T23:59:59`
+  return params
+}
+
+function SupplyChainFilterBar({
+  filters,
+  onChange,
+  branches = [],
+  items = [],
+  statusOptions = [],
+  showBranch = true,
+  showItem = false,
+  showStatus = true,
+}) {
+  const set = (key, value) => onChange((prev) => ({ ...prev, [key]: value }))
+  return (
+    <div className="card p-4 grid md:grid-cols-2 xl:grid-cols-6 gap-3">
+      <div className="xl:col-span-2">
+        <label className="label text-xs">بحث</label>
+        <input
+          className="input-field"
+          value={filters.search}
+          onChange={(e) => set('search', e.target.value)}
+          placeholder="اسم الفرع، الصنف، أو رقم الطلب"
+        />
+      </div>
+      {showStatus && (
+        <div>
+          <label className="label text-xs">الحالة</label>
+          <select className="input-field" value={filters.status} onChange={(e) => set('status', e.target.value)}>
+            {statusOptions.map(([value, label]) => (
+              <option key={value || 'all'} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {showBranch && (
+        <div>
+          <label className="label text-xs">الفرع</label>
+          <select className="input-field" value={filters.branch_id} onChange={(e) => set('branch_id', e.target.value)}>
+            <option value="">كل الفروع</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>{branch.branch_name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {showItem && (
+        <div>
+          <label className="label text-xs">الصنف</label>
+          <select className="input-field" value={filters.item_id} onChange={(e) => set('item_id', e.target.value)}>
+            <option value="">كل الأصناف</option>
+            {items.map((item) => (
+              <option key={item.id} value={item.id}>{itemLabel(item)}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className="label text-xs">من تاريخ</label>
+        <input type="date" className="input-field" value={filters.date_from} onChange={(e) => set('date_from', e.target.value)} />
+      </div>
+      <div>
+        <label className="label text-xs">إلى تاريخ</label>
+        <input type="date" className="input-field" value={filters.date_to} onChange={(e) => set('date_to', e.target.value)} />
+      </div>
+    </div>
+  )
+}
+
 async function loadAllowedBrands(branchId, brands) {
   const checks = await Promise.all(brands.map(async (brand) => {
     try {
@@ -165,15 +279,20 @@ export function SupplyChainBranchRequestsPage() {
   const [allowedItems, setAllowedItems] = React.useState([])
   const [priority, setPriority] = React.useState('')
   const [lines, setLines] = React.useState([{ item_id: '', qty_requested: '', source_type: '', notes: '' }])
+  const [listFilters, setListFilters] = React.useState({ ...EMPTY_FILTERS })
 
-  const reloadRequests = React.useCallback(async (branchId = selectedBranchId) => {
+  const reloadRequests = React.useCallback(async (branchId = selectedBranchId, filters = listFilters) => {
     if (!branchId) {
       setRequests([])
       return
     }
-    const res = await supplyChainApi.listBranchRequests({ branch_id: branchId, page_size: 100 })
+    const res = await supplyChainApi.listBranchRequests({
+      branch_id: branchId,
+      page_size: 100,
+      ...buildFilterParams(filters),
+    })
     setRequests(res.data?.items || [])
-  }, [selectedBranchId])
+  }, [selectedBranchId, listFilters])
 
   React.useEffect(() => {
     let mounted = true
@@ -248,6 +367,11 @@ export function SupplyChainBranchRequestsPage() {
       .catch(() => {})
     reloadRequests(selectedBranchId).catch(() => {})
   }, [selectedBranchId, allBrands])
+
+  React.useEffect(() => {
+    if (!selectedBranchId) return
+    reloadRequests(selectedBranchId, listFilters).catch(() => {})
+  }, [listFilters, selectedBranchId, reloadRequests])
 
   const addLine = () => setLines((prev) => [...prev, { item_id: '', qty_requested: '', source_type: '', notes: '' }])
 
@@ -395,9 +519,18 @@ export function SupplyChainBranchRequestsPage() {
         </div>
 
         <div className="card table-container">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">طلبات الفرع</h2>
-            <button type="button" onClick={() => reloadRequests()} className="btn-secondary text-sm">تحديث</button>
+          <div className="p-4 border-b border-gray-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">طلبات الفرع</h2>
+              <button type="button" onClick={() => reloadRequests()} className="btn-secondary text-sm">تحديث</button>
+            </div>
+            <SupplyChainFilterBar
+              filters={listFilters}
+              onChange={setListFilters}
+              statusOptions={BRANCH_REQUEST_STATUS_OPTIONS}
+              showBranch={false}
+              showItem={false}
+            />
           </div>
           <table className="table">
             <thead>
@@ -451,11 +584,16 @@ export function SupplyChainApprovalsPage() {
   const [lineApprovals, setLineApprovals] = React.useState({})
   const [approveConfirmOpen, setApproveConfirmOpen] = React.useState(false)
   const [pendingApproveAction, setPendingApproveAction] = React.useState(null)
+  const [rejectConfirmOpen, setRejectConfirmOpen] = React.useState(false)
+  const [listFilters, setListFilters] = React.useState({ ...EMPTY_FILTERS, status: 'SUBMITTED' })
 
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
-      const res = await supplyChainApi.listBranchRequests({ status: 'SUBMITTED', page_size: 100 })
+      const res = await supplyChainApi.listBranchRequests({
+        page_size: 100,
+        ...buildFilterParams(listFilters),
+      })
       const items = res.data?.items || []
       setRequests(items)
       if (items.length && !selected) {
@@ -467,9 +605,9 @@ export function SupplyChainApprovalsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selected])
+  }, [selected, listFilters])
 
-  React.useEffect(() => { load() }, [])
+  React.useEffect(() => { load() }, [listFilters])
 
   const selectRequest = (request) => {
     setSelected(request)
@@ -540,6 +678,14 @@ export function SupplyChainApprovalsPage() {
     }
   }
 
+  const openRejectConfirm = () => {
+    if (!rejectNote.trim()) {
+      toast.error('سبب الرفض مطلوب')
+      return
+    }
+    setRejectConfirmOpen(true)
+  }
+
   return (
     <PageShell title="موافقات مدير المنطقة" subtitle="الاعتماد يرسل الأسطر تلقائيًا للمطبخ أو المستودع حسب نوع الصنف">
       <ConfirmDialog
@@ -563,6 +709,30 @@ export function SupplyChainApprovalsPage() {
           )
         })()}
       </ConfirmDialog>
+      <ConfirmDialog
+        open={rejectConfirmOpen && !!selected}
+        title="تأكيد الرفض"
+        confirmLabel="رفض الطلب"
+        confirmClassName="btn-secondary !bg-red-50 !text-red-700 !border-red-200"
+        onCancel={() => setRejectConfirmOpen(false)}
+        onConfirm={() => { setRejectConfirmOpen(false); reject() }}
+      >
+        {selected && (
+          <>
+            <p><strong>رقم الطلب:</strong> {selected.request_no}</p>
+            <p><strong>عدد الأسطر:</strong> {selected.lines.length}</p>
+            <p><strong>سبب الرفض:</strong> {rejectNote}</p>
+            <p className="font-medium pt-2 text-red-700">هل أنت متأكد من رفض هذا الطلب؟</p>
+          </>
+        )}
+      </ConfirmDialog>
+      <SupplyChainFilterBar
+        filters={listFilters}
+        onChange={setListFilters}
+        statusOptions={BRANCH_REQUEST_STATUS_OPTIONS}
+        showBranch={false}
+        showItem={false}
+      />
       <div className="grid xl:grid-cols-[380px,1fr] gap-6">
         <div className="card divide-y divide-gray-100">
           {loading ? (
@@ -646,7 +816,7 @@ export function SupplyChainApprovalsPage() {
                   <div className="flex gap-3 flex-wrap">
                     <button type="button" onClick={() => openApproveConfirm(approve)} className="btn-primary">اعتماد</button>
                     <button type="button" onClick={() => openApproveConfirm(modifyApprove)} className="btn-secondary">تعديل واعتماد</button>
-                    <button type="button" onClick={reject} className="btn-secondary !bg-red-50 !text-red-700 !border-red-200">رفض</button>
+                    <button type="button" onClick={openRejectConfirm} className="btn-secondary !bg-red-50 !text-red-700 !border-red-200">رفض</button>
                   </div>
                 </>
               )}
@@ -1071,6 +1241,10 @@ export function SupplyChainWarehousePage() {
   const [issueQty, setIssueQty] = React.useState({})
   const [delayReason, setDelayReason] = React.useState({})
   const [issueConfirm, setIssueConfirm] = React.useState(null)
+  const [deliveryConfirm, setDeliveryConfirm] = React.useState(null)
+  const [listFilters, setListFilters] = React.useState({ ...EMPTY_FILTERS })
+  const [branches, setBranches] = React.useState([])
+  const [items, setItems] = React.useState([])
 
   const sourceTypeLabel = {
     BRANCH_REQUEST: 'طلب فرع',
@@ -1081,16 +1255,25 @@ export function SupplyChainWarehousePage() {
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
-      const res = await supplyChainApi.listWarehouseLines()
+      const res = await supplyChainApi.listWarehouseLines(buildFilterParams(listFilters))
       setLines(Array.isArray(res.data) ? res.data : [])
     } catch (error) {
       toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر تحميل خطوط المستودع')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [listFilters])
 
-  React.useEffect(() => { load() }, [])
+  React.useEffect(() => { load() }, [load])
+
+  React.useEffect(() => {
+    masterApi.listBranches({ active_only: true })
+      .then((res) => setBranches(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {})
+    masterApi.listItems({ active_only: true, page_size: 500 })
+      .then((res) => setItems(res.data?.items || res.data || []))
+      .catch(() => {})
+  }, [])
 
   const filtered = lines.filter((line) => {
     if (tab === 'KITCHEN_OUTPUT') return line.source_type === 'KITCHEN_OUTPUT'
@@ -1113,6 +1296,21 @@ export function SupplyChainWarehousePage() {
     await run(() => supplyChainApi.createDeliveryOrder({ warehouse_line_ids: [lineId] }), 'تم إنشاء أمر تسليم')
   }
 
+  const openCreateDeliveryConfirm = (line) => {
+    setDeliveryConfirm({
+      line,
+      body: (
+        <>
+          <p><strong>الفرع:</strong> {branchDisplay(line)}</p>
+          <p><strong>الصنف:</strong> {itemLabel(line.item)}</p>
+          <p><strong>المصروف:</strong> {numberValue(line.issued_qty)}</p>
+          <p><strong>المتبقي:</strong> {numberValue(line.pending_qty)}</p>
+          <p className="font-medium pt-2">سيتم إنشاء أمر تسليم لهذا السطر.</p>
+        </>
+      ),
+    })
+  }
+
   const openFullIssueConfirm = (line) => {
     const issue = Number(line.pending_qty || line.requested_qty || 0)
     setIssueConfirm({
@@ -1121,7 +1319,9 @@ export function SupplyChainWarehousePage() {
         <>
           <p><strong>الفرع:</strong> {branchDisplay(line)}</p>
           <p><strong>الصنف:</strong> {itemLabel(line.item)}</p>
+          <p><strong>المخزون المتاح:</strong> {numberValue(line.available_stock ?? '—')}</p>
           <p><strong>المطلوب:</strong> {numberValue(line.requested_qty)}</p>
+          <p><strong>المصروف سابقًا:</strong> {numberValue(line.issued_qty)}</p>
           <p><strong>كمية الصرف:</strong> {issue}</p>
           <p><strong>المتبقي بعد الصرف:</strong> 0</p>
         </>
@@ -1139,7 +1339,9 @@ export function SupplyChainWarehousePage() {
         <>
           <p><strong>الفرع:</strong> {branchDisplay(line)}</p>
           <p><strong>الصنف:</strong> {itemLabel(line.item)}</p>
+          <p><strong>المخزون المتاح:</strong> {numberValue(line.available_stock ?? '—')}</p>
           <p><strong>المطلوب:</strong> {numberValue(line.requested_qty)}</p>
+          <p><strong>المصروف سابقًا:</strong> {numberValue(line.issued_qty)}</p>
           <p><strong>كمية الصرف:</strong> {qty}</p>
           <p><strong>المتبقي:</strong> {Math.max(0, pending - qty)}</p>
           <p><strong>سبب التأخير:</strong> {delayReason[line.id] || '—'}</p>
@@ -1165,7 +1367,29 @@ export function SupplyChainWarehousePage() {
       >
         {issueConfirm?.body}
       </ConfirmDialog>
+      <ConfirmDialog
+        open={!!deliveryConfirm}
+        title="تأكيد إنشاء أمر تسليم"
+        onCancel={() => setDeliveryConfirm(null)}
+        onConfirm={() => {
+          const lineId = deliveryConfirm?.line?.id
+          setDeliveryConfirm(null)
+          if (lineId) createDelivery(lineId)
+        }}
+      >
+        {deliveryConfirm?.body}
+      </ConfirmDialog>
       {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يرى خطوط المستودع وحالات الصرف والتأخير فقط، ولا يمكنه الاستلام أو الصرف أو إنشاء أوامر تسليم من هذه الصفحة." />}
+      <SupplyChainFilterBar
+        filters={listFilters}
+        onChange={setListFilters}
+        branches={branches}
+        items={items}
+        statusOptions={WAREHOUSE_LINE_STATUS_OPTIONS}
+        showBranch
+        showItem
+        showStatus
+      />
       <div className="flex gap-2 flex-wrap">
         {[
           ['ALL', 'الكل'],
@@ -1185,6 +1409,7 @@ export function SupplyChainWarehousePage() {
               <th>الصنف</th>
               <th>الفرع</th>
               <th>النوع</th>
+              <th>المخزون المتاح</th>
               <th>المطلوب</th>
               <th>المصروف</th>
               <th>المتبقي</th>
@@ -1195,15 +1420,16 @@ export function SupplyChainWarehousePage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="text-center py-8 text-gray-400">جارٍ التحميل...</td></tr>
+              <tr><td colSpan={11} className="text-center py-8 text-gray-400">جارٍ التحميل...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={10} className="text-center py-8 text-gray-400">لا توجد بيانات لهذا التبويب</td></tr>
+              <tr><td colSpan={11} className="text-center py-8 text-gray-400">لا توجد بيانات لهذا التبويب</td></tr>
             ) : filtered.map((line) => (
               <tr key={line.id}>
                 <td className="font-medium">WL-{line.id}</td>
                 <td>{itemLabel(line.item)}</td>
                 <td>{branchDisplay(line)}</td>
                 <td>{sourceTypeLabel[line.source_type] || line.source_type}</td>
+                <td className={Number(line.available_stock) <= 0 ? 'text-red-700 font-medium' : ''}>{numberValue(line.available_stock ?? '—')}</td>
                 <td>{numberValue(line.requested_qty)}</td>
                 <td>{numberValue(line.issued_qty)}</td>
                 <td className={Number(line.pending_qty) > 0 ? 'text-amber-700 font-medium' : ''}>{numberValue(line.pending_qty)}</td>
@@ -1221,7 +1447,7 @@ export function SupplyChainWarehousePage() {
                           <button type="button" className="btn-secondary text-xs" onClick={() => run(() => supplyChainApi.receiveWarehouseLine(line.id), 'تم الاستلام / الإقرار')}>استلام</button>
                         )}
                         <button type="button" className="btn-secondary text-xs" onClick={() => openFullIssueConfirm(line)}>صرف كامل</button>
-                        <button type="button" className="btn-secondary text-xs" onClick={() => createDelivery(line.id)}>إنشاء أمر تسليم</button>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => openCreateDeliveryConfirm(line)}>إنشاء أمر تسليم</button>
                       </div>
                       <div className="flex gap-2 flex-wrap">
                         <input
@@ -1277,21 +1503,30 @@ export function SupplyChainDeliveryPage() {
   const [receiverName, setReceiverName] = React.useState({})
   const [deliveryNote, setDeliveryNote] = React.useState({})
   const [deliverConfirm, setDeliverConfirm] = React.useState(null)
+  const [outForDeliveryConfirm, setOutForDeliveryConfirm] = React.useState(null)
   const [expandedOrderId, setExpandedOrderId] = React.useState(null)
+  const [listFilters, setListFilters] = React.useState({ ...EMPTY_FILTERS })
+  const [branches, setBranches] = React.useState([])
 
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
-      const res = await supplyChainApi.listDeliveryOrders()
+      const res = await supplyChainApi.listDeliveryOrders(buildFilterParams(listFilters))
       setOrders(Array.isArray(res.data) ? res.data : [])
     } catch (error) {
       toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر تحميل أوامر التسليم')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [listFilters])
 
-  React.useEffect(() => { load() }, [])
+  React.useEffect(() => { load() }, [load])
+
+  React.useEffect(() => {
+    masterApi.listBranches({ active_only: true })
+      .then((res) => setBranches(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {})
+  }, [])
 
   const run = async (runner, success) => {
     try {
@@ -1326,8 +1561,36 @@ export function SupplyChainDeliveryPage() {
     })
   }
 
+  const openOutForDeliveryConfirm = (order) => {
+    const dispatched = (order.lines || []).reduce((sum, line) => sum + Number(line.qty_dispatched || line.qty_issued || 0), 0)
+    setOutForDeliveryConfirm({
+      order,
+      body: (
+        <>
+          <p><strong>أمر التسليم:</strong> DO-{order.id}</p>
+          <p><strong>الفرع:</strong> {branchDisplay(order)}</p>
+          <p><strong>عدد الأسطر:</strong> {order.lines?.length || 0}</p>
+          <p><strong>الكمية المخرجة:</strong> {dispatched}</p>
+          <p className="font-medium pt-2">سيتم تغيير الحالة إلى «خرج للتسليم».</p>
+        </>
+      ),
+    })
+  }
+
   return (
     <PageShell title="أوامر التسليم" subtitle="إخراج أمر التسليم ثم إغلاقه كتسليم نهائي من نفس الصفحة">
+      <ConfirmDialog
+        open={!!outForDeliveryConfirm}
+        title="تأكيد خروج للتسليم"
+        onCancel={() => setOutForDeliveryConfirm(null)}
+        onConfirm={() => {
+          const order = outForDeliveryConfirm?.order
+          setOutForDeliveryConfirm(null)
+          if (order) run(() => supplyChainApi.markOutForDelivery(order.id), 'تم إخراج الطلب للتسليم')
+        }}
+      >
+        {outForDeliveryConfirm?.body}
+      </ConfirmDialog>
       <ConfirmDialog
         open={!!deliverConfirm}
         title="تأكيد التسليم"
@@ -1347,6 +1610,15 @@ export function SupplyChainDeliveryPage() {
         {deliverConfirm?.body}
       </ConfirmDialog>
       {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يرى أوامر التوصيل وبيانات التسليم فقط، ولا يمكنه إخراج الطلب للتسليم أو تأكيد التسليم من هذه الصفحة." />}
+      <SupplyChainFilterBar
+        filters={listFilters}
+        onChange={setListFilters}
+        branches={branches}
+        statusOptions={DELIVERY_STATUS_OPTIONS}
+        showBranch
+        showItem={false}
+        showStatus
+      />
       <div className="card table-container">
         <table className="table">
           <thead>
@@ -1376,7 +1648,7 @@ export function SupplyChainDeliveryPage() {
                   ) : (
                     <div className="space-y-2">
                       <div className="flex gap-2 flex-wrap">
-                        <button type="button" className="btn-secondary text-xs" onClick={() => run(() => supplyChainApi.markOutForDelivery(order.id), 'تم إخراج الطلب للتسليم')}>خرج للتسليم</button>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => openOutForDeliveryConfirm(order)}>خرج للتسليم</button>
                         <button type="button" className="btn-secondary text-xs" onClick={() => window.open(supplyChainApi.deliveryLabelsUrl(order.id), '_blank', 'noopener,noreferrer')}>طباعة Label</button>
                         <button type="button" className="btn-secondary text-xs" onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>تفاصيل</button>
                       </div>
