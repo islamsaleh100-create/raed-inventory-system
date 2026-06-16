@@ -1,6 +1,8 @@
 import React from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
+import { selectUserRoles } from '../../store'
 import { supplyChainApi } from '../../services/api'
 
 const STATUS_BADGE = {
@@ -77,23 +79,42 @@ export function FulfillmentTable({ lines, compact = false }) {
 
 export function BranchRequestDetailPage() {
   const { id: requestId } = useParams()
+  const roles = useSelector(selectUserRoles)
+  const canSubmitDraft = (roles.includes('branch_user') || roles.includes('branch_manager'))
+    && !roles.includes('internal_auditor')
   const [loading, setLoading] = React.useState(true)
+  const [submitting, setSubmitting] = React.useState(false)
   const [detail, setDetail] = React.useState(null)
 
-  React.useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      try {
-        const res = await supplyChainApi.getBranchRequestDetail(requestId)
-        if (mounted) setDetail(res.data)
-      } catch (error) {
-        toast.error(error?.response?.data?.message || 'تعذر تحميل تفاصيل الطلب')
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    })()
-    return () => { mounted = false }
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await supplyChainApi.getBranchRequestDetail(requestId)
+      setDetail(res.data)
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'تعذر تحميل تفاصيل الطلب')
+    } finally {
+      setLoading(false)
+    }
   }, [requestId])
+
+  React.useEffect(() => {
+    reload()
+  }, [reload])
+
+  const handleSubmitDraft = async () => {
+    if (!detail?.request?.id) return
+    setSubmitting(true)
+    try {
+      await supplyChainApi.submitBranchRequest(detail.request.id)
+      toast.success('تم إرسال الطلب لمدير المنطقة')
+      await reload()
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر إرسال الطلب')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   if (loading) {
     return <div className="p-6 text-center text-gray-400">جارٍ التحميل...</div>
@@ -117,11 +138,22 @@ export function BranchRequestDetailPage() {
           <h1 className="text-2xl font-bold text-gray-900">{request.request_no}</h1>
           <p className="text-sm text-gray-500 mt-1">{branch_name} — {request.brand_name_snapshot || ''}</p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <StatusBadge status={request.status} />
+          {canSubmitDraft && request.status === 'DRAFT' && (
+            <button type="button" className="btn-primary" disabled={submitting} onClick={handleSubmitDraft}>
+              {submitting ? 'جارٍ الإرسال...' : 'إرسال الطلب'}
+            </button>
+          )}
           <Link to="/supply-chain/branch-requests" className="btn-secondary">رجوع للقائمة</Link>
         </div>
       </div>
+
+      {canSubmitDraft && request.status === 'DRAFT' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          هذا الطلب مسودة. اضغط «إرسال الطلب» لإرساله لمدير المنطقة للموافقة.
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="card p-4">

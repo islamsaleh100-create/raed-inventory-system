@@ -431,6 +431,16 @@ export function SupplyChainBranchRequestsPage() {
     setLines((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)))
   }
 
+  const handleSubmitDraft = async (requestId) => {
+    try {
+      await supplyChainApi.submitBranchRequest(requestId)
+      toast.success('تم إرسال الطلب لمدير المنطقة')
+      await reloadRequests()
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'تعذر إرسال الطلب')
+    }
+  }
+
   const handleCreate = async (submitAfter = false) => {
     if (!selectedBranchId || !selectedBrandId) {
       toast.error('اختر الفرع والبراند أولًا')
@@ -589,6 +599,7 @@ export function SupplyChainBranchRequestsPage() {
             <thead>
               <tr>
                 <th>رقم الطلب</th>
+                {usesScopedList && <th>الفرع</th>}
                 <th>البراند</th>
                 <th>الحالة</th>
                 <th>الإنشاء</th>
@@ -597,9 +608,9 @@ export function SupplyChainBranchRequestsPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="text-center py-8 text-gray-400">جارٍ التحميل...</td></tr>
+                <tr><td colSpan={usesScopedList ? 6 : 5} className="text-center py-8 text-gray-400">جارٍ التحميل...</td></tr>
               ) : requests.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-8 text-gray-400">لا توجد طلبات بعد</td></tr>
+                <tr><td colSpan={usesScopedList ? 6 : 5} className="text-center py-8 text-gray-400">لا توجد طلبات بعد</td></tr>
               ) : requests.map((request) => {
                 const brand = availableBrands.find((entry) => entry.brand.id === request.brand_id)?.brand
                 return (
@@ -609,11 +620,17 @@ export function SupplyChainBranchRequestsPage() {
                         {request.request_no}
                       </Link>
                     </td>
-                    <td>{brand?.name || `#${request.brand_id}`}</td>
+                    {usesScopedList && <td>{request.branch_name || '—'}</td>}
+                    <td>{request.brand_name_snapshot || brand?.name || `#${request.brand_id}`}</td>
                     <td><StatusBadge status={request.status} /></td>
                     <td>{formatDate(request.created_at)}</td>
                     <td>
-                      <Link to={`/supply-chain/branch-requests/${request.id}`} className="btn-secondary text-xs">تفاصيل</Link>
+                      <div className="flex gap-2 flex-wrap">
+                        <Link to={`/supply-chain/branch-requests/${request.id}`} className="btn-secondary text-xs">تفاصيل</Link>
+                        {canCreateRequest && request.status === 'DRAFT' && (
+                          <button type="button" className="btn-primary text-xs" onClick={() => handleSubmitDraft(request.id)}>إرسال</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -1579,6 +1596,8 @@ export function SupplyChainDeliveryPage() {
   const [expandedOrderId, setExpandedOrderId] = React.useState(null)
   const [listFilters, setListFilters] = React.useState({ ...EMPTY_FILTERS })
   const [branches, setBranches] = React.useState([])
+  const [receivedQty, setReceivedQty] = React.useState({})
+  const [shortageReason, setShortageReason] = React.useState({})
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -1610,6 +1629,15 @@ export function SupplyChainDeliveryPage() {
     }
   }
 
+  const lineReceiptKey = (orderId, lineId) => `${orderId}-${lineId}`
+
+  const getReceivedQty = (order, line) => {
+    const key = lineReceiptKey(order.id, line.id)
+    const raw = receivedQty[key]
+    if (raw !== undefined && raw !== '') return Number(raw)
+    return Number(line.qty_dispatched || 0)
+  }
+
   const openDeliverConfirm = (order) => {
     const name = (receiverName[order.id] || '').trim()
     if (!name) {
@@ -1617,15 +1645,15 @@ export function SupplyChainDeliveryPage() {
       return
     }
     const dispatched = (order.lines || []).reduce((sum, line) => sum + Number(line.qty_dispatched || 0), 0)
-    const delivered = (order.lines || []).reduce((sum, line) => sum + Number(line.qty_delivered || line.qty_dispatched || 0), 0)
-    const shortage = (order.lines || []).reduce((sum, line) => sum + Number(line.shortage_qty || 0), 0)
+    const delivered = (order.lines || []).reduce((sum, line) => sum + getReceivedQty(order, line), 0)
+    const shortage = Math.max(0, dispatched - delivered)
     setDeliverConfirm({
       order,
       body: (
         <>
           <p><strong>الفرع:</strong> {branchDisplay(order)}</p>
           <p><strong>الكمية المخرجة:</strong> {dispatched}</p>
-          <p><strong>الكمية المسلّمة:</strong> {delivered || dispatched}</p>
+          <p><strong>الكمية المسلّمة:</strong> {delivered}</p>
           <p><strong>اسم المستلم:</strong> {name}</p>
           {shortage > 0 && <p><strong>النقص:</strong> {shortage}</p>}
         </>
@@ -1673,6 +1701,11 @@ export function SupplyChainDeliveryPage() {
             () => supplyChainApi.deliverOrder(order.id, {
               receiver_name: receiverName[order.id],
               delivery_note: deliveryNote[order.id] || null,
+              lines: (order.lines || []).map((line) => ({
+                line_id: line.id,
+                qty_received: getReceivedQty(order, line),
+                shortage_reason: shortageReason[lineReceiptKey(order.id, line.id)] || null,
+              })),
             }),
             'تم تسجيل التسليم',
           )
@@ -1765,6 +1798,8 @@ export function SupplyChainDeliveryPage() {
                           <th>الصنف</th>
                           <th>المخرج</th>
                           <th>المُسلّم</th>
+                          {order.status === 'OUT_FOR_DELIVERY' && <th>الكمية المستلمة</th>}
+                          {order.status === 'OUT_FOR_DELIVERY' && <th>سبب النقص</th>}
                           <th>النقص</th>
                         </tr>
                       </thead>
@@ -1774,6 +1809,35 @@ export function SupplyChainDeliveryPage() {
                             <td>{itemLabel(line.item)}</td>
                             <td>{numberValue(line.qty_dispatched)}</td>
                             <td>{numberValue(line.qty_delivered)}</td>
+                            {order.status === 'OUT_FOR_DELIVERY' && (
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  max={numberValue(line.qty_dispatched)}
+                                  value={receivedQty[lineReceiptKey(order.id, line.id)] ?? numberValue(line.qty_dispatched)}
+                                  onChange={(e) => setReceivedQty((prev) => ({
+                                    ...prev,
+                                    [lineReceiptKey(order.id, line.id)]: e.target.value,
+                                  }))}
+                                  className="input-field w-24 text-xs"
+                                />
+                              </td>
+                            )}
+                            {order.status === 'OUT_FOR_DELIVERY' && (
+                              <td>
+                                <input
+                                  value={shortageReason[lineReceiptKey(order.id, line.id)] || ''}
+                                  onChange={(e) => setShortageReason((prev) => ({
+                                    ...prev,
+                                    [lineReceiptKey(order.id, line.id)]: e.target.value,
+                                  }))}
+                                  className="input-field w-40 text-xs"
+                                  placeholder="إن وُجد نقص"
+                                />
+                              </td>
+                            )}
                             <td>{numberValue(line.shortage_qty)}</td>
                           </tr>
                         ))}

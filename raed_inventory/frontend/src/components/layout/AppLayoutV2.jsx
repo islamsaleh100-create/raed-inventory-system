@@ -5,7 +5,7 @@ import {
   LayoutDashboard, ClipboardList, Package, Truck, BarChart3,
   Users, Settings, LogOut, Menu, X,
   Warehouse, Building2, FileText, ArrowLeftRight,
-  Star, GraduationCap, Bike, Globe, AlertCircle, TrendingUp, ChefHat, ShieldCheck, Flag, History, Lightbulb
+  Star, GraduationCap, Bike, Globe, AlertCircle, TrendingUp, ChefHat, ShieldCheck, Flag, History, Lightbulb, Bell
 } from 'lucide-react'
 import { logout, selectUser, selectUserRoles, selectSidebarOpen, toggleSidebar } from '../../store'
 import NotificationBell from '../common/NotificationBell'
@@ -18,6 +18,7 @@ const NAVIGATION = [
     sectionKey: 'nav.section_main',
     items: [
       { to: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard', roles: [] },
+      { to: '/notifications', icon: Bell, labelKey: 'nav.notifications', roles: [] },
     ]
   },
   {
