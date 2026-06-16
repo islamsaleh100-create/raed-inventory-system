@@ -65,6 +65,13 @@ def _is_branch_role(user: User) -> bool:
     return any(r in _roles(user) for r in ("branch_user", "branch_manager"))
 
 
+def _lines_without_branch_source_override(user: User, lines):
+    """Branch users must not override supply source; item master decides after area approval."""
+    if _is_branch_role(user) and not _is_admin(user):
+        return [line.model_copy(update={"source_type": None}) for line in lines]
+    return lines
+
+
 def _is_area_manager(user: User) -> bool:
     return "area_manager" in _roles(user)
 
@@ -439,7 +446,7 @@ def create_branch_request(
         created_by=current_user.id,
         status=BranchRequestStatus.DRAFT,
     )
-    row.lines = _validate_lines(db, payload.brand_id, payload.lines)
+    row.lines = _validate_lines(db, payload.brand_id, _lines_without_branch_source_override(current_user, payload.lines))
     _populate_request_snapshots(row)
     db.add(row)
     db.flush()
@@ -564,7 +571,7 @@ def update_branch_request(
     if row.status != BranchRequestStatus.DRAFT:
         raise AppError(status_code=400, error_code="branch_requests.not_draft", message="Only draft requests can be edited")
     row.priority = payload.priority
-    row.lines = _validate_lines(db, row.brand_id, payload.lines)
+    row.lines = _validate_lines(db, row.brand_id, _lines_without_branch_source_override(current_user, payload.lines))
     row.updated_at = datetime.utcnow()
     _audit(db, request, current_user, "request_updated", row, {"status": row.status.value})
     db.commit()

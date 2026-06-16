@@ -7,6 +7,7 @@ import { useT } from '../../i18n'
 import { dashboardApi, masterApi, notificationsApi, supplyChainApi } from '../../services/api'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { FulfillmentTable } from './BranchRequestDetailPage'
+import BranchRequestCatalogForm from './BranchRequestCatalogForm'
 
 const STATUS_BADGE = {
   DRAFT: 'bg-gray-100 text-gray-700',
@@ -304,6 +305,7 @@ export function SupplyChainBranchRequestsPage() {
   const isAreaManager = roles.includes('area_manager') && !roles.includes('admin') && !roles.includes('super_admin')
   const canCreateRequest = (roles.includes('branch_user') || roles.includes('branch_manager')) && !isAuditor
   const canSelectBranch = roles.includes('admin') || roles.includes('super_admin') || isAuditor
+  const useCatalogForm = canCreateRequest && !canSelectBranch
   const usesScopedList = isAreaManager || (isAuditor && !user?.branch_id)
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
@@ -317,6 +319,7 @@ export function SupplyChainBranchRequestsPage() {
   const [priority, setPriority] = React.useState('')
   const [lines, setLines] = React.useState([{ item_id: '', qty_requested: '', source_type: '', notes: '' }])
   const [listFilters, setListFilters] = React.useState({ ...EMPTY_FILTERS })
+  const [branchDisplayName, setBranchDisplayName] = React.useState('')
 
   const reloadRequests = React.useCallback(async (branchId = selectedBranchId, filters = listFilters) => {
     if (!branchId && !usesScopedList) {
@@ -356,6 +359,16 @@ export function SupplyChainBranchRequestsPage() {
           const firstBrandId = allowed[0]?.brand?.id || ''
           setSelectedBrandId((prev) => prev || firstBrandId)
           setAllowedItems(allowed[0]?.items || [])
+          if (useCatalogForm) {
+            try {
+              const branchRes = await masterApi.listBranches({ active_only: true })
+              const branchRowsForUser = Array.isArray(branchRes.data) ? branchRes.data : []
+              const mine = branchRowsForUser.find((b) => String(b.id) === String(effectiveBranchId))
+              if (mine) setBranchDisplayName(mine.branch_name || mine.branch_name_ar || mine.name || '')
+            } catch {
+              /* branch name optional for display */
+            }
+          }
           await reloadRequests(effectiveBranchId)
         } else if (usesScopedList) {
           await reloadRequests(undefined, listFilters)
@@ -481,6 +494,32 @@ export function SupplyChainBranchRequestsPage() {
     }
   }
 
+  const handleCatalogSubmit = async (catalogLines) => {
+    if (!selectedBranchId || !selectedBrandId) {
+      toast.error('تعذر تحديد الفرع أو البراند')
+      return
+    }
+    setSaving(true)
+    try {
+      const created = await supplyChainApi.createBranchRequest({
+        branch_id: Number(selectedBranchId),
+        brand_id: Number(selectedBrandId),
+        priority: null,
+        lines: catalogLines,
+      })
+      const requestId = created.data?.id
+      if (requestId) {
+        await supplyChainApi.submitBranchRequest(requestId)
+      }
+      toast.success('تم إرسال الطلب لمدير المنطقة')
+      await reloadRequests(selectedBranchId)
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.response?.data?.detail || 'فشل إرسال الطلب')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <PageShell
       title="طلبات الفروع"
@@ -488,7 +527,19 @@ export function SupplyChainBranchRequestsPage() {
     >
       {isAuditor && <ReadOnlyBanner message="المراجع الداخلي يستطيع استعراض الطلبات والأصناف القابلة للطلب لكل فرع، لكنه لا ينشئ أو يرسل طلبات جديدة من هذه الصفحة." />}
       <div className={`grid gap-6 ${canCreateRequest ? 'xl:grid-cols-[1.2fr,1fr]' : ''}`}>
-        {canCreateRequest && (
+        {canCreateRequest && useCatalogForm && (
+          <BranchRequestCatalogForm
+            branchName={branchDisplayName || requests[0]?.branch_name || '—'}
+            brandName={selectedBrand?.name || '—'}
+            availableBrands={availableBrands}
+            selectedBrandId={selectedBrandId}
+            onBrandSelect={setSelectedBrandId}
+            allowedItems={allowedItems}
+            saving={saving}
+            onSubmit={handleCatalogSubmit}
+          />
+        )}
+        {canCreateRequest && !useCatalogForm && (
         <div className="card p-5 space-y-4">
           <div className="grid md:grid-cols-3 gap-4">
             {canSelectBranch && (
