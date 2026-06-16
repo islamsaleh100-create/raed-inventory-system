@@ -210,7 +210,7 @@ class TestFrontendNavConfig:
 
     def test_legacy_hidden_for_trial_roles(self):
         text = APP_LAYOUT.read_text(encoding="utf-8")
-        assert "LEGACY_TRIAL_HIDDEN_PATHS" in text
+        assert "LEGACY_TRIAL_BLOCKED_PATHS" in text
         assert "'/orders'" in text
         assert "warehouse_user" in text
 

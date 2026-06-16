@@ -6,10 +6,11 @@ import { store, selectIsAuthenticated, selectUser, selectUserRoles } from './sto
 import AppLayout from './components/layout/AppLayoutV2'
 import { PageLoader, ErrorBoundary } from './components/common'
 import RouteRoleGuard from './components/common/RouteRoleGuard'
+import TrialLegacyRouteGuard from './components/common/TrialLegacyRouteGuard'
 import InlineAuditFindingsPanel from './components/audit/InlineAuditFindingsPanel'
 import { LanguageProvider, useT, useLanguage } from './i18n'
 import { dashboardApi, itemChangeRequestsApi, masterApi, notificationsApi, ordersApi, stockApi } from './services/api'
-import './index.css'
+import { operationalStatusLabel, notificationSectionLabel } from './utils/operationalLabels'
 
 // Pages
 import LoginPage from './pages/auth/LoginPage'
@@ -1856,7 +1857,7 @@ function NotificationsPage() {
                 to={section.target_url || '#'}
                 className="font-semibold text-gray-900 hover:text-primary-700"
               >
-                {t(`notifications.${section.key}`)}
+                {notificationSectionLabel(t, section.key)}
               </Link>
               <span className="text-xs font-bold bg-primary-100 text-primary-700 rounded-full px-2.5 py-0.5">
                 {section.count}
@@ -1874,7 +1875,7 @@ function NotificationsPage() {
                     </span>
                     {it.status && (
                       <span className="text-xs text-gray-500">
-                        {t(`order_status.${it.status}`)}
+                    {operationalStatusLabel(t, it.status)}
                       </span>
                     )}
                   </Link>
@@ -1940,29 +1941,29 @@ function AppRoutes() {
           <Route path="/inventory" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryListPage /></RouteRoleGuard>} />
           <Route path="/inventory/new" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryEntryPage /></RouteRoleGuard>} />
           <Route path="/inventory/:id" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryEntryPage /></RouteRoleGuard>} />
-          <Route path="/orders" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><OrdersListPage /></RouteRoleGuard>} />
-          <Route path="/orders/exceptional" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><ManualOrderPage orderType="exceptional" /></RouteRoleGuard>} />
+          <Route path="/orders" element={<TrialLegacyRouteGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><OrdersListPage /></TrialLegacyRouteGuard>} />
+          <Route path="/orders/exceptional" element={<TrialLegacyRouteGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><ManualOrderPage orderType="exceptional" /></TrialLegacyRouteGuard>} />
           <Route
             path="/orders/daily"
             element={(
-              <RouteRoleGuard allowed={['branch_manager', 'admin', 'super_admin']}>
+              <TrialLegacyRouteGuard allowed={['branch_manager', 'admin', 'super_admin']}>
                 <ManualOrderPage orderType="daily_order" />
-              </RouteRoleGuard>
+              </TrialLegacyRouteGuard>
             )}
           />
-          <Route path="/orders/:id" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'warehouse_user', 'warehouse_manager', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><OrderDetailPage /></RouteRoleGuard>} />
-          <Route path="/receiving" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><OrdersListPage receiveView /></RouteRoleGuard>} />
-          <Route path="/receiving/:id" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><ReceivingPage /></RouteRoleGuard>} />
+          <Route path="/orders/:id" element={<TrialLegacyRouteGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'warehouse_user', 'warehouse_manager', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><OrderDetailPage /></TrialLegacyRouteGuard>} />
+          <Route path="/receiving" element={<TrialLegacyRouteGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><OrdersListPage receiveView /></TrialLegacyRouteGuard>} />
+          <Route path="/receiving/:id" element={<TrialLegacyRouteGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><ReceivingPage /></TrialLegacyRouteGuard>} />
           <Route path="/branch-stock" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'internal_auditor', 'admin', 'super_admin']}><BranchStockPage /></RouteRoleGuard>} />
           <Route path="/branch-employees" element={<RouteRoleGuard allowed={['branch_manager', 'admin', 'super_admin']}><BranchEmployeesPage /></RouteRoleGuard>} />
 
-          {/* Warehouse */}
-          <Route path="/warehouse/orders" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><OrdersListPage warehouseView /></RouteRoleGuard>} />
-          <Route path="/warehouse/orders/:id" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><OrderDetailPage warehouseView /></RouteRoleGuard>} />
-          <Route path="/warehouse/picking" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><OrdersListPage warehouseView pickingView /></RouteRoleGuard>} />
-          <Route path="/warehouse/dispatch" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><OrdersListPage warehouseView dispatchView /></RouteRoleGuard>} />
-          <Route path="/warehouse/stock" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><WarehouseStockPage /></RouteRoleGuard>} />
-          <Route path="/warehouse/reports" element={<RouteRoleGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><WarehouseDashboard /></RouteRoleGuard>} />
+          {/* Warehouse (legacy — blocked for LAN trial operational roles) */}
+          <Route path="/warehouse/orders" element={<TrialLegacyRouteGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><OrdersListPage warehouseView /></TrialLegacyRouteGuard>} />
+          <Route path="/warehouse/orders/:id" element={<TrialLegacyRouteGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><OrderDetailPage warehouseView /></TrialLegacyRouteGuard>} />
+          <Route path="/warehouse/picking" element={<TrialLegacyRouteGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><OrdersListPage warehouseView pickingView /></TrialLegacyRouteGuard>} />
+          <Route path="/warehouse/dispatch" element={<TrialLegacyRouteGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><OrdersListPage warehouseView dispatchView /></TrialLegacyRouteGuard>} />
+          <Route path="/warehouse/stock" element={<TrialLegacyRouteGuard allowed={['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin']}><WarehouseStockPage /></TrialLegacyRouteGuard>} />
+          <Route path="/warehouse/reports" element={<TrialLegacyRouteGuard allowed={['warehouse_user', 'warehouse_manager', 'admin', 'super_admin']}><WarehouseDashboard /></TrialLegacyRouteGuard>} />
 
           {/* Inter-branch transfer â€” ط·ظ„ط¨ ظ…ظ† ظ…ط¯ظٹط± ط§ظ„ظپط±ط¹طŒ ط¨ط§ظ†طھط¸ط§ط± ظ…ظˆط§ظپظ‚ط© ظ…ط¯ظٹط± ط§ظ„ظ…ظ†ط·ظ‚ط© */}
           <Route path="/stock/inter-branch-transfer" element={<RouteRoleGuard allowed={['branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin']}><InterBranchTransferPage /></RouteRoleGuard>} />
@@ -2004,22 +2005,22 @@ function AppRoutes() {
             )}
           />
 
-          {/* Delivery Analytics â€” ط£ط¯ظˆط§ط± ظ…طھظˆط§ظپظ‚ط© ظ…ط¹ AppLayoutV2 */}
-          <Route path="/delivery" element={<RouteRoleGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'admin', 'super_admin']}><DeliveryDashboardPage /></RouteRoleGuard>} />
-          <Route path="/delivery/daily-entry" element={<RouteRoleGuard allowed={['branch_manager', 'sales_manager', 'area_manager', 'admin', 'super_admin']}><SalesChannelsDailyEntryPage /></RouteRoleGuard>} />
-          <Route path="/delivery/statements" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><SalesChannelsStatementsPage /></RouteRoleGuard>} />
-          <Route path="/delivery/reconciliation" element={<RouteRoleGuard allowed={['branch_manager', 'area_manager', 'operations_manager', 'sales_manager', 'internal_auditor', 'admin', 'super_admin']}><SalesChannelsReconciliationPage /></RouteRoleGuard>} />
-          <Route path="/delivery/closures" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><SalesChannelsClosuresPage /></RouteRoleGuard>} />
-          <Route path="/delivery/compliance" element={<RouteRoleGuard allowed={['branch_manager', 'area_manager', 'operations_manager', 'sales_manager', 'internal_auditor', 'admin', 'super_admin']}><SalesChannelsCompliancePage /></RouteRoleGuard>} />
-          <Route path="/delivery/import" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryImportPage /></RouteRoleGuard>} />
-          <Route path="/delivery/branches" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryBranchesManagementPage /></RouteRoleGuard>} />
-          <Route path="/delivery/branch-stats" element={<RouteRoleGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><DeliveryBranchStatsPage /></RouteRoleGuard>} />
-          <Route path="/delivery/brands" element={<RouteRoleGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><DeliveryBrandStatsPage /></RouteRoleGuard>} />
-          <Route path="/delivery/unmatched" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryUnmatchedPage /></RouteRoleGuard>} />
-          {/* Redirect ظ…ظ† ط§ظ„ظ…ط³ط§ط±ط§طھ ط§ظ„ظ‚ط¯ظٹظ…ط© */}
-          <Route path="/delivery-analytics" element={<RouteRoleGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'admin', 'super_admin']}><DeliveryDashboardPage /></RouteRoleGuard>} />
-          <Route path="/delivery-analytics/branches" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryBranchesManagementPage /></RouteRoleGuard>} />
-          <Route path="/delivery-analytics/imports" element={<RouteRoleGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryImportPage /></RouteRoleGuard>} />
+          {/* Delivery Analytics (legacy — blocked for LAN trial operational roles) */}
+          <Route path="/delivery" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'admin', 'super_admin']}><DeliveryDashboardPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/daily-entry" element={<TrialLegacyRouteGuard allowed={['branch_manager', 'sales_manager', 'area_manager', 'admin', 'super_admin']}><SalesChannelsDailyEntryPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/statements" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'admin', 'super_admin']}><SalesChannelsStatementsPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/reconciliation" element={<TrialLegacyRouteGuard allowed={['branch_manager', 'area_manager', 'operations_manager', 'sales_manager', 'internal_auditor', 'admin', 'super_admin']}><SalesChannelsReconciliationPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/closures" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'admin', 'super_admin']}><SalesChannelsClosuresPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/compliance" element={<TrialLegacyRouteGuard allowed={['branch_manager', 'area_manager', 'operations_manager', 'sales_manager', 'internal_auditor', 'admin', 'super_admin']}><SalesChannelsCompliancePage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/import" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryImportPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/branches" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryBranchesManagementPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/branch-stats" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><DeliveryBranchStatsPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/brands" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><DeliveryBrandStatsPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery/unmatched" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryUnmatchedPage /></TrialLegacyRouteGuard>} />
+          {/* Redirect from legacy paths */}
+          <Route path="/delivery-analytics" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'operations_manager', 'area_manager', 'admin', 'super_admin']}><DeliveryDashboardPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery-analytics/branches" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryBranchesManagementPage /></TrialLegacyRouteGuard>} />
+          <Route path="/delivery-analytics/imports" element={<TrialLegacyRouteGuard allowed={['sales_manager', 'admin', 'super_admin']}><DeliveryImportPage /></TrialLegacyRouteGuard>} />
 
           {/* Quality */}
           <Route path="/quality" element={<RouteRoleGuard allowed={['quality_visitor', 'quality_manager', 'branch_manager', 'area_manager', 'internal_auditor', 'admin', 'super_admin']}><QualityVisitListPage /></RouteRoleGuard>} />

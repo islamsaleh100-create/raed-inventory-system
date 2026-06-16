@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { notificationsApi } from '../../services/api'
-import { useT, useLanguage } from '../../i18n'
+import { notificationSectionLabel } from '../../utils/operationalLabels'
 
 const POLL_INTERVAL_MS = 60_000
 
@@ -105,7 +105,7 @@ export default function NotificationBell() {
                 className="flex items-center justify-between px-3 py-2 hover:bg-gray-50"
               >
                 <span className="text-sm font-medium text-gray-800 truncate">
-                  {t(`notifications.${section.key}`)}
+                  {notificationSectionLabel(t, section.key)}
                 </span>
                 <span className="text-xs font-semibold text-white bg-primary-600 rounded-full px-2 py-0.5 flex-shrink-0">
                   {section.count}

@@ -30,6 +30,8 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
 SUPPLY_PAGES = FRONTEND_DIR / "src" / "pages" / "supply_chain" / "SupplyChainPages.jsx"
 APP_LAYOUT = FRONTEND_DIR / "src" / "components" / "layout" / "AppLayoutV2.jsx"
+APP_JS = FRONTEND_DIR / "src" / "App.jsx"
+TRIAL_LEGACY = FRONTEND_DIR / "src" / "utils" / "trialLegacy.js"
 
 
 @pytest.fixture(scope="module")
@@ -190,10 +192,13 @@ class TestConfirmDialogsPresent:
 class TestLegacyNavigationHiding:
     def test_trial_roles_hide_legacy_paths_in_layout(self):
         layout = APP_LAYOUT.read_text(encoding="utf-8")
-        assert "LEGACY_TRIAL_HIDDEN_PATHS" in layout
+        app_js = APP_JS.read_text(encoding="utf-8")
+        trial = TRIAL_LEGACY.read_text(encoding="utf-8")
+        assert "LEGACY_TRIAL_BLOCKED_PATHS" in trial
+        assert "TrialLegacyRouteGuard" in app_js
         assert "isLegacyHiddenForTrial" in layout
-        assert "/orders" in layout
-        assert "warehouse_user" in layout
+        assert "/orders" in trial
+        assert "warehouse_user" in trial
 
     def test_admin_legacy_orders_api_still_works(self, client: TestClient):
         token = _login(client, "admin", ADMIN_PASSWORD)

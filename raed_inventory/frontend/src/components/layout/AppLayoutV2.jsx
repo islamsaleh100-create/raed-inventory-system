@@ -11,6 +11,7 @@ import { logout, selectUser, selectUserRoles, selectSidebarOpen, toggleSidebar }
 import NotificationBell from '../common/NotificationBell'
 import { useT, useLanguage } from '../../i18n'
 import AssistantWidget from '../assistant/AssistantWidget'
+import { LEGACY_TRIAL_BLOCKED_PATHS, TRIAL_SUPPLY_CHAIN_ROLES } from '../../utils/trialLegacy'
 
 // Navigation uses i18n keys (sectionKey / labelKey) that are translated at render time.
 const NAVIGATION = [
@@ -146,24 +147,10 @@ const NAVIGATION = [
   },
 ]
 
-const TRIAL_SUPPLY_CHAIN_ROLES = [
-  'branch_user', 'branch_manager', 'area_manager', 'kitchen_section_manager',
-  'warehouse_user', 'warehouse_manager', 'delivery_user',
-]
-
-/** Legacy paths hidden for LAN trial operational roles (admin/super_admin keep full nav). */
-const LEGACY_TRIAL_HIDDEN_PATHS = new Set([
-  '/orders', '/orders/daily', '/orders/exceptional', '/receiving',
-  '/warehouse/orders', '/warehouse/picking', '/warehouse/dispatch', '/warehouse/stock', '/warehouse/reports',
-  '/delivery', '/delivery/daily-entry', '/delivery/statements', '/delivery/reconciliation',
-  '/delivery/closures', '/delivery/compliance', '/delivery/import', '/delivery/branches',
-  '/delivery/branch-stats', '/delivery/brands', '/delivery/unmatched',
-])
-
 function isLegacyHiddenForTrial(item, roles) {
   if (roles.includes('admin') || roles.includes('super_admin')) return false
   if (!TRIAL_SUPPLY_CHAIN_ROLES.some((r) => roles.includes(r))) return false
-  if (LEGACY_TRIAL_HIDDEN_PATHS.has(item.to)) return true
+  if (LEGACY_TRIAL_BLOCKED_PATHS.has(item.to)) return true
   if (item.to.startsWith('/delivery-analytics')) return true
   return false
 }

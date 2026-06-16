@@ -151,7 +151,29 @@ All should be **0** before trial operations begin.
 
 ---
 
-### 8. Verify passwords rotated
+### 8. Verify kitchen hygiene (official kitchens only)
+
+Run on the **LAN trial database** before go-live:
+
+```powershell
+cd raed_inventory\backend
+python validate_lan_kitchen_hygiene.py --strict-lan-trial --write-report
+```
+
+**Required:** only official kitchens:
+
+- Kitchen Dammam (or `Official Kitchen – Dammam`)
+- Kitchen Riyadh (or `Official Kitchen – Riyadh`)
+
+**Forbidden on LAN trial DB:** `Flow Kitchen`, `PW Kitchen`, Playwright/test/demo kitchens.
+
+Dev databases may contain extra test kitchens — use `--strict-lan-trial` only when validating the dedicated LAN trial DB. Do **not** auto-delete dev data.
+
+Report: `LAN_KITCHEN_HYGIENE_REPORT.md`
+
+---
+
+### 9. Verify passwords rotated
 
 Complete `PASSWORD_ROTATION_CHECKLIST.md` before proceeding.
 
@@ -163,7 +185,7 @@ Confirm:
 
 ---
 
-### 9. Smoke test login
+### 10. Smoke test login
 
 Start API (LAN host):
 
