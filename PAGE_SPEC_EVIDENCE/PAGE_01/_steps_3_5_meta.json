@@ -1,0 +1,153 @@
+{
+  "verification": {
+    "V1_branch_user": {
+      "branch_id_expected": 9,
+      "sample_branch_ids": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "all_match": true,
+      "total": 1024
+    },
+    "V2_area_manager": {
+      "account": "area_dammam_onda",
+      "assignment_note": "AreaManagerAssignment brand+ city scope (Onda / Dammam area)",
+      "sample": [
+        {
+          "request_no": "BR-005370",
+          "branch_id": 9,
+          "branch_name": "Onda Arkan",
+          "status": "AREA_REJECTED"
+        },
+        {
+          "request_no": "BR-005369",
+          "branch_id": 9,
+          "branch_name": "Onda Arkan",
+          "status": "SPLIT"
+        },
+        {
+          "request_no": "BR-005366",
+          "branch_id": 9,
+          "branch_name": "Onda Arkan",
+          "status": "DELIVERED"
+        },
+        {
+          "request_no": "BR-005365",
+          "branch_id": 9,
+          "branch_name": "Onda Arkan",
+          "status": "AREA_REJECTED"
+        },
+        {
+          "request_no": "BR-005364",
+          "branch_id": 9,
+          "branch_name": "Onda Arkan",
+          "status": "SPLIT"
+        }
+      ],
+      "draft_in_sample": 0,
+      "total": 2824
+    },
+    "V3_counts": {
+      "branch_user": 1024,
+      "area_manager": 2824
+    },
+    "V5_admin": {
+      "status": 200,
+      "total": 5351,
+      "items_len": 100
+    },
+    "V4_admin_response": {
+      "content_length": 183504,
+      "items_in_body": 100,
+      "total_field": 5351,
+      "elapsed_sec": 2.055,
+      "all_records_loaded_in_one_response": false,
+      "ui_cannot_reach_records_after_first_page": true,
+      "perf_flag_note": "Backend returns page_size=100 max. UI lacks pagination controls beyond page 1. Records 101-5351 unreachable in current UI."
+    },
+    "V5_super_admin": {
+      "status": 200,
+      "total": 5351,
+      "items_len": 100
+    },
+    "V6_operations_manager": {
+      "login": 401,
+      "list_status": null,
+      "total": null
+    },
+    "V6_warehouse_manager": {
+      "login": 200,
+      "list_status": 403,
+      "total": null,
+      "detail": "{\"detail\":\"Access denied. Required roles: ['branch_user', 'branch_manager', 'area_manager', 'internal_auditor', 'admin',"
+    },
+    "V6_warehouse_user": {
+      "login": 200,
+      "list_status": 403,
+      "total": null,
+      "detail": "{\"detail\":\"Access denied. Required roles: ['branch_user', 'branch_manager', 'area_manager', 'internal_auditor', 'admin',"
+    },
+    "V6_kitchen_section_manager": {
+      "login": 200,
+      "list_status": 403,
+      "total": null,
+      "detail": "{\"detail\":\"Access denied. Required roles: ['branch_user', 'branch_manager', 'area_manager', 'internal_auditor', 'admin',"
+    },
+    "V6_delivery_user": {
+      "login": 200,
+      "list_status": 403,
+      "total": null,
+      "detail": "{\"detail\":\"Access denied. Required roles: ['branch_user', 'branch_manager', 'area_manager', 'internal_auditor', 'admin',"
+    }
+  },
+  "ux": {
+    "forbidden_roles": {
+      "delivery_user": {
+        "access_denied_ui_present": true,
+        "protected_page_content_visible": false,
+        "forbidden_ui_note": "RouteRoleGuard renders denial card for delivery_user, kitchen_section_manager, warehouse roles. Screenshots: ux_403_*.png",
+        "title_snippet": "غير مصرّح"
+      },
+      "kitchen_section_manager": {
+        "access_denied_ui_present": true,
+        "protected_page_content_visible": false,
+        "forbidden_ui_note": "RouteRoleGuard renders denial card for delivery_user, kitchen_section_manager, warehouse roles. Screenshots: ux_403_*.png",
+        "title_snippet": "غير مصرّح"
+      },
+      "warehouse_user": {
+        "access_denied_ui_present": true,
+        "protected_page_content_visible": false,
+        "forbidden_ui_note": "RouteRoleGuard renders denial card for delivery_user, kitchen_section_manager, warehouse roles. Screenshots: ux_403_*.png",
+        "title_snippet": "غير مصرّح"
+      }
+    },
+    "filter": {
+      "api_urls": [
+        "http://localhost:3000/api/v1/branch-requests?status=SUBMITTED&page=1&page_size=5",
+        "http://localhost:3000/api/v1/branch-requests?status=SUBMITTED&page=1&page_size=5",
+        "http://localhost:3000/supply-chain/branch-requests"
+      ]
+    },
+    "empty": {},
+    "pagination": {
+      "api_urls": [
+        "http://localhost:3000/supply-chain/branch-requests"
+      ]
+    },
+    "branch_user": {
+      "nav_label": "طلبات الفروع"
+    },
+    "area_manager": {
+      "nav_label": "طلبات الفروع"
+    },
+    "internal_auditor": {
+      "nav_label": "طلبات الفروع"
+    },
+    "admin": {
+      "nav_label": "طلبات الفروع"
+    }
+  }
+}
