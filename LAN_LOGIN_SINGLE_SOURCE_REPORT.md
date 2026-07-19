@@ -24,8 +24,8 @@ All **14** required accounts exist in `raed_lan_trial`, are **active**, and **lo
 | Username | Role(s) | Scope |
 |----------|---------|-------|
 | super.admin | super_admin | — |
-| admin | admin | — (password: Admin@2025) |
-| audit.officer | internal_auditor | — (password: seed default) |
+| admin | admin | — (credentials: `<ENVIRONMENT_MANAGED>`) |
+| audit.officer | internal_auditor | — (credentials: `<ENVIRONMENT_MANAGED>`) |
 | area_dammam_onda | area_manager | Dammam / Onda |
 | area_dammam_restaurants | area_manager | Dammam restaurants |
 | branch_onda_1_arkan | branch_user, branch_manager | BR-DM-ON-ARKAN |
@@ -44,7 +44,7 @@ All **14** required accounts exist in `raed_lan_trial`, are **active**, and **lo
 
 **None.** All required accounts present.
 
-Note: `admin` uses `Admin@2025` (not the generic LAN trial password). Quick-login handles this internally without displaying passwords.
+Note: account credentials are managed outside Git and are supplied to the runtime through approved secure configuration.
 
 ---
 
@@ -54,8 +54,14 @@ Note: `admin` uses `Admin@2025` (not the generic LAN trial password). Quick-logi
 - Login page shows **one section only:** «**حسابات تجربة LAN**»
 - Notice banner: «استخدم هذه الحسابات فقط في تجربة LAN. لا تستخدم حسابات التطوير القديمة.»
 - Cards grouped: إدارة النظام، مدير المنطقة، الفروع التجريبية، المطبخ، المستودع، التوصيل
-- Passwords auto-filled on card click but **never displayed**
+- Credential entry is handled by runtime configuration; no usable password values are stored in this report.
 - Manual login form unchanged
+
+## Security Note
+
+- Credentials must never be stored in repository documentation.
+- Runtime credentials must be managed outside Git.
+- Trial credentials must be distributed through secure channels.
 
 ---
 

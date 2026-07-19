@@ -1,0 +1,6 @@
+scope_id,user_id,manager_source_name,display_name,city_code,brand_code,is_active,effective_from,effective_to,source_name,source_sheet,source_row,notes
+SCOPE_001,USR_BM_OMAR,OMAR,OMAR,DAMMAM,ONDA,TRUE,,,الفروع النشطة 06-...2026.xlsx,الفروع النشطة,4,City + Brand scope confirmed by source branches
+SCOPE_002,USR_BM_REDA,REDA,REDA,DAMMAM,RONALDOS,TRUE,,,الفروع النشطة 06-...2026.xlsx,الفروع النشطة,14,City + Brand scope confirmed; Pizza normalized to RONALDOS
+SCOPE_003,USR_BM_REDA,REDA,REDA,DAMMAM,SHAWARMA,TRUE,,,الفروع النشطة 06-...2026.xlsx,الفروع النشطة,24,City + Brand scope confirmed; SHAWERMA normalized to SHAWARMA
+SCOPE_004,USR_BM_SHROOQ,SHROOQ,SHROOQ,RIYADH,ONDA,TRUE,,,الفروع النشطة 06-...2026.xlsx,الفروع النشطة,5,City + Brand scope confirmed by source branches
+SCOPE_005,USR_BM_SHROOQ,SHROOQ,SHROOQ,RIYADH,RONALDOS,TRUE,,,الفروع النشطة 06-...2026.xlsx,الفروع النشطة,15,City + Brand scope confirmed; Pizza normalized to RONALDOS

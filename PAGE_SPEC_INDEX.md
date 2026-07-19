@@ -10,7 +10,7 @@
 | Status | ACTIVE |
 | Code implementation | **NOT AUTHORIZED** |
 | Authorized database | `localhost:5432/raed_inventory` only |
-| Current page | PAGE 01 — **APPROVED** |
+| Current page | PAGE 02 — **IN_REVIEW** |
 
 > Before creating or changing test data, Preflight must confirm the effective Backend connection is exactly `localhost:5432/raed_inventory`. If any other database is detected, including `raed_lan_trial`, stop and request explicit approval.
 
@@ -44,7 +44,7 @@ NOT_APPLICABLE
 | Page ID | Page Name | Route | Group | Current Status | Browser Review | Code Review | Security Review | Target Design | Open Questions | Decision | Dependencies | Specification File | Approval Date |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | PAGE 01 | قائمة طلبات التوريد | `/supply-chain/branch-requests` | A — Core Supply Chain | **APPROVED** | PASS | PASS | PASS | APPROVED | — | APPROVED | Role Matrix; PD-01/02/03 | `PAGE_SPEC_01_supply_chain_branch_requests.md` | 2026-07-13 |
-| PAGE 02 | إنشاء طلب توريد | `/supply-chain/branch-requests/new` or approved in-page action | A — Core Supply Chain | NOT_STARTED | PENDING | PENDING | PENDING | PENDING | OQ-01 | PENDING | PAGE 01; PD-01/02/03 | `PAGE_SPEC_02_create_supply_request.md` | — |
+| PAGE 02 | إنشاء طلب توريد | `/supply-chain/branch-requests/new` or approved in-page action | A — Core Supply Chain | **IN_REVIEW** | PENDING | PENDING | PENDING | PENDING | OQ-01 | PENDING | PAGE 01; PD-01/02/03 | `PAGE_SPEC_02_create_supply_request.md` | — |
 | PAGE 03 | تفاصيل الطلب والـTimeline | Detail route to confirm | A — Core Supply Chain | NOT_STARTED | PENDING | PENDING | PENDING | PENDING | OQ-01 | PENDING | PAGE 01–02; State Machine | `PAGE_SPEC_03_supply_request_details.md` | — |
 | PAGE 04 | قائمة اعتماد طلبات الفروع | `/supply-chain/approvals` | A — Core Supply Chain | NOT_STARTED | PENDING | PENDING | PENDING | PENDING | OQ-01; OQ-03 | PENDING | PAGE 01–03 | `PAGE_SPEC_04_area_approval_list.md` | — |
 | PAGE 05 | تفاصيل الاعتماد والرفض | Detail/action route to confirm | A — Core Supply Chain | NOT_STARTED | PENDING | PENDING | PENDING | PENDING | OQ-01; OQ-03 | PENDING | PAGE 04 | `PAGE_SPEC_05_area_approval_details.md` | — |
@@ -180,8 +180,8 @@ NOT_APPLICABLE
 | Metric | Count |
 |---|---:|
 | Total tracked pages | 80 |
-| IN_REVIEW | 0 |
-| NOT_STARTED | 79 |
+| IN_REVIEW | 1 |
+| NOT_STARTED | 78 |
 | APPROVED | 1 |
 | READY_FOR_IMPLEMENTATION_PLANNING | 0 |
 
@@ -189,7 +189,8 @@ NOT_APPLICABLE
 
 ```text
 PAGE 01 REVIEW: COMPLETED
-PAGE 02 REVIEW: NOT YET AUTHORIZED
+PAGE 02 REVIEW: AUTHORIZED — IN PROGRESS
+PAGE 03 REVIEW: NOT YET AUTHORIZED
 APPLICATION CODE CHANGES: NOT AUTHORIZED
 SCHEMA/MIGRATION/SEED CHANGES: NOT AUTHORIZED
 ```
@@ -197,5 +198,5 @@ SCHEMA/MIGRATION/SEED CHANGES: NOT AUTHORIZED
 ## Immediate Next Output
 
 ```text
-PAGE_SPEC_01_supply_chain_branch_requests.md
+PAGE_SPEC_02_create_supply_request.md
 ```

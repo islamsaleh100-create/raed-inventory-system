@@ -8,7 +8,10 @@
 | Reviewer | Independent documentation reviewer (CLAUDE.md — Reviewer/Auditor role) |
 | Corrections task | `CODEX_TASK_PAGE_01_CORRECTIONS.md` — executed by Codex |
 | **Verdict** | **DOCUMENTATION_APPROVED** |
-| **Commit readiness** | **SAFE_TO_STAGE — upgrade to SAFE_TO_COMMIT only after staged-diff verification** |
+| **Commit readiness** | **COMMITTED** |
+| **Commit hash** | `8a971a0407fce56b2cd909063a8d7910bd0500e4` |
+| **Commit branch** | `release/lan-trial-2026-06-16` |
+| **Commit date/time** | 2026-07-13 13:12:27 +0300 |
 
 ---
 

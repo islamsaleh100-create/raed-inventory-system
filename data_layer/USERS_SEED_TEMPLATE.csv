@@ -1,0 +1,6 @@
+user_id,username,display_name,role_code,branch_id,is_active,password_hash,must_change_password,created_at,updated_at,notes
+USR_BM_OMAR,,OMAR,BRAND_MANAGER,,TRUE,,TRUE,,,Confirmed manager name from source; username and credentials pending
+USR_BM_REDA,,REDA,BRAND_MANAGER,,TRUE,,TRUE,,,Confirmed manager name from source; username and credentials pending
+USR_BM_SHROOQ,,SHROOQ,BRAND_MANAGER,,TRUE,,TRUE,,,Confirmed manager name from source; username and credentials pending
+USR_OM_001,,,OPERATIONS_MANAGER,,TRUE,,TRUE,,,Business assignment pending
+USR_ADMIN_001,,,ADMIN,,TRUE,,TRUE,,,Business assignment pending

@@ -73,3 +73,29 @@ write_test.txt
 # Office temp / lock files
 ~$*
 .~lock.*
+
+# Local AI worktrees and editor state
+.claude/
+.cursor/
+.fuse_hidden*
+
+# Generated runtime inspection files
+*.inspect.ndjson
+
+# Generated evidence and exports
+outputs/
+UX_AUDIT_EVIDENCE/
+PAGE_SPEC_EVIDENCE/
+UX_AUDIT_ORIGINAL_REPORTS/
+
+# Generated audit packages
+*_AUDIT_PACKAGE*.zip
+UX_AUDIT_REVIEW_PACKAGE*.zip
+RAED_INVENTORY_CONSOLIDATED_AUDIT_PACKAGE*.zip
+
+# Generated screenshots
+figma-sales-*.png
+
+# Sensitive user/branch exports
+outputs/users_branches_*.xlsx
+tools/users_branches_export_data.json

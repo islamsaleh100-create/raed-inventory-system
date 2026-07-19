@@ -1,0 +1,4 @@
+brand_id,brand_code,brand_name_ar,brand_name_en,is_active,notes
+BRAND_ONDA,ONDA,أوندا,ONDA,TRUE,Cafe brand
+BRAND_RONALDOS,RONALDOS,رونالدوز,RONALDOS,TRUE,Pizza brand; PIZZA is not a canonical brand
+BRAND_SHAWARMA,SHAWARMA,شاورما,SHAWARMA,TRUE,Shawarma brand

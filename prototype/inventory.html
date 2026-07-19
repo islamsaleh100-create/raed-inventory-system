@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>إغلاق جرد الشفت | ONDA</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="inventory-page">
+  <main class="app-shell" aria-labelledby="inventory-page-title">
+    <header class="topbar">
+      <div class="brand-block">
+        <img src="assets/logo-placeholder.svg" alt="ONDA" class="brand-logo">
+        <div><p class="eyebrow">عمليات الفرع</p><h1 id="inventory-page-title">إغلاق جرد الشفت</h1></div>
+      </div>
+      <dl class="shift-meta">
+        <div><dt>الفرع</dt><dd>أوندا 9 - رأس تنورة</dd></div>
+        <div><dt>التاريخ</dt><dd>18/07/2026</dd></div>
+        <div><dt>الشفت</dt><dd>الشفت الأول</dd></div>
+        <div><dt>المستخدم</dt><dd>محمد أحمد</dd></div>
+      </dl>
+      <div class="header-state">
+        <span id="inventory-shift-status" class="badge badge-draft"><span class="dot"></span>مسودة</span>
+        <small id="inventory-last-saved">آخر حفظ: لم يتم الحفظ</small>
+      </div>
+    </header>
+
+    <form id="inventory-form" novalidate>
+      <div class="inventory-workspace">
+        <section class="panel inventory-summary" aria-labelledby="inventory-summary-title">
+          <h2 id="inventory-summary-title"><span>①</span> ملخص الجرد</h2>
+          <div class="inventory-indicators">
+            <div><small>عدد الأصناف</small><strong id="inventory-total-items">23</strong></div>
+            <div><small>الأصناف المكتملة</small><strong id="inventory-complete-items">0</strong></div>
+            <div><small>الأصناف غير المكتملة</small><strong id="inventory-incomplete-items">23</strong></div>
+          </div>
+        </section>
+
+        <section class="panel inventory-table-card" aria-labelledby="inventory-table-title">
+          <div class="inventory-section-heading">
+            <h2 id="inventory-table-title"><span>②</span> أصناف الجرد</h2>
+            <p><span class="row-key complete"></span>مكتمل <span class="row-key incomplete"></span>غير مكتمل <span class="row-key invalid"></span>قيمة غير صحيحة</p>
+          </div>
+          <div class="inventory-table-wrap" tabindex="0" aria-label="جدول أصناف الجرد، قابل للتمرير داخليًا">
+            <table class="inventory-table">
+              <thead><tr><th>الحالة</th><th>الصنف</th><th>الوحدة</th><th>رصيد الافتتاح</th><th>الوارد</th><th>المرتجع</th><th>التالف</th><th>رصيد الإقفال</th><th>الاستهلاك</th><th>ملاحظات</th></tr></thead>
+              <tbody id="inventory-items-body" data-brand="ONDA">
+                <!-- Rows are rendered from the active brand inventory dataset in app.js. -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="inventory-bottom-grid">
+          <section class="panel inventory-notes" aria-labelledby="inventory-notes-title">
+            <h2 id="inventory-notes-title"><span>③</span> ملاحظات الجرد</h2>
+            <textarea id="inventory-notes" maxlength="300" rows="2" placeholder="أضف ملاحظة عامة عن الجرد عند الحاجة"></textarea>
+            <small id="inventory-notes-counter" class="character-counter">0 / 300</small>
+          </section>
+          <section class="panel inventory-validation-card" aria-labelledby="inventory-validation-title">
+            <h2 id="inventory-validation-title"><span>④</span> حالة الجرد</h2>
+            <div id="inventory-validation" class="validation-strip warning" role="status" aria-live="polite">
+              <span class="validation-state"><i></i><strong id="inventory-validation-status">يوجد أصناف غير مكتملة</strong></span>
+              <span>المكتملة: <b id="inventory-validation-complete">0</b></span>
+              <span>غير المكتملة: <b id="inventory-validation-incomplete">23</b></span>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="actionbar">
+        <div class="action-note"><strong>بعد إرسال الجرد لن يتمكن مستخدم الفرع من تعديل بيانات هذا الشفت.</strong><span id="inventory-form-message" role="status" aria-live="polite"></span></div>
+        <div class="actions">
+          <button type="button" id="inventory-save-draft" class="btn btn-secondary">حفظ كمسودة</button>
+          <button type="submit" id="inventory-submit" class="btn btn-primary">إرسال وإغلاق الجرد</button>
+        </div>
+      </footer>
+    </form>
+  </main>
+  <script src="js/app.js"></script>
+</body>
+</html>

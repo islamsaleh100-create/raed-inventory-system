@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>إغلاق مبيعات الشفت | ONDA</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="app-shell" aria-labelledby="page-title">
+    <header class="topbar">
+      <div class="brand-block">
+        <img src="assets/logo-placeholder.svg" alt="ONDA" class="brand-logo">
+        <div>
+          <p class="eyebrow">عمليات الفرع</p>
+          <h1 id="page-title">إغلاق مبيعات الشفت</h1>
+        </div>
+      </div>
+      <dl class="shift-meta">
+        <div><dt>الفرع</dt><dd>أوندا 9 - رأس تنورة</dd></div>
+        <div><dt>التاريخ</dt><dd>18/07/2026</dd></div>
+        <div><dt>الشفت</dt><dd>الشفت الأول</dd></div>
+        <div><dt>المستخدم</dt><dd>محمد أحمد</dd></div>
+      </dl>
+      <div class="header-state">
+        <span id="shift-status" class="badge badge-draft"><span class="dot"></span>مسودة</span>
+        <small id="last-saved">آخر حفظ: لم يتم الحفظ</small>
+      </div>
+    </header>
+
+    <form id="sales-form" novalidate>
+      <div class="workspace">
+        <div class="column column-primary">
+          <section class="panel summary-panel" aria-labelledby="summary-title">
+            <h2 id="summary-title"><span>①</span> ملخص المبيعات</h2>
+            <div class="field-grid three summary-grid">
+              <label class="field total-field">إجمالي المبيعات <b>*</b><span class="money-input"><input id="total-sale" name="totalSale" type="text" data-financial value="10,250.00" required inputmode="decimal"><em>ر.س</em></span></label>
+              <label class="field">عدد الفواتير <b>*</b><input id="invoice-count" name="invoiceCount" type="number" min="1" step="1" value="186" required inputmode="numeric"></label>
+              <label class="field readonly-field average-field">متوسط الفاتورة<span class="money-input"><input id="average-bill" type="text" value="55.11" readonly tabindex="-1"><em>ر.س</em></span></label>
+            </div>
+          </section>
+
+          <section class="panel payment-panel" aria-labelledby="payment-title">
+            <h2 id="payment-title"><span>②</span> طرق الدفع</h2>
+            <div class="field-grid three">
+              <label class="field">الشبكة / مدى <b>*</b><span class="money-input"><input id="atm-sales" name="atmSales" type="text" data-financial value="8,250.00" required inputmode="decimal"><em>ر.س</em></span></label>
+              <label class="field">النقدي <b>*</b><span class="money-input"><input id="cash-sales" name="cashSales" type="text" data-financial value="1,000.00" required inputmode="decimal"><em>ر.س</em></span></label>
+              <label class="field">إجمالي مبيعات التطبيقات <b>*</b><span class="money-input"><input id="app-sales" name="appSales" type="text" data-financial value="1,000.00" required inputmode="decimal"><em>ر.س</em></span></label>
+            </div>
+            <div id="payment-validation" class="validation-strip success" role="status" aria-live="polite">
+              <span class="validation-state"><i></i><strong id="payment-status">✓ متطابقة</strong></span>
+              <span>الإجمالي: <b id="payment-total">10,250.00 ر.س</b></span>
+              <span>الفرق: <b id="payment-difference">0.00 ر.س</b></span>
+            </div>
+          </section>
+        </div>
+
+        <div class="column column-secondary">
+          <section class="panel movements-panel" aria-labelledby="movements-title">
+            <h2 id="movements-title"><span>③</span> الحركات والتعديلات</h2>
+            <div class="field-grid three">
+              <label class="field">الفواتير المرتجعة<span class="money-input"><input id="refunds" name="refunds" type="text" data-financial value="0.00" inputmode="decimal"><em>ر.س</em></span></label>
+              <label class="field">الاستبدال<span class="money-input"><input id="exchange" name="exchange" type="text" data-financial value="0.00" inputmode="decimal"><em>ر.س</em></span></label>
+              <label class="field">المنتهي الصلاحية<span class="money-input"><input id="expiry" name="expiry" type="text" data-financial value="0.00" inputmode="decimal"><em>ر.س</em></span></label>
+            </div>
+          </section>
+
+          <section class="panel cash-panel" aria-labelledby="cash-title">
+            <h2 id="cash-title"><span>④</span> تسوية الكاش</h2>
+            <div class="field-grid three cash-values">
+              <label class="field">الكاش المسلم فعليًا <b>*</b><span class="money-input"><input id="cash-deposited" name="cashDeposited" type="text" data-financial value="900.00" required inputmode="decimal"><em>ر.س</em></span></label>
+              <label class="field readonly-field">مبيعات الكاش <small class="source-badge">منقول من النقدي</small><span class="money-input"><input id="cash-sales-readonly" type="text" value="1,000.00" readonly tabindex="-1"><em>ر.س</em></span></label>
+              <label class="field">المصروف من الكاش<span class="money-input"><input id="cash-expense" name="cashExpense" type="text" data-financial value="100.00" inputmode="decimal"><em>ر.س</em></span></label>
+            </div>
+            <div class="field-grid two expense-details">
+              <label class="field">نوع المصروف <b class="conditional-required" hidden>*</b><select id="expense-type" name="expenseType"><option value="">اختر النوع</option><option>فواتير</option><option>سلفة</option><option selected>تسليم لشخص</option><option>مصروف تشغيلي</option><option>أخرى</option></select></label>
+              <label class="field">تفاصيل المصروف <b class="conditional-required" hidden>*</b><input id="expense-details" name="expenseDetails" type="text" value="استلمها أحمد - مشرف المنطقة"></label>
+            </div>
+            <div id="cash-validation" class="validation-strip success" role="status" aria-live="polite">
+              <span class="validation-state"><i></i><strong id="cash-status">✓ متطابقة</strong></span>
+              <span>الكاش المسلم: <b id="cash-summary-deposited">900.00 ر.س</b></span>
+              <span>الفرق: <b id="cash-difference">0.00 ر.س</b></span>
+            </div>
+          </section>
+
+          <section class="panel notes-panel" aria-labelledby="notes-title">
+            <h2 id="notes-title"><span>⑤</span> ملاحظات الشفت</h2>
+            <textarea id="shift-notes" name="shiftNotes" rows="3" maxlength="300" placeholder="أضف ملاحظة مختصرة عند الحاجة"></textarea>
+            <small id="notes-counter" class="character-counter" aria-live="polite">0 / 300</small>
+          </section>
+        </div>
+      </div>
+
+      <footer class="actionbar">
+        <div class="action-note"><strong>بعد الإرسال لن يستطيع مستخدم الفرع تعديل مبيعات هذا الشفت.</strong><span id="form-message" role="status" aria-live="polite"></span></div>
+        <div class="actions">
+          <button type="button" id="save-draft" class="btn btn-secondary">حفظ كمسودة</button>
+          <button type="submit" id="submit-sales" class="btn btn-primary">إرسال وإغلاق المبيعات</button>
+        </div>
+      </footer>
+    </form>
+  </main>
+  <script src="js/app.js"></script>
+</body>
+</html>
