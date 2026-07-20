@@ -73,6 +73,21 @@ function resolveOpeningBalances_(shift, approvedItems) {
   var openings = {};
   approvedItems.forEach(function (item) { openings[item.brand_item_id] = 0; });
   var shifts = readOperationalRows_(AUTH_CONFIG.SHEETS.SHIFTS, AUTH_CONFIG.REQUIRED_COLUMNS.Shifts).rows;
+  var inventoryRows = readOperationalRows_(AUTH_CONFIG.SHEETS.INVENTORY, AUTH_CONFIG.REQUIRED_COLUMNS.Inventory).rows;
+  var inventoryByShift = {};
+  inventoryRows.forEach(function (row) {
+    var key = String(row.shift_id);
+    if (!inventoryByShift[key]) inventoryByShift[key] = [];
+    inventoryByShift[key].push(row);
+  });
+  var inventoryForShift = function (shiftId) {
+    var matches = inventoryByShift[String(shiftId)] || [];
+    if (matches.length > 1) throw createInternalError_('INVENTORY_DUPLICATE_HEADER');
+    if (matches.length && AUTH_CONFIG.INVENTORY_STATUSES.indexOf(String(matches[0].status)) === -1) {
+      throw createInternalError_('INVENTORY_INVALID_STATUS');
+    }
+    return matches[0] || null;
+  };
   var sourceShift = null, sourceInventory = null;
   if (Number(shift.shift_number) === 2) {
     var sameDay = shifts.filter(function (candidate) {
@@ -82,7 +97,7 @@ function resolveOpeningBalances_(shift, approvedItems) {
     if (sameDay.length > 1) throw createInternalError_('INVENTORY_DATA_CORRUPTION');
     sourceShift = sameDay[0] || null;
     if (sourceShift) {
-      sourceInventory = findInventoryByShift_(sourceShift.shift_id).record;
+      sourceInventory = inventoryForShift(sourceShift.shift_id);
       if (!sourceInventory || ['SUBMITTED', 'LOCKED'].indexOf(String(sourceInventory.status)) === -1) sourceInventory = null;
     }
   } else {
@@ -97,7 +112,7 @@ function resolveOpeningBalances_(shift, approvedItems) {
       return ak < bk ? 1 : (ak > bk ? -1 : 0);
     });
     for (var i = 0; i < earlier.length; i += 1) {
-      var candidateInventory = findInventoryByShift_(earlier[i].shift_id).record;
+      var candidateInventory = inventoryForShift(earlier[i].shift_id);
       if (candidateInventory && ['SUBMITTED', 'LOCKED'].indexOf(String(candidateInventory.status)) !== -1) {
         sourceShift = earlier[i]; sourceInventory = candidateInventory; break;
       }

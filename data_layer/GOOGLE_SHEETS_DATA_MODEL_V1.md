@@ -66,7 +66,7 @@ Primary key: `user_id`. Alternate unique key: nonblank `username`.
 | role_code | Yes | BRANCH_USER, BRAND_MANAGER, OPERATIONS_MANAGER, or ADMIN |
 | branch_id | Conditional | Required only for BRANCH_USER; blank otherwise |
 | is_active | Yes | TRUE/FALSE |
-| password_hash | No in template | Hash only; plain text forbidden |
+| login_pin | No in template | Exactly six numeric digits when provisioned |
 | must_change_password | Yes | TRUE/FALSE |
 | created_at | No in template | ISO timestamp when provisioned |
 | updated_at | No in template | ISO timestamp when changed |
@@ -140,7 +140,7 @@ Columns: `shift_id`, `branch_id`, `shift_date`, `shift_number`, `status`, `opene
 
 ### 8. Sales
 
-Columns, in canonical order: `sales_id`, `shift_id`, `status`, `total_sale`, `bill_count`, `mada_sales`, `cash_sales`, `app_sales`, `refund_bill`, `exchange_amount`, `expiry_amount`, `cash_expense`, `cash_deposited`, `expense_type`, `expense_details`, `shift_notes`, `created_by`, `updated_by`, `submitted_by`, `created_at`, `updated_at`, `submitted_at`.
+Columns, in canonical order: `sales_id`, `shift_id`, `status`, `total_sale`, `bill_count`, `mada_sales`, `cash_sales`, `app_sales`, `refund_bill`, `exchange_amount`, `expiry_amount`, `cash_expense`, `cash_float_carried_forward`, `cash_deposited`, `expense_type`, `expense_details`, `shift_notes`, `created_by`, `updated_by`, `submitted_by`, `created_at`, `updated_at`, `submitted_at`.
 
 - Primary key: `sales_id`.
 - Unique foreign key: `shift_id` → `Shifts.shift_id`; one Sales row is allowed per Shift.
@@ -149,10 +149,13 @@ Columns, in canonical order: `sales_id`, `shift_id`, `status`, `total_sale`, `bi
 - Required for every persisted row: `sales_id`, `shift_id`, `status`, `created_by`, `updated_by`, `created_at`, and `updated_at`.
 - `submitted_by` and `submitted_at` remain blank until submission and become required when status is `SUBMITTED` or `LOCKED`.
 - Draft business fields may remain blank; blank is distinct from an explicit zero.
-- Financial fields are `total_sale`, `mada_sales`, `cash_sales`, `app_sales`, `refund_bill`, `exchange_amount`, `expiry_amount`, `cash_expense`, and `cash_deposited`; populated values are nonnegative and normalized to two decimals by the application layer.
+- Financial fields are `total_sale`, `mada_sales`, `cash_sales`, `app_sales`, `refund_bill`, `exchange_amount`, `expiry_amount`, `cash_expense`, `cash_float_carried_forward`, and `cash_deposited`; populated values are nonnegative and normalized to two decimals by the application layer.
 - `exchange_amount` records the shift exchange amount; `expiry_amount` records the shift expiry amount. These are the canonical field names.
 - On submit: `mada_sales + cash_sales + app_sales = total_sale`.
-- On submit: `cash_sales - cash_expense = cash_deposited`.
+- `cash_float_carried_forward` is the amount intentionally retained in the branch cash drawer for the next selling period. It may be blank in a draft, but is required on submission; zero and decimal values are valid.
+- On submit: `cash_float_carried_forward <= cash_sales - cash_expense`.
+- On submit: expected cash deposited is `cash_sales - cash_expense - cash_float_carried_forward`.
+- On submit: `cash_deposited = cash_sales - cash_expense - cash_float_carried_forward`.
 - On submit: `bill_count >= 1` and all required business validation must pass.
 - Expense type and details are required when `cash_expense > 0`.
 - Submitted and locked Sales rows are immutable to Branch Users.

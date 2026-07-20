@@ -1,10 +1,51 @@
+function storedBusinessDate_(value, spreadsheetTimeZone) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, spreadsheetTimeZone || AUTH_CONFIG.TIME_ZONE, 'yyyy-MM-dd');
+  }
+  var text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+}
+
+function publicShiftRecord_(record, spreadsheetTimeZone) {
+  var output = publicRecord_(record);
+  output.shift_date = storedBusinessDate_(record.shift_date, spreadsheetTimeZone);
+  return output;
+}
+
+function canonicalShiftMatch_(matches) {
+  if (matches.length < 2) return matches[0] || null;
+
+  var progressed = matches.filter(function (row) {
+    if (AUTH_CONFIG.SHIFT_STATUSES.indexOf(String(row.status)) === -1) {
+      throw createInternalError_('DATA_INTEGRITY_ERROR');
+    }
+    return String(row.status) !== 'DRAFT';
+  });
+  if (progressed.length > 1) throw createInternalError_('DATA_INTEGRITY_ERROR');
+
+  var selected = progressed[0] || matches.slice().sort(function (left, right) {
+    var leftOpened = Date.parse(String(left.opened_at || ''));
+    var rightOpened = Date.parse(String(right.opened_at || ''));
+    leftOpened = isNaN(leftOpened) ? Number.MAX_SAFE_INTEGER : leftOpened;
+    rightOpened = isNaN(rightOpened) ? Number.MAX_SAFE_INTEGER : rightOpened;
+    return leftOpened - rightOpened || Number(left.__row) - Number(right.__row);
+  })[0];
+
+  console.warn(JSON.stringify({
+    code: 'SHIFT_DUPLICATE_RESOLVED',
+    match_count: matches.length,
+    selected_shift_id: String(selected.shift_id)
+  }));
+  return selected;
+}
+
 function findShiftByKey_(branchId, businessDate, shiftNumber) {
   var data = readOperationalRows_(AUTH_CONFIG.SHEETS.SHIFTS, AUTH_CONFIG.REQUIRED_COLUMNS.Shifts);
+  var spreadsheetTimeZone = data.sheet.getParent().getSpreadsheetTimeZone();
   var matches = data.rows.filter(function (row) {
-    return String(row.branch_id) === branchId && String(row.shift_date) === businessDate && Number(row.shift_number) === shiftNumber;
+    return String(row.branch_id) === branchId && storedBusinessDate_(row.shift_date, spreadsheetTimeZone) === businessDate && Number(row.shift_number) === shiftNumber;
   });
-  if (matches.length > 1) throw createInternalError_('DATA_INTEGRITY_ERROR');
-  return { sheet: data.sheet, headers: data.headers, record: matches[0] || null };
+  return { sheet: data.sheet, headers: data.headers, record: canonicalShiftMatch_(matches), spreadsheetTimeZone: spreadsheetTimeZone };
 }
 
 function requireAllowedShift_(branchId, shiftNumber) {
@@ -26,7 +67,7 @@ function openShift(sessionToken, businessDate, shiftNumber) {
     var number = requireAllowedShift_(String(session.branch_id), shiftNumber);
     return withScriptLock_(function () {
       var found = findShiftByKey_(String(session.branch_id), date, number);
-      if (found.record) return success_(publicRecord_(found.record));
+      if (found.record) return success_(publicShiftRecord_(found.record, found.spreadsheetTimeZone));
       var timestamp = nowIso_();
       var record = { shift_id: 'SHIFT_' + Utilities.getUuid(), branch_id: String(session.branch_id), shift_date: date,
         shift_number: number, status: 'DRAFT', opened_by: String(session.user_id), opened_at: timestamp,
@@ -45,7 +86,7 @@ function getCurrentShift(sessionToken, businessDate, shiftNumber) {
     var number = requireAllowedShift_(String(session.branch_id), shiftNumber);
     var found = findShiftByKey_(String(session.branch_id), date, number);
     if (!found.record) throw createInternalError_('SHIFT_NOT_FOUND');
-    return success_(publicRecord_(found.record));
+    return success_(publicShiftRecord_(found.record, found.spreadsheetTimeZone));
   });
 }
 

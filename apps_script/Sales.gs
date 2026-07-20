@@ -37,7 +37,7 @@ function saveSalesDraft(sessionToken, shiftId, salesPayload) {
       if (String(shift.status) === 'LOCKED') throw createInternalError_('SHIFT_LOCKED');
       if (String(shift.status) !== 'DRAFT') throw createInternalError_('SHIFT_ALREADY_SUBMITTED');
       var validation = validateSalesPayload_(salesPayload, false);
-      if (!validation.ok) throw createInternalError_('SALES_VALIDATION_FAILED');
+      if (!validation.ok) return { ok: false, code: 'SALES_VALIDATION_FAILED', message: 'بيانات المبيعات غير مكتملة أو غير صحيحة.', data: validation };
       var found = findSalesByShift_(shiftId);
       if (found.record && String(found.record.status) !== 'DRAFT') throw createInternalError_(String(found.record.status) === 'LOCKED' ? 'SHIFT_LOCKED' : 'SHIFT_ALREADY_SUBMITTED');
       var timestamp = nowIso_();
@@ -56,7 +56,7 @@ function submitSales(sessionToken, shiftId, salesPayload) {
       if (String(shift.status) === 'LOCKED') throw createInternalError_('SHIFT_LOCKED');
       if (String(shift.status) !== 'DRAFT') throw createInternalError_('SHIFT_ALREADY_SUBMITTED');
       var validation = validateSalesPayload_(salesPayload, true);
-      if (!validation.ok) throw createInternalError_('SALES_VALIDATION_FAILED');
+      if (!validation.ok) return { ok: false, code: 'SALES_VALIDATION_FAILED', message: 'بيانات المبيعات غير مكتملة أو غير صحيحة.', data: validation };
       var found = findSalesByShift_(shiftId);
       if (found.record && String(found.record.status) !== 'DRAFT') throw createInternalError_(String(found.record.status) === 'LOCKED' ? 'SHIFT_LOCKED' : 'SHIFT_ALREADY_SUBMITTED');
       var timestamp = nowIso_();

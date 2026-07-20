@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <?!= include_('Styles'); ?>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="login-view" class="auth-layout" aria-labelledby="login-title">
+        <div class="brand-panel" aria-hidden="true">
+          <div class="brand-mark">R</div>
+          <strong>RAED FOOD CO.</strong>
+          <span>عمليات الفروع</span>
+        </div>
+
+        <form id="login-form" class="surface login-card" novalidate>
+          <p class="eyebrow">بوابة الفرع</p>
+          <h1 id="login-title">تسجيل الدخول</h1>
+          <p class="muted">استخدم حساب الفرع المعتمد للوصول إلى بيانات الشفت.</p>
+
+          <label class="field">
+            <span>اسم المستخدم</span>
+            <input id="username" name="username" type="text" autocomplete="username" required>
+          </label>
+          <label class="field">
+            <span>الرقم السري</span>
+            <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required>
+          </label>
+
+          <p id="login-message" class="message" role="status" aria-live="polite"></p>
+          <button id="login-button" class="button primary" type="submit">
+            <span class="button-label">تسجيل الدخول</span>
+            <span class="button-loading" hidden>جارٍ التحقق…</span>
+          </button>
+        </form>
+      </section>
+
+      <section id="dashboard-view" class="dashboard" aria-labelledby="dashboard-title" hidden>
+        <header class="app-header">
+          <div class="header-brand">
+            <span class="mini-mark" aria-hidden="true">R</span>
+            <div><small>RAED FOOD CO.</small><strong id="dashboard-title">عمليات الفرع</strong></div>
+          </div>
+          <div class="user-block">
+            <div><strong id="display-name">—</strong><small id="user-context">—</small></div>
+            <button id="logout-button" class="button secondary compact" type="button">تسجيل الخروج</button>
+          </div>
+        </header>
+
+        <div class="dashboard-content">
+          <section class="welcome-row">
+            <div><p class="eyebrow">لوحة الشفت</p><h1>مرحبًا، <span id="welcome-name">—</span></h1></div>
+            <span id="session-state" class="status success">جلسة نشطة</span>
+          </section>
+
+          <section class="surface identity-grid" aria-label="بيانات الفرع">
+            <div><small>الفرع</small><strong id="branch-name">—</strong></div>
+            <div><small>العلامة التجارية</small><strong id="brand-name">—</strong></div>
+            <label><span>تاريخ العمل</span><input id="business-date" type="date"></label>
+            <label><span>رقم الشفت</span><select id="shift-number"><option value="1">الشفت الأول</option><option value="2">الشفت الثاني</option></select></label>
+            <div class="shift-actions"><button id="refresh-shift" class="button secondary" type="button">تحديث الحالة</button><button id="open-shift" class="button primary" type="button" hidden>فتح الشفت</button></div>
+          </section>
+
+          <section class="status-grid" aria-label="حالات التشغيل">
+            <article class="surface status-card"><small>حالة الشفت</small><strong id="shift-status">—</strong><span id="shift-detail" class="muted">اختر التاريخ والشفت</span></article>
+            <article class="surface status-card"><small>حالة المبيعات</small><strong id="sales-status">—</strong><span id="sales-status-detail" class="muted">يتطلب شفتًا مفتوحًا</span></article>
+            <article class="surface status-card"><small>حالة الجرد</small><strong id="inventory-status">—</strong><span id="inventory-status-detail" class="muted">يتطلب شفتًا مفتوحًا</span></article>
+          </section>
+
+          <section class="module-grid" aria-label="وحدات العمل">
+            <article class="surface module-card"><div><small>①</small><h2>المبيعات</h2><p>إدخال وإغلاق مبيعات الشفت.</p></div><button id="open-sales" class="button primary" type="button" disabled>فتح المبيعات</button></article>
+            <article class="surface module-card"><div><small>②</small><h2>الجرد</h2><p>تسجيل وإغلاق جرد أصناف العلامة.</p></div><button id="open-inventory" class="button primary" type="button" disabled>فتح الجرد</button></article>
+          </section>
+
+          <p id="dashboard-message" class="message dashboard-message" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section id="sales-view" class="operational-view" aria-labelledby="sales-title" hidden>
+        <header class="app-header"><div class="header-brand"><span class="mini-mark" aria-hidden="true">R</span><div><small>عمليات الفرع</small><strong id="sales-title">إغلاق مبيعات الشفت</strong></div></div><button class="button secondary compact back-dashboard" type="button">العودة للوحة</button></header>
+        <form id="sales-form" class="operation-content" novalidate>
+          <section class="operation-heading"><div><p class="eyebrow">المبيعات</p><h1>بيانات مبيعات الشفت</h1><p id="sales-context" class="muted"></p></div><span id="sales-badge" class="status">—</span></section>
+          <div id="sales-errors" class="validation-summary" role="alert" hidden></div>
+          <div class="sales-layout">
+            <section class="surface form-panel"><h2>ملخص المبيعات</h2><div class="form-grid"><label><span>إجمالي المبيعات</span><input data-sales-field="total_sale" inputmode="decimal" required></label><label><span>عدد الفواتير</span><input data-sales-field="bill_count" inputmode="numeric" required></label><label class="readonly"><span>متوسط الفاتورة</span><output id="average-bill">—</output></label></div></section>
+            <section class="surface form-panel"><h2>طرق الدفع</h2><div class="form-grid three"><label><span>الشبكة / مدى</span><input data-sales-field="mada_sales" inputmode="decimal" required></label><label><span>النقدي</span><input data-sales-field="cash_sales" inputmode="decimal" required></label><label><span>التطبيقات</span><input data-sales-field="app_sales" inputmode="decimal" required></label></div><p id="payment-preview" class="calculation-line">أدخل طرق الدفع لعرض المطابقة.</p></section>
+            <section class="surface form-panel"><h2>الحركات والتعديلات</h2><div class="form-grid three"><label><span>الفواتير المرتجعة</span><input data-sales-field="refund_bill" inputmode="decimal"></label><label><span>الاستبدال</span><input data-sales-field="exchange_amount" inputmode="decimal"></label><label><span>المنتهي الصلاحية</span><input data-sales-field="expiry_amount" inputmode="decimal"></label></div></section>
+            <section class="surface form-panel"><h2>تسوية الكاش</h2><div class="form-grid cash-settlement-grid"><label class="readonly"><span>مبيعات الكاش</span><output id="cash-sales-copy">—</output></label><label><span>المصروف من الكاش</span><input data-sales-field="cash_expense" inputmode="decimal"></label><label><span>رصيد الصندوق المرحّل</span><input data-sales-field="cash_float_carried_forward" inputmode="decimal" required></label><label><span>الكاش المسلم فعليًا</span><input data-sales-field="cash_deposited" inputmode="decimal" required></label><label><span>نوع المصروف</span><select data-sales-field="expense_type"><option value="">اختر النوع</option><option value="INVOICES">فواتير</option><option value="ADVANCE">سلفة</option><option value="HANDED_TO_PERSON">تسليم لشخص</option><option value="OPERATIONAL">مصروف تشغيلي</option><option value="OTHER">أخرى</option></select></label><label><span>تفاصيل المصروف</span><input data-sales-field="expense_details"></label></div><p id="cash-preview" class="calculation-line">الكاش المتوقع تسليمه = مبيعات الكاش - المصروف - رصيد الصندوق المرحّل.</p></section>
+            <section class="surface form-panel full"><h2>ملاحظات الشفت</h2><label><span class="sr-only">ملاحظات الشفت</span><textarea data-sales-field="shift_notes" maxlength="300" rows="3"></textarea></label></section>
+          </div>
+          <p id="sales-message" class="message operation-message" role="status" aria-live="polite"></p>
+          <footer class="operation-actions"><button id="save-sales" class="button secondary" type="button">حفظ كمسودة</button><button id="submit-sales" class="button primary" type="button">إرسال المبيعات</button></footer>
+        </form>
+      </section>
+
+      <section id="inventory-view" class="operational-view" aria-labelledby="inventory-title" hidden>
+        <header class="app-header"><div class="header-brand"><span class="mini-mark" aria-hidden="true">R</span><div><small>عمليات الفرع</small><strong id="inventory-title">إغلاق جرد الشفت</strong></div></div><button class="button secondary compact back-dashboard" type="button">العودة للوحة</button></header>
+        <form id="inventory-form" class="operation-content" novalidate>
+          <section class="operation-heading"><div><p class="eyebrow">الجرد</p><h1>أصناف جرد الشفت</h1><p id="inventory-context" class="muted"></p></div><span id="inventory-badge" class="status">—</span></section>
+          <div id="inventory-errors" class="validation-summary" role="alert" hidden></div>
+          <section class="surface inventory-panel"><div class="table-wrap"><table><thead><tr><th>الحالة</th><th>الصنف</th><th>الوحدة</th><th>الافتتاح</th><th>الوارد</th><th>المرتجع</th><th>التالف</th><th>الإقفال</th><th>الاستهلاك</th><th>ملاحظات</th></tr></thead><tbody id="inventory-body"></tbody></table></div></section>
+          <section class="surface form-panel inventory-general"><h2>ملاحظات الجرد</h2><label><span class="sr-only">ملاحظات الجرد العامة</span><textarea id="inventory-general-notes" maxlength="300" rows="3"></textarea></label></section>
+          <p id="inventory-message" class="message operation-message" role="status" aria-live="polite"></p>
+          <footer class="operation-actions"><button id="save-inventory" class="button secondary" type="button">حفظ كمسودة</button><button id="submit-inventory" class="button primary" type="button">إرسال الجرد</button></footer>
+        </form>
+      </section>
+
+      <div id="confirmation-dialog" class="dialog-backdrop" hidden>
+        <section class="dialog surface" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-description">
+          <h2 id="dialog-title">تأكيد الإرسال</h2><p id="dialog-description"></p>
+          <div class="dialog-actions"><button id="dialog-cancel" class="button secondary" type="button">إلغاء</button><button id="dialog-confirm" class="button primary" type="button">تأكيد الإرسال</button></div>
+        </section>
+      </div>
+    </main>
+    <?!= include_('Scripts'); ?>
+  </body>
+</html>

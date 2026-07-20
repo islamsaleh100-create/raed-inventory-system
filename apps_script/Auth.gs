@@ -1,10 +1,12 @@
 /** Authentication and identity resolution. Client-supplied role, branch, brand, and scope are never accepted. */
-function login(username, password) {
+function login(username, pin) {
   try {
     var normalized = normalizeUsername_(username);
-    if (!normalized || typeof password !== 'string' || !password) return publicError_('INVALID_CREDENTIALS');
+    if (!normalized || typeof pin !== 'string' || !/^\d{6}$/.test(pin)) {
+      return publicError_('INVALID_CREDENTIALS');
+    }
     var user = findLoginUser_(normalized);
-    if (!user || !isTrue_(user.is_active) || !verifyPassword(password, String(user.password_hash || ''))) {
+    if (!user || !isTrue_(user.is_active) || String(user.login_pin || '') !== pin) {
       return publicError_('INVALID_CREDENTIALS');
     }
     if (AUTH_CONFIG.ALLOWED_ROLES.indexOf(String(user.role_code)) === -1) {

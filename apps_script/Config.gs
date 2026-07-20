@@ -1,11 +1,8 @@
 /** Authentication-only configuration. No production spreadsheet ID is stored in source. */
 var AUTH_CONFIG = Object.freeze({
-  VERSION: '2.0.0',
+  VERSION: '3.0.0',
   SPREADSHEET_ID_PROPERTY: 'RAED_OPERATIONS_SPREADSHEET_ID',
   SESSION_TTL_SECONDS: 1800,
-  PASSWORD_MIN_LENGTH: 12,
-  HASH_VERSION: 'v1',
-  HASH_ITERATIONS: 120000,
   SESSION_CACHE_PREFIX: 'raed_auth_session_',
   SESSION_VERSION: 1,
   TIME_ZONE: 'Asia/Riyadh',
@@ -35,7 +32,7 @@ var AUTH_CONFIG = Object.freeze({
   REQUIRED_COLUMNS: Object.freeze({
     Users: Object.freeze([
       'user_id', 'username', 'display_name', 'role_code', 'branch_id',
-      'is_active', 'password_hash', 'must_change_password', 'created_at',
+      'is_active', 'login_pin', 'must_change_password', 'created_at',
       'updated_at', 'notes'
     ]),
     Branches: Object.freeze([
@@ -66,7 +63,8 @@ var AUTH_CONFIG = Object.freeze({
     Sales: Object.freeze([
       'sales_id', 'shift_id', 'status', 'total_sale', 'bill_count',
       'mada_sales', 'cash_sales', 'app_sales', 'refund_bill',
-      'exchange_amount', 'expiry_amount', 'cash_expense', 'cash_deposited',
+      'exchange_amount', 'expiry_amount', 'cash_expense',
+      'cash_float_carried_forward', 'cash_deposited',
       'expense_type', 'expense_details', 'shift_notes', 'created_by',
       'updated_by', 'submitted_by', 'created_at', 'updated_at', 'submitted_at'
     ]),

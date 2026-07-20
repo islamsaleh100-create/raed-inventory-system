@@ -1,0 +1,232 @@
+<script>
+  (() => {
+    'use strict';
+
+    const SESSION_KEY = 'raed_branch_session';
+    const DATE_KEY = 'raed_business_date';
+    const SHIFT_KEY = 'raed_shift_number';
+    const pending = new Set();
+    const state = { user: null, shift: null, sales: null, inventory: null, salesLoaded: false, inventoryLoaded: false, contextKey: '', dashboardLoadId: 0, currentView: 'login' };
+
+    const byId = (id) => document.getElementById(id);
+    const elements = {
+      loginView: byId('login-view'), dashboardView: byId('dashboard-view'), salesView: byId('sales-view'), inventoryView: byId('inventory-view'),
+      loginForm: byId('login-form'), username: byId('username'), pin: byId('pin'), loginButton: byId('login-button'),
+      loginLabel: document.querySelector('.button-label'), loginLoading: document.querySelector('.button-loading'), loginMessage: byId('login-message'),
+      displayName: byId('display-name'), welcomeName: byId('welcome-name'), userContext: byId('user-context'), branchName: byId('branch-name'), brandName: byId('brand-name'),
+      businessDate: byId('business-date'), shiftNumber: byId('shift-number'), shiftStatus: byId('shift-status'), shiftDetail: byId('shift-detail'),
+      salesStatus: byId('sales-status'), salesStatusDetail: byId('sales-status-detail'), inventoryStatus: byId('inventory-status'), inventoryStatusDetail: byId('inventory-status-detail'),
+      refreshShift: byId('refresh-shift'), openShift: byId('open-shift'), openSales: byId('open-sales'), openInventory: byId('open-inventory'),
+      logoutButton: byId('logout-button'), dashboardMessage: byId('dashboard-message'), salesForm: byId('sales-form'), salesContext: byId('sales-context'),
+      salesBadge: byId('sales-badge'), salesErrors: byId('sales-errors'), averageBill: byId('average-bill'), paymentPreview: byId('payment-preview'), cashPreview: byId('cash-preview'), cashSalesCopy: byId('cash-sales-copy'),
+      salesMessage: byId('sales-message'), saveSales: byId('save-sales'), submitSales: byId('submit-sales'), inventoryForm: byId('inventory-form'),
+      inventoryContext: byId('inventory-context'), inventoryBadge: byId('inventory-badge'), inventoryErrors: byId('inventory-errors'), inventoryBody: byId('inventory-body'),
+      inventoryNotes: byId('inventory-general-notes'), inventoryMessage: byId('inventory-message'), saveInventory: byId('save-inventory'), submitInventory: byId('submit-inventory'),
+      dialog: byId('confirmation-dialog'), dialogTitle: byId('dialog-title'), dialogDescription: byId('dialog-description'), dialogCancel: byId('dialog-cancel'), dialogConfirm: byId('dialog-confirm')
+    };
+
+    class ServerError extends Error {
+      constructor(code, message, data) { super(message || 'تعذر إكمال الطلب.'); this.code = code || 'REQUEST_FAILED'; this.data = data || null; }
+    }
+
+    const rawCall = (name, args) => new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(() => reject(new ServerError('RUNTIME_ERROR', 'تعذر الاتصال بالخدمة.')))[name](...args);
+    });
+
+    const request = async (name, args = [], actionKey = name) => {
+      if (pending.has(actionKey)) throw new ServerError('REQUEST_PENDING', 'الطلب قيد التنفيذ بالفعل.');
+      pending.add(actionKey);
+      try {
+        const response = await rawCall(name, args);
+        if (!response || response.ok !== true) {
+          const error = new ServerError(response && response.code, response && response.message, response && response.data);
+          if (error.code === 'SESSION_EXPIRED' || error.code === 'INVALID_SESSION') showLogin(error.message);
+          throw error;
+        }
+        return Object.prototype.hasOwnProperty.call(response, 'data') ? response.data : response;
+      } finally { pending.delete(actionKey); }
+    };
+
+    const token = () => sessionStorage.getItem(SESSION_KEY) || '';
+    const selectedContextKey = () => `${token()}|${elements.businessDate.value}|${elements.shiftNumber.value}`;
+    const clearSession = () => sessionStorage.removeItem(SESSION_KEY);
+    const today = () => { const d = new Date(), offset = d.getTimezoneOffset() * 60000; return new Date(d.getTime() - offset).toISOString().slice(0, 10); };
+    const money = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value)) : '—';
+    const statusArabic = (status) => ({ NOT_STARTED: 'لم يبدأ', DRAFT: 'مسودة', SUBMITTED: 'تم الإرسال', LOCKED: 'مغلق', VALID: 'مكتمل', INCOMPLETE: 'غير مكتمل', INVALID: 'غير صالح' }[status] || status || '—');
+    const setMessage = (element, text, success = false) => { element.textContent = text || ''; element.classList.toggle('success', Boolean(success)); };
+    const setBusy = (button, busy) => { button.disabled = busy; button.setAttribute('aria-busy', String(busy)); };
+    const contextText = () => state.shift ? `${state.user.branch_name || ''} · ${state.user.brand || ''} · ${state.shift.shift_date} · الشفت ${state.shift.shift_number}` : '';
+
+    const switchView = (name) => {
+      ['login', 'dashboard', 'sales', 'inventory'].forEach((view) => { elements[`${view}View`].hidden = view !== name; });
+      state.currentView = name;
+      window.scrollTo(0, 0);
+    };
+
+    const showLogin = (message = '') => {
+      clearSession(); state.user = null; state.shift = null; state.sales = null; state.inventory = null;
+      state.salesLoaded = false; state.inventoryLoaded = false; state.contextKey = ''; state.dashboardLoadId += 1;
+      switchView('login'); elements.pin.value = ''; setMessage(elements.loginMessage, message); elements.username.focus();
+    };
+
+    const showDashboard = (user) => {
+      state.user = user;
+      const display = user.display_name || user.username || 'مستخدم الفرع';
+      elements.displayName.textContent = display; elements.welcomeName.textContent = display;
+      elements.branchName.textContent = user.branch_name || '—'; elements.brandName.textContent = user.brand || '—';
+      elements.userContext.textContent = [user.branch_name, user.brand].filter(Boolean).join(' · ') || 'مستخدم فرع';
+      switchView('dashboard');
+    };
+
+    const clearModuleState = () => {
+      state.shift = null; state.sales = null; state.inventory = null;
+      state.salesLoaded = false; state.inventoryLoaded = false; state.contextKey = '';
+      elements.shiftStatus.textContent = '—'; elements.shiftDetail.textContent = 'لم يتم تحميل شفت';
+      elements.salesStatus.textContent = '—'; elements.salesStatusDetail.textContent = 'يتطلب شفتًا مفتوحًا';
+      elements.inventoryStatus.textContent = '—'; elements.inventoryStatusDetail.textContent = 'يتطلب شفتًا مفتوحًا';
+      elements.openShift.hidden = true; elements.openSales.disabled = true; elements.openInventory.disabled = true;
+    };
+
+    const loadModuleStatuses = async (expectedLoadId = state.dashboardLoadId, expectedContextKey = selectedContextKey()) => {
+      if (!state.shift) return;
+      const sessionToken = token(), shiftId = state.shift.shift_id;
+      const salesPromise = request('loadSalesDraft', [sessionToken, shiftId], `dashboard-sales:${shiftId}`).then((data) => ({ status: data.sales.status, data })).catch((error) => {
+        if (error.code === 'SALES_NOT_FOUND') return { status: 'NOT_STARTED', data: null };
+        throw error;
+      });
+      const inventoryPromise = request('loadInventoryDraft', [sessionToken, shiftId], `dashboard-inventory:${shiftId}`).then((data) => ({ status: data.inventory_id ? data.status : 'NOT_STARTED', data }));
+      const results = await Promise.allSettled([salesPromise, inventoryPromise]);
+      if (expectedLoadId !== state.dashboardLoadId || expectedContextKey !== selectedContextKey()) return;
+      if (results[0].status === 'fulfilled') { state.sales = results[0].value.data; elements.salesStatus.textContent = statusArabic(results[0].value.status); elements.salesStatusDetail.textContent = 'حالة مستقلة عن حالة الشفت'; }
+      else { elements.salesStatus.textContent = 'تعذر التحميل'; elements.salesStatusDetail.textContent = results[0].reason.message; }
+      if (results[1].status === 'fulfilled') { state.inventory = results[1].value.data; elements.inventoryStatus.textContent = statusArabic(results[1].value.status); elements.inventoryStatusDetail.textContent = 'حالة مستقلة عن حالة الشفت'; }
+      else { elements.inventoryStatus.textContent = 'تعذر التحميل'; elements.inventoryStatusDetail.textContent = results[1].reason.message; }
+      state.salesLoaded = results[0].status === 'fulfilled';
+      state.inventoryLoaded = results[1].status === 'fulfilled';
+      state.contextKey = selectedContextKey();
+    };
+
+    const hasCurrentDashboardState = () => Boolean(state.shift) && state.contextKey === selectedContextKey() && state.salesLoaded && state.inventoryLoaded;
+    const renderCachedDashboard = () => {
+      elements.shiftStatus.textContent = statusArabic(state.shift.status); elements.shiftDetail.textContent = `الشفت ${state.shift.shift_number} · ${state.shift.shift_date}`;
+      elements.salesStatus.textContent = statusArabic(state.sales && state.sales.sales ? state.sales.sales.status : 'NOT_STARTED');
+      elements.inventoryStatus.textContent = statusArabic(state.inventory && state.inventory.inventory_id ? state.inventory.status : 'NOT_STARTED');
+      elements.openShift.hidden = true; elements.openSales.disabled = false; elements.openInventory.disabled = false;
+    };
+
+    const loadDashboard = async () => {
+      const loadId = state.dashboardLoadId + 1, contextKey = selectedContextKey(); state.dashboardLoadId = loadId;
+      clearModuleState(); setMessage(elements.dashboardMessage, ''); setBusy(elements.refreshShift, true);
+      sessionStorage.setItem(DATE_KEY, elements.businessDate.value); sessionStorage.setItem(SHIFT_KEY, elements.shiftNumber.value);
+      try {
+        const currentShift = await request('getCurrentShift', [token(), elements.businessDate.value, Number(elements.shiftNumber.value)], `current-shift:${contextKey}`);
+        if (loadId !== state.dashboardLoadId || contextKey !== selectedContextKey()) return;
+        state.shift = currentShift;
+        elements.shiftStatus.textContent = statusArabic(state.shift.status); elements.shiftDetail.textContent = `الشفت ${state.shift.shift_number} · ${state.shift.shift_date}`;
+        elements.openSales.disabled = false; elements.openInventory.disabled = false;
+        await loadModuleStatuses(loadId, contextKey);
+      } catch (error) {
+        if (loadId !== state.dashboardLoadId || contextKey !== selectedContextKey()) return;
+        if (error.code === 'SHIFT_NOT_FOUND') { elements.shiftStatus.textContent = 'لم يبدأ'; elements.shiftDetail.textContent = 'يمكن فتح الشفت بعد التأكيد.'; elements.openShift.hidden = false; }
+        else { elements.shiftStatus.textContent = 'غير متاح'; elements.shiftDetail.textContent = error.message; setMessage(elements.dashboardMessage, error.message); }
+      } finally { if (loadId === state.dashboardLoadId) setBusy(elements.refreshShift, false); }
+    };
+
+    const openSelectedShift = async () => {
+      setBusy(elements.openShift, true); setMessage(elements.dashboardMessage, '');
+      try { await request('openShift', [token(), elements.businessDate.value, Number(elements.shiftNumber.value)], 'open-shift'); setMessage(elements.dashboardMessage, 'تم فتح الشفت بنجاح.', true); await loadDashboard(); }
+      catch (error) { setMessage(elements.dashboardMessage, error.message); }
+      finally { setBusy(elements.openShift, false); }
+    };
+
+    const salesInputs = () => [...elements.salesForm.querySelectorAll('[data-sales-field]')];
+    const salesPayload = () => { const payload = {}; salesInputs().forEach((input) => { payload[input.dataset.salesField] = input.value.trim(); }); return payload; };
+    const resetSalesErrors = () => { elements.salesErrors.hidden = true; elements.salesErrors.replaceChildren(); salesInputs().forEach((input) => input.classList.remove('field-error')); };
+    const displaySalesErrors = (validation) => {
+      resetSalesErrors(); const errors = validation && Array.isArray(validation.errors) ? validation.errors : [];
+      if (!errors.length) return;
+      const title = document.createElement('strong'); title.textContent = 'يرجى مراجعة بيانات المبيعات:';
+      const list = document.createElement('ul');
+      errors.forEach((error) => { const item = document.createElement('li'); item.textContent = error.message || 'يرجى مراجعة القيمة المدخلة.'; list.appendChild(item); const input = elements.salesForm.querySelector(`[data-sales-field="${CSS.escape(error.field)}"]`); if (input) input.classList.add('field-error'); });
+      elements.salesErrors.append(title, list); elements.salesErrors.hidden = false;
+    };
+    const applySales = (record) => { salesInputs().forEach((input) => { const value = record && record[input.dataset.salesField]; input.value = value === null || typeof value === 'undefined' ? '' : String(value); }); updateSalesPreview(); };
+    const updateSalesPreview = () => {
+      const p = salesPayload();
+      const parsed = ['total_sale', 'mada_sales', 'cash_sales', 'app_sales', 'cash_expense', 'cash_float_carried_forward', 'cash_deposited'].reduce((all, key) => { all[key] = p[key] === '' ? null : Number(p[key]); return all; }, {});
+      const bill = p.bill_count === '' ? null : Number(p.bill_count);
+      elements.averageBill.textContent = parsed.total_sale !== null && Number.isFinite(parsed.total_sale) && Number.isInteger(bill) && bill > 0 ? `${money(parsed.total_sale / bill)} ر.س` : '—';
+      if ([parsed.total_sale, parsed.mada_sales, parsed.cash_sales, parsed.app_sales].every(Number.isFinite)) { const diff = parsed.mada_sales + parsed.cash_sales + parsed.app_sales - parsed.total_sale; elements.paymentPreview.textContent = `فرق طرق الدفع: ${money(diff)} ر.س`; elements.paymentPreview.classList.toggle('error', Math.abs(diff) > .01); } else { elements.paymentPreview.textContent = 'أدخل طرق الدفع لعرض المطابقة.'; elements.paymentPreview.classList.remove('error'); }
+      elements.cashSalesCopy.textContent = Number.isFinite(parsed.cash_sales) ? `${money(parsed.cash_sales)} ر.س` : '—';
+      if ([parsed.cash_sales, parsed.cash_expense, parsed.cash_float_carried_forward, parsed.cash_deposited].every(Number.isFinite)) { const expected = parsed.cash_sales - parsed.cash_expense - parsed.cash_float_carried_forward; const diff = parsed.cash_deposited - expected; elements.cashPreview.textContent = `الكاش المتوقع تسليمه: ${money(expected)} ر.س — فرق الكاش: ${money(diff)} ر.س`; elements.cashPreview.classList.toggle('error', expected < 0 || Math.abs(diff) > .01); } else { elements.cashPreview.textContent = 'الكاش المتوقع تسليمه = مبيعات الكاش - المصروف - رصيد الصندوق المرحّل.'; elements.cashPreview.classList.remove('error'); }
+      const expenseRequired = Number.isFinite(parsed.cash_expense) && parsed.cash_expense > 0;
+      elements.salesForm.querySelector('[data-sales-field="expense_type"]').required = expenseRequired; elements.salesForm.querySelector('[data-sales-field="expense_details"]').required = expenseRequired;
+    };
+    const setSalesReadOnly = (readOnly) => { salesInputs().forEach((input) => { if (input.tagName === 'SELECT') input.disabled = readOnly; else input.readOnly = readOnly; }); elements.saveSales.hidden = readOnly; elements.submitSales.hidden = readOnly; };
+    const loadSalesView = async () => {
+      if (!state.shift) return setMessage(elements.dashboardMessage, 'يجب فتح الشفت أولًا.');
+      switchView('sales'); elements.salesContext.textContent = contextText(); resetSalesErrors(); setMessage(elements.salesMessage, '');
+      if (state.salesLoaded && state.contextKey === selectedContextKey()) {
+        if (state.sales) { applySales(state.sales.sales); elements.salesBadge.textContent = statusArabic(state.sales.sales.status); elements.salesBadge.className = `status ${String(state.sales.sales.status).toLowerCase()}`; setSalesReadOnly(['SUBMITTED', 'LOCKED'].includes(String(state.sales.sales.status))); }
+        else { applySales(null); elements.salesBadge.textContent = 'لم يبدأ'; elements.salesBadge.className = 'status'; setSalesReadOnly(false); }
+        return;
+      }
+      try {
+        const data = await request('loadSalesDraft', [token(), state.shift.shift_id], 'sales-load'); state.sales = data; state.salesLoaded = true; applySales(data.sales); elements.salesBadge.textContent = statusArabic(data.sales.status); elements.salesBadge.className = `status ${String(data.sales.status).toLowerCase()}`; setSalesReadOnly(['SUBMITTED', 'LOCKED'].includes(String(data.sales.status)));
+      } catch (error) {
+        if (error.code === 'SALES_NOT_FOUND') { state.sales = null; state.salesLoaded = true; applySales(null); elements.salesBadge.textContent = 'لم يبدأ'; elements.salesBadge.className = 'status'; setSalesReadOnly(false); }
+        else { setMessage(elements.salesMessage, error.message); }
+      }
+    };
+    const saveSalesDraft = async () => { setBusy(elements.saveSales, true); resetSalesErrors(); try { const data = await request('saveSalesDraft', [token(), state.shift.shift_id, salesPayload()], 'sales-save'); state.sales = data; applySales(data.sales); elements.salesBadge.textContent = statusArabic(data.sales.status); setMessage(elements.salesMessage, 'تم حفظ مسودة المبيعات.', true); await loadModuleStatuses(); } catch (error) { displaySalesErrors(error.data); setMessage(elements.salesMessage, error.message); } finally { setBusy(elements.saveSales, false); } };
+    const submitSales = async () => {
+      setBusy(elements.submitSales, true); resetSalesErrors();
+      try { await request('validateSales', [salesPayload()], 'sales-validate'); if (!await confirmAction('إرسال المبيعات', 'بعد الإرسال لن يستطيع مستخدم الفرع تعديل مبيعات هذا الشفت.')) return; const data = await request('submitSales', [token(), state.shift.shift_id, salesPayload()], 'sales-submit'); state.sales = data; applySales(data.sales); setSalesReadOnly(true); elements.salesBadge.textContent = statusArabic(data.sales.status); elements.salesBadge.className = 'status submitted'; setMessage(elements.salesMessage, 'تم إرسال المبيعات بنجاح.', true); await loadModuleStatuses(); }
+      catch (error) { displaySalesErrors(error.data); setMessage(elements.salesMessage, error.message); }
+      finally { setBusy(elements.submitSales, false); }
+    };
+
+    const inventoryPayload = () => ({ general_notes: elements.inventoryNotes.value.trim(), items: [...elements.inventoryBody.querySelectorAll('tr')].map((row) => ({ brand_item_id: row.dataset.itemId, received_qty: row.querySelector('[data-field="received_qty"]').value.trim(), returned_qty: row.querySelector('[data-field="returned_qty"]').value.trim(), damaged_qty: row.querySelector('[data-field="damaged_qty"]').value.trim(), closing_balance: row.querySelector('[data-field="closing_balance"]').value.trim(), item_notes: row.querySelector('[data-field="item_notes"]').value.trim() })) });
+    const makeCell = (label, value) => { const cell = document.createElement('td'); cell.dataset.label = label; cell.textContent = value === null || typeof value === 'undefined' || value === '' ? '—' : String(value); return cell; };
+    const renderInventory = (data) => {
+      state.inventory = data; state.inventoryLoaded = true; elements.inventoryBody.replaceChildren(); elements.inventoryNotes.value = data.general_notes || '';
+      const fragment = document.createDocumentFragment();
+      const readOnly = Boolean(data.read_only) || ['SUBMITTED', 'LOCKED'].includes(String(data.status));
+      (data.items || []).forEach((item) => {
+        const row = document.createElement('tr'); row.dataset.itemId = String(item.brand_item_id);
+        const statusCell = makeCell('الحالة', ''); const status = document.createElement('span'); status.className = `row-state ${String(item.row_status || 'INCOMPLETE').toLowerCase()}`; status.textContent = statusArabic(item.row_status || 'INCOMPLETE'); statusCell.appendChild(status); row.appendChild(statusCell);
+        row.append(makeCell('الصنف', item.item_name), makeCell('الوحدة', item.unit), makeCell('رصيد الافتتاح', money(item.opening_balance)));
+        [['received_qty','الوارد'],['returned_qty','المرتجع'],['damaged_qty','التالف'],['closing_balance','رصيد الإقفال']].forEach(([field,label]) => { const cell = document.createElement('td'); cell.dataset.label = label; const input = document.createElement('input'); input.dataset.field = field; input.inputMode = 'decimal'; input.setAttribute('aria-label', `${label} — ${item.item_name}`); input.value = item[field] === null || typeof item[field] === 'undefined' ? '' : String(item[field]); input.readOnly = readOnly; cell.appendChild(input); row.appendChild(cell); });
+        row.appendChild(makeCell('الاستهلاك', money(item.consumption_qty)));
+        const noteCell = document.createElement('td'); noteCell.dataset.label = 'ملاحظات'; const note = document.createElement('input'); note.dataset.field = 'item_notes'; note.setAttribute('aria-label', `ملاحظات — ${item.item_name}`); note.value = item.item_notes || ''; note.readOnly = readOnly; noteCell.appendChild(note); row.appendChild(noteCell);
+        fragment.appendChild(row);
+      });
+      elements.inventoryBody.appendChild(fragment);
+      elements.inventoryNotes.readOnly = readOnly; elements.saveInventory.hidden = readOnly; elements.submitInventory.hidden = readOnly;
+      elements.inventoryBadge.textContent = statusArabic(data.status || 'DRAFT'); elements.inventoryBadge.className = `status ${String(data.status || 'DRAFT').toLowerCase()}`;
+    };
+    const displayInventoryErrors = (validation) => { elements.inventoryErrors.replaceChildren(); const errors = validation && Array.isArray(validation.errors) ? validation.errors : []; if (!errors.length) { elements.inventoryErrors.hidden = true; return; } const title = document.createElement('strong'); title.textContent = 'يرجى مراجعة صفوف الجرد:'; const list = document.createElement('ul'); errors.forEach((error) => { const li = document.createElement('li'); li.textContent = [error.brand_item_id, error.field, error.code].filter(Boolean).join(' · '); list.appendChild(li); const row = error.brand_item_id ? elements.inventoryBody.querySelector(`tr[data-item-id="${CSS.escape(String(error.brand_item_id))}"]`) : null; if (row) row.classList.add('invalid-row'); }); elements.inventoryErrors.append(title, list); elements.inventoryErrors.hidden = false; };
+    const loadInventoryView = async () => { if (!state.shift) return setMessage(elements.dashboardMessage, 'يجب فتح الشفت أولًا.'); switchView('inventory'); elements.inventoryContext.textContent = contextText(); setMessage(elements.inventoryMessage, ''); elements.inventoryErrors.hidden = true; if (state.inventoryLoaded && state.inventory && state.contextKey === selectedContextKey()) return renderInventory(state.inventory); try { renderInventory(await request('loadInventoryDraft', [token(), state.shift.shift_id], 'inventory-load')); } catch (error) { setMessage(elements.inventoryMessage, error.message); } };
+    const saveInventoryDraft = async () => { setBusy(elements.saveInventory, true); try { const data = await request('saveInventoryDraft', [token(), state.shift.shift_id, inventoryPayload()], 'inventory-save'); renderInventory(data); displayInventoryErrors({ errors: (data.items || []).flatMap((item) => (item.errors || []).map((error) => ({ code: error.code, field: error.field, brand_item_id: item.brand_item_id }))) }); setMessage(elements.inventoryMessage, 'تم حفظ مسودة الجرد.', true); await loadModuleStatuses(); } catch (error) { setMessage(elements.inventoryMessage, error.message); } finally { setBusy(elements.saveInventory, false); } };
+    const submitInventory = async () => { setBusy(elements.submitInventory, true); try { const payload = inventoryPayload(); const validation = await request('validateInventory', [token(), state.shift.shift_id, payload, 'SUBMIT'], 'inventory-validate'); if (!validation.valid) { displayInventoryErrors(validation); throw new ServerError('INVENTORY_VALIDATION_FAILED', 'بيانات الجرد غير مكتملة أو غير صحيحة.', validation); } if (!await confirmAction('إرسال الجرد', 'يجب أن تكون جميع الأصناف مكتملة. بعد الإرسال لن يستطيع مستخدم الفرع تعديل بيانات الجرد.')) return; if (!state.inventory || !state.inventory.inventory_id) state.inventory = await request('saveInventoryDraft', [token(), state.shift.shift_id, payload], 'inventory-initial-save'); const data = await request('submitInventory', [token(), state.shift.shift_id, payload], 'inventory-submit'); renderInventory(data); setMessage(elements.inventoryMessage, 'تم إرسال الجرد بنجاح.', true); await loadModuleStatuses(); } catch (error) { if (error.data) displayInventoryErrors(error.data); setMessage(elements.inventoryMessage, error.message); } finally { setBusy(elements.submitInventory, false); } };
+
+    let dialogResolver = null, previousFocus = null;
+    const confirmAction = (title, description) => new Promise((resolve) => { previousFocus = document.activeElement; dialogResolver = resolve; elements.dialogTitle.textContent = title; elements.dialogDescription.textContent = description; elements.dialog.hidden = false; elements.dialogCancel.focus(); });
+    const closeDialog = (result) => { elements.dialog.hidden = true; const resolver = dialogResolver; dialogResolver = null; if (previousFocus) previousFocus.focus(); if (resolver) resolver(result); };
+
+    elements.pin.addEventListener('input', () => { elements.pin.value = elements.pin.value.replace(/\D/g, '').slice(0, 6); });
+    elements.loginForm.addEventListener('submit', async (event) => { event.preventDefault(); setMessage(elements.loginMessage, ''); if (!elements.loginForm.reportValidity()) return; setBusy(elements.loginButton, true); elements.username.disabled = true; elements.pin.disabled = true; elements.loginLabel.hidden = true; elements.loginLoading.hidden = false; try { const response = await request('login', [elements.username.value.trim(), elements.pin.value], 'login'); elements.pin.value = ''; if (!response.session_token) throw new ServerError('INVALID_CREDENTIALS', 'تعذر تسجيل الدخول.'); sessionStorage.setItem(SESSION_KEY, response.session_token); showDashboard(response.user || {}); await loadDashboard(); } catch (error) { setMessage(elements.loginMessage, error.message || 'تعذر تسجيل الدخول.'); } finally { setBusy(elements.loginButton, false); elements.username.disabled = false; elements.pin.disabled = false; elements.loginLabel.hidden = false; elements.loginLoading.hidden = true; } });
+    elements.logoutButton.addEventListener('click', async () => { setBusy(elements.logoutButton, true); try { if (token()) await request('logout', [token()], 'logout'); } catch (error) { /* Local logout must still complete. */ } finally { setBusy(elements.logoutButton, false); showLogin('تم تسجيل الخروج بنجاح.'); } });
+    elements.refreshShift.addEventListener('click', loadDashboard); elements.openShift.addEventListener('click', openSelectedShift);
+    [elements.businessDate, elements.shiftNumber].forEach((control) => control.addEventListener('change', loadDashboard));
+    elements.openSales.addEventListener('click', loadSalesView); elements.openInventory.addEventListener('click', loadInventoryView);
+    document.querySelectorAll('.back-dashboard').forEach((button) => button.addEventListener('click', async () => { showDashboard(state.user); if (hasCurrentDashboardState()) renderCachedDashboard(); else await loadDashboard(); }));
+    salesInputs().forEach((input) => input.addEventListener('input', updateSalesPreview)); elements.saveSales.addEventListener('click', saveSalesDraft); elements.submitSales.addEventListener('click', submitSales);
+    elements.saveInventory.addEventListener('click', saveInventoryDraft); elements.submitInventory.addEventListener('click', submitInventory);
+    elements.dialogCancel.addEventListener('click', () => closeDialog(false)); elements.dialogConfirm.addEventListener('click', () => closeDialog(true));
+    elements.dialog.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeDialog(false); if (event.key === 'Tab') { const controls = [elements.dialogCancel, elements.dialogConfirm], first = controls[0], last = controls[1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } } });
+
+    const restore = async () => { elements.businessDate.value = sessionStorage.getItem(DATE_KEY) || today(); elements.shiftNumber.value = sessionStorage.getItem(SHIFT_KEY) || '1'; if (!token()) return showLogin(); try { /* getCurrentUser performs the same full readSession_ validation, so a separate validateSession call would duplicate the secure cache lookup. */ const current = await request('getCurrentUser', [token()], 'current-user'); if (!current.user) throw new ServerError('INVALID_SESSION', 'تعذر تحميل بيانات المستخدم.'); showDashboard(current.user); await loadDashboard(); } catch (error) { showLogin(error.message); } };
+    restore();
+  })();
+</script>

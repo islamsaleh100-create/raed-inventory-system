@@ -1,4 +1,4 @@
-/** Shared authentication utilities. Never log passwords, hashes, salts, or full tokens. */
+/** Shared authentication and session utilities. Never log PINs or full tokens. */
 function createInternalError_(code) {
   var error = new Error(code);
   error.internalCode = code;
@@ -24,74 +24,6 @@ function unsignedBytes_(bytes) {
 
 function signedBytes_(bytes) {
   return bytes.map(function (value) { return value > 127 ? value - 256 : value; });
-}
-
-function int32Bytes_(value) {
-  return [(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255];
-}
-
-function hmacSha256_(messageBytes, keyBytes) {
-  return unsignedBytes_(Utilities.computeHmacSha256Signature(
-    signedBytes_(messageBytes), signedBytes_(keyBytes)
-  ));
-}
-
-/** Standards-compatible PBKDF2-HMAC-SHA256, one 32-byte derived-key block. */
-function derivePasswordBytes_(password, saltBytes, iterations) {
-  var keyBytes = utf8Bytes_(password);
-  var block = saltBytes.concat(int32Bytes_(1));
-  var u = hmacSha256_(block, keyBytes);
-  var output = u.slice();
-  for (var i = 1; i < iterations; i += 1) {
-    u = hmacSha256_(u, keyBytes);
-    for (var j = 0; j < output.length; j += 1) output[j] ^= u[j];
-  }
-  return output;
-}
-
-function constantTimeEqual_(left, right) {
-  var a = left || [];
-  var b = right || [];
-  var length = Math.max(a.length, b.length);
-  var difference = a.length ^ b.length;
-  for (var i = 0; i < length; i += 1) {
-    difference |= (a[i % (a.length || 1)] || 0) ^ (b[i % (b.length || 1)] || 0);
-  }
-  return difference === 0;
-}
-
-function createPasswordHash(password) {
-  if (typeof password !== 'string' || password.length < AUTH_CONFIG.PASSWORD_MIN_LENGTH) {
-    throw createInternalError_('INVALID_PASSWORD_POLICY');
-  }
-  var entropy = Utilities.getUuid() + '|' + new Date().getTime() + '|' + Math.random();
-  var salt = unsignedBytes_(Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256, utf8Bytes_(entropy)
-  )).slice(0, 16);
-  var derived = derivePasswordBytes_(password, salt, AUTH_CONFIG.HASH_ITERATIONS);
-  return [
-    AUTH_CONFIG.HASH_VERSION,
-    AUTH_CONFIG.HASH_ITERATIONS,
-    Utilities.base64Encode(signedBytes_(salt)),
-    Utilities.base64Encode(signedBytes_(derived))
-  ].join('$');
-}
-
-function verifyPassword(password, storedHash) {
-  try {
-    if (typeof password !== 'string' || !password || typeof storedHash !== 'string') return false;
-    var parts = storedHash.split('$');
-    if (parts.length !== 4 || parts[0] !== AUTH_CONFIG.HASH_VERSION) return false;
-    var iterations = Number(parts[1]);
-    if (!Number.isInteger(iterations) || iterations < 10000 || iterations > 1000000) return false;
-    var salt = unsignedBytes_(Utilities.base64Decode(parts[2]));
-    var expected = unsignedBytes_(Utilities.base64Decode(parts[3]));
-    if (salt.length < 16 || expected.length !== 32) return false;
-    var actual = derivePasswordBytes_(password, salt, iterations);
-    return constantTimeEqual_(actual, expected);
-  } catch (error) {
-    return false;
-  }
 }
 
 function sha256Hex_(value) {
