@@ -1241,7 +1241,9 @@
     "kitchens": "مواقع المطابخ",
     "items": "الأصناف",
     "settings": "الإعدادات",
-    "assistant_suggestions": "اقتراحات المساعد"
+    "assistant_suggestions": "اقتراحات المساعد",
+    "shift_ops": "عمليات الشفت",
+    "daily_inventory_legacy": "الجرد اليومي (قديم)"
   },
   "roles": {
     "super_admin": "مدير النظام",
@@ -1589,6 +1591,123 @@
         "rejected": "مرفوضة",
         "implemented": "تم التنفيذ"
       }
+    }
+  },
+  "shift_ops": {
+    "title": "عمليات الشفت",
+    "open_shift": "فتح شفت جديد",
+    "opened": "تم فتح الشفت",
+    "shift_date": "تاريخ الشفت",
+    "shift_number": "رقم الشفت",
+    "shift_n": "الشفت {n}",
+    "count": "الجرد",
+    "cash": "الكاش",
+    "partial": "ناقص",
+    "filter_partial_only": "الشفتات الناقصة فقط",
+    "shift_config_unavailable": "إعدادات شفتات الفرع غير متاحة — راجع الإدارة",
+    "override_warning": "الشفت السابق غير مقفول. المتابعة ستقفله استثنائيًا.",
+    "override_reason_placeholder": "سبب التجاوز (٥ أحرف على الأقل)",
+    "confirm_override": "تأكيد التجاوز وفتح الشفت",
+    "locked_readonly": "الشفت مقفول — عرض فقط",
+    "opening": "رصيد أول",
+    "negative_movement_hint": "فرق الحركة سالب — السبب مطلوب، والترحيل غير ممنوع",
+    "movement_reason_placeholder": "سبب الفرق (وارد غير مسجّل، تحويل، ...)",
+    "completed_of": "{done} من {total} مكتمل",
+    "reason_missing": "سبب فرق الحركة مطلوب",
+    "submit_count": "ترحيل الجرد",
+    "count_submitted": "تم ترحيل الجرد",
+    "submit_cash": "ترحيل الكاش",
+    "cash_submitted": "تم ترحيل الكاش",
+    "group_sales": "المبيعات",
+    "group_informational": "معلومات فقط",
+    "group_drawer": "تسوية الصندوق",
+    "informational_hint": "هذه الحقول للتسجيل فقط ولا تدخل في أي معادلة أو مراجعة",
+    "payment_match": "✓ طرق الدفع مطابقة للإجمالي",
+    "payment_mismatch": "✗ فرق {diff} — طرق الدفع لا تساوي الإجمالي",
+    "expected_deposited": "الكاش المتوقع تسليمه",
+    "variance": "الفرق",
+    "variance_reason": "سبب الفرق",
+    "variance_over_tolerance": "تعدّى الحد المسموح ({tol}). السبب إلزامي",
+    "negative_expected": "الكاش المتوقع سالب — راجع المصروف والعهدة المرحّلة",
+    "cash_ready": "الكاش جاهز للترحيل",
+    "cash_incomplete": "الكاش غير مكتمل",
+    "reopen": "إعادة فتح",
+    "confirm_reopen": "تأكيد إعادة الفتح",
+    "reopened": "تمت إعادة الفتح",
+    "reopen_reason_placeholder": "سبب إعادة الفتح (٥ أحرف على الأقل)",
+    "close_no_activity": "إغلاق بلا نشاط",
+    "confirm_close_no_activity": "تأكيد الإغلاق",
+    "closed_no_activity": "تم الإغلاق بلا نشاط",
+    "close_reason_placeholder": "السبب (٥ أحرف على الأقل)",
+    "report_title": "تقرير عمليات الشفت",
+    "movement_total": "إجمالي فرق الحركة",
+    "damaged_total": "إجمالي التالف",
+    "negative_exceptions": "استثناءات الحركة السالبة",
+    "reopen_events": "أحداث إعادة الفتح",
+    "chain_gap": "فجوة في سلسلة الرصيد",
+    "status": {
+      "draft": "مسودة",
+      "submitted": "مُرحَّل",
+      "exception_locked": "مقفول استثنائيًا"
+    },
+    "section_status": {
+      "draft": "مسودة",
+      "submitted": "مُرحَّل",
+      "none": "لم يبدأ"
+    },
+    "exception_type": {
+      "stuck_previous": "شفت سابق عالق",
+      "branch_closed": "الفرع مغلق",
+      "manual_gap": "فجوة يدوية"
+    },
+    "reopen_target": {
+      "count": "الجرد",
+      "cash": "الكاش",
+      "both": "الاثنان"
+    },
+    "expense_type": {
+      "invoices": "فواتير",
+      "advance": "سلفة",
+      "handed_to_person": "تسليم لشخص",
+      "operational": "تشغيلي",
+      "other": "أخرى"
+    },
+    "field": {
+      "received_qty": "وارد",
+      "returned_qty": "مرتجع",
+      "damaged_qty": "تالف",
+      "closing_balance": "رصيد آخر",
+      "movement_diff": "فرق الحركة",
+      "total_sale": "إجمالي المبيعات",
+      "bill_count": "عدد الفواتير",
+      "mada_sales": "مدى",
+      "cash_sales": "كاش",
+      "app_sales": "تطبيقات",
+      "refund_bill": "مرتجع فواتير",
+      "exchange_amount": "استبدال",
+      "expiry_amount": "تالف/منتهي",
+      "cash_expense": "المصروف من الكاش",
+      "cash_float_carried_forward": "العهدة المرحّلة",
+      "cash_deposited": "الكاش المُسلَّم",
+      "expense_type": "نوع المصروف",
+      "expense_details": "تفاصيل المصروف",
+      "cash_variance_reason": "سبب الفرق"
+    },
+    "filter": {
+      "partial_only": "ناقصة",
+      "exception_only": "استثنائية",
+      "reopened_only": "مُعاد فتحها",
+      "variance_only": "بها فرق كاش",
+      "negative_movement_only": "حركة سالبة"
+    },
+    "error": {
+      "PAYMENT_METHODS_MISMATCH": "طرق الدفع لا تساوي الإجمالي",
+      "EXPENSE_EXCEEDS_CASH": "المصروف أكبر من مبيعات الكاش",
+      "CASH_FLOAT_EXCEEDS_AVAILABLE_CASH": "العهدة أكبر من الكاش المتاح",
+      "NEGATIVE_EXPECTED_CASH": "الكاش المتوقع سالب",
+      "CASH_VARIANCE_REASON_REQUIRED": "سبب الفرق مطلوب",
+      "BILL_COUNT_REQUIRED": "عدد الفواتير مطلوب",
+      "REQUIRED": "هذا الحقل مطلوب"
     }
   }
 }

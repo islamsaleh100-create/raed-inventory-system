@@ -1,0 +1,170 @@
+......................ssssssss..................F...........FFFFFFFFFF.. [  9%]
+.....FFFFFFFFFFFF.......FFFFF...........F.FFFF.FFFFF.F.FFFFFFFFFF.....FF [ 18%]
+FFFF..FFFFFFFFF..F...FFF.......F........................................ [ 28%]
+...........ssssssssssss.F.FFF.......ssssssssssssssssssssssssssssssssssss [ 37%]
+ssssssss...sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 47%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss [ 56%]
+sssssss.....................ssssssssssssssssssssssssssssssssssssssssssss [ 66%]
+ssssssssssssssssssssssss..............................................F. [ 75%]
+.F...........FF..F.F..FFF..FFFFFFF.FF..FFFFFFFFFFFF...................FF [ 85%]
+........................................FF.............................. [ 94%]
+........................FFFFF...F........                                [100%]
+=============================== warnings summary ===============================
+app/database.py:25
+  /root/be/app/database.py:25: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+../../usr/local/lib/python3.11/dist-packages/pydantic/_internal/_config.py:284
+  /usr/local/lib/python3.11/dist-packages/pydantic/_internal/_config.py:284: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.7/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/main.py:296
+  /root/be/app/main.py:296: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../usr/local/lib/python3.11/dist-packages/fastapi/applications.py:4495
+../../usr/local/lib/python3.11/dist-packages/fastapi/applications.py:4495
+  /usr/local/lib/python3.11/dist-packages/fastapi/applications.py:4495: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+app/main.py:315
+  /root/be/app/main.py:315: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_sales_channels_api.py::test_daily_sales_batch_maps_orders_count_rule_error
+tests/test_sales_channels_api.py::test_patch_daily_sale_edit_window_maps_to_403
+tests/test_sales_channels_api.py::test_patch_daily_sale_locked_month_maps_to_423
+tests/test_sales_channels_api.py::test_create_closure_duplicate_maps_to_409
+  C:\raed_inventory_system\raed_inventory\backend\tests\conftest.py:67: SAWarning: transaction already deassociated from connection
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_01_audit_approve_inventory_writes_log
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_13_import_items_create_new
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_14_import_items_update_existing
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_15_import_items_bad_category_error
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_16_import_branch_stock_success
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_17_import_branch_stock_unknown_branch_error
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_18_import_warehouse_stock_create
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_19_import_non_admin_forbidden
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_20_import_empty_file_400
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_21_import_items_missing_item_code_error
+FAILED tests/test_epic14_15_unittest.py::TestEpic1415::test_22_import_audit_trail_written
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_create_branch_returns_201
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_create_category_returns_201
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_create_receiving_variance_reason
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_create_unit_returns_201
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_create_variance_reason
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_create_warehouse_returns_201
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_delete_category_blocked_when_active_items_exist
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_delete_category_deactivates_it
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_delete_receiving_variance_reason_deactivates
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_delete_unit_blocked_when_active_items_exist
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_delete_unit_deactivates_it
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_delete_variance_reason_deactivates
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_init_branch_stock_creates_stock_record_and_ledger_entry
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_init_branch_stock_item_not_found_returns_404
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_init_branch_stock_negative_qty_returns_422
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_init_branch_stock_second_call_adjusts_qty
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_init_warehouse_stock_creates_stock_record
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_update_category_changes_name
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_update_receiving_variance_reason
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_update_unit_changes_name
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_update_variance_reason
+FAILED tests/test_epic2_master_data_unittest.py::Epic2MasterDataTests::test_variance_reason_404_for_missing
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_create_inventory_returns_201
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_delete_draft_also_removes_lines
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_delete_draft_inventory_removes_it_from_db
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_delete_nonexistent_inventory_returns_404
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_delete_submitted_inventory_returns_400
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_old_auth_prefix_gone
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_patch_line_404_for_unknown_line
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_patch_line_blocked_for_submitted_inventory
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_patch_line_negative_qty_returns_422
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_patch_line_only_updates_provided_fields
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_patch_line_out_of_stock_flag_set_when_counted_zero
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_patch_line_updates_counted_qty_and_recalculates_variance
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_reopen_clears_rejection_reason
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_reopen_non_rejected_inventory_returns_400
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_reopen_rejected_inventory_moves_to_draft
+FAILED tests/test_epic3_inventory_workflow_unittest.py::Epic3InventoryWorkflowTests::test_submit_with_same_idempotency_key_replays_without_error
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e4_cancel_already_cancelled_order_idempotent
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e4_cancel_draft_order_by_branch
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e4_cancel_requires_reason
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e4_close_dispatched_order
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e4_close_draft_order_blocked
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e4_exceptional_returns_201
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_branch_stock_decrease
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_branch_stock_increase
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_branch_stock_set
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_invalid_adjustment_type
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_negative_qty_rejected
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_transfer_branch_to_wh
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_transfer_wh_to_branch
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_transfer_wh_to_branch_insufficient_stock
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e5_warehouse_stock_increase
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e6_low_stock_by_branch
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e7_change_password_success
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e7_change_password_too_short
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e7_change_password_wrong_current
+FAILED tests/test_epic4_9_unittest.py::TestEpic4To9::test_e9_low_stock_alerts
+FAILED tests/test_inter_branch_order_workflow.py::test_approve_moves_stock_and_closes_order
+FAILED tests/test_inter_branch_order_workflow.py::test_approve_insufficient_stock_fails
+FAILED tests/test_inter_branch_order_workflow.py::test_reject_marks_status_and_reason
+FAILED tests/test_inter_branch_order_workflow.py::test_pending_list_excludes_out_of_region
+FAILED tests/test_sales_channels_api.py::test_daily_sales_batch_allowed_for_area_manager
+FAILED tests/test_sales_channels_api.py::test_reconciliation_read_allowed_for_area_manager
+FAILED tests/test_security_and_workflow_fixes.py::test_branch_user_cannot_review_other_branch_order
+FAILED tests/test_security_and_workflow_fixes.py::test_warehouse_user_cannot_access_other_warehouse_order
+FAILED tests/test_security_and_workflow_fixes.py::test_direct_warehouse_approval_sets_fully_approved_status
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_approve_replays_completed_idempotent_request
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_branch_user_cannot_review_other_branch_order
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_direct_warehouse_approval_sets_fully_approved_status
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_dispatch_replays_completed_idempotent_request_without_double_stock_effect
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_inventory_approve_replays_completed_idempotent_request_without_double_stock_effect
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_inventory_reject_requires_reason_with_standard_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_branch_duplicate_missing_branch_and_missing_warehouse_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_category_create_list_and_duplicate_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_item_duplicate_code_uses_standard_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_item_missing_category_uses_standard_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_item_missing_unit_uses_standard_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_item_rejects_non_positive_conversion_ratio
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_item_requires_purchase_and_supply_units_together
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_item_stock_card_returns_ledger_transactions
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_item_stock_card_supports_reference_filter
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_item_stock_card_supports_transaction_type_filter
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_items_support_expanded_master_data_fields
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_unit_create_list_and_duplicate_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_master_warehouse_duplicate_and_not_found_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_orders_error_model_uses_error_code_message_detail_shape
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_receive_replays_completed_idempotent_request_without_double_stock_effect
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_reject_requires_reason_with_standard_error_model
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_start_picking_replays_completed_idempotent_request
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_submit_to_warehouse_replays_completed_idempotent_request
+FAILED tests/test_security_and_workflow_fixes_unittest.py::SecurityAndWorkflowFixesTests::test_warehouse_user_cannot_access_other_warehouse_order
+FAILED tests/test_settings_g3.py::test_bulk_update_rejects_null_value_with_422
+FAILED tests/test_settings_g3.py::test_bulk_update_accepts_integer_json_coerced_to_string
+FAILED tests/test_supply_chain_phase1_branch_requests.py::test_allowed_items_are_filtered_by_request_brand
+FAILED tests/test_supply_chain_phase1_branch_requests.py::test_allowed_items_infers_single_branch_brand
+FAILED tests/test_supply_chain_phase1_branch_requests.py::test_delivery_user_can_move_order_out_for_delivery_and_deliver
+FAILED tests/test_supply_chain_phase1_branch_requests.py::test_delivery_updates_branch_stock_and_receipt_ledger
+FAILED tests/test_supply_chain_phase1_branch_requests.py::test_delivery_supports_partial_receipt_without_over_crediting_branch_stock
+FAILED tests/test_supply_chain_phase1_branch_requests.py::test_deliver_is_idempotent_and_does_not_double_increment_branch_stock
+FAILED tests/test_supply_chain_phase1_branch_requests.py::test_deliver_idempotency_key_after_prior_deliver_without_key_is_completed
+FAILED tests/test_supply_chain_phase1_branch_requests.py::test_supply_chain_dashboard_returns_expected_kpi_structure
+113 failed, 376 passed, 272 skipped, 22 deselected, 10 warnings in 727.54s (0:12:07)

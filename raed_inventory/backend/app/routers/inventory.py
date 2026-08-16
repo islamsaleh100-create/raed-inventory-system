@@ -25,7 +25,10 @@ from app.services import inventory_service, replenishment_service
 router = APIRouter(prefix="/api/v1/inventory", tags=["Daily Inventory"])
 
 _BRANCH_ROLES = ("branch_user", "branch_manager", "admin", "super_admin")
-_APPROVAL_ROLES = ("branch_manager", "admin", "super_admin")
+# branch_manager أُزيل 2026-08-15: أصبح الدور التشغيلي الوحيد على مستوى الفرع، وموديول الجرد
+# القديم يولّد أمر تجديد للمستودع تلقائيًا عند الاعتماد (inventory_service.py:210).
+# الفروع تستخدم /api/v1/shift-ops بدلًا منه. يحرس: approve · reject · trigger-replenishment.
+_APPROVAL_ROLES = ("admin", "super_admin")
 
 
 # ──────────────────────────────────────────────────────────────────────────

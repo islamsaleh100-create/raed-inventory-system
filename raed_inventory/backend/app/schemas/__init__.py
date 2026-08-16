@@ -2341,4 +2341,57 @@ class SystemSettingUpdate(BaseModel):
 
 class SystemSettingsBulkUpdate(BaseModel):
     # { "days_of_cover_target": "3", ... } — values may be JSON strings or numbers (coerced to str by the router)
-    settings: dict 
+    settings: dict
+
+
+# ─── Shift Operations ────────────────────────────────────────────────────────
+class ShiftOpenPayload(BaseModel):
+    branch_id: Optional[int] = None
+    shift_date: date
+    shift_number: int = Field(..., ge=1, le=3)
+    override: bool = False
+    override_reason: Optional[str] = Field(None, max_length=300)
+
+
+class ShiftReopenPayload(BaseModel):
+    target: str = Field(..., pattern="^(count|cash|both)$")
+    reason: str = Field(..., min_length=5, max_length=300)
+    admin_override: bool = False
+
+
+class ShiftCloseNoActivityPayload(BaseModel):
+    exception_type: str = Field(..., pattern="^(branch_closed|manual_gap)$")
+    reason: str = Field(..., min_length=5, max_length=300)
+
+
+class ShiftCountLinePatch(BaseModel):
+    item_id: int
+    received_qty: Optional[float] = None
+    returned_qty: Optional[float] = None
+    damaged_qty: Optional[float] = None
+    closing_balance: Optional[float] = None
+    movement_exception_reason: Optional[str] = Field(None, max_length=300)
+    item_notes: Optional[str] = None
+
+
+class ShiftCountLinesPatchPayload(BaseModel):
+    lines: list[ShiftCountLinePatch]
+
+
+class ShiftOpsCashSavePayload(BaseModel):
+    total_sale: Optional[float] = None
+    bill_count: Optional[int] = None
+    mada_sales: Optional[float] = None
+    cash_sales: Optional[float] = None
+    app_sales: Optional[float] = None
+    refund_bill: Optional[float] = None
+    exchange_amount: Optional[float] = None
+    expiry_amount: Optional[float] = None
+    cash_expense: Optional[float] = None
+    cash_float_carried_forward: Optional[float] = None
+    cash_deposited: Optional[float] = None
+    expense_type: Optional[str] = None
+    expense_details: Optional[str] = Field(None, max_length=300)
+    shift_notes: Optional[str] = None
+    cash_variance_reason: Optional[str] = Field(None, max_length=300)
+

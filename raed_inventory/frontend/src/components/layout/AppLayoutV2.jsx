@@ -26,7 +26,8 @@ const NAVIGATION = [
     sectionKey: 'nav.section_branch',
     roles: ['branch_user', 'branch_manager'],
     items: [
-      { to: '/inventory', icon: ClipboardList, labelKey: 'nav.daily_inventory', roles: ['branch_user', 'branch_manager'] },
+      { to: '/shift-ops', icon: ClipboardList, labelKey: 'nav.shift_ops', roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
+      { to: '/inventory', icon: ClipboardList, labelKey: 'nav.daily_inventory_legacy', roles: ['admin', 'super_admin'] },
       { to: '/orders', icon: Package, labelKey: 'nav.orders', roles: ['branch_user', 'branch_manager'] },
       { to: '/orders/daily', icon: ClipboardList, labelKey: 'nav.daily_order', roles: ['branch_manager', 'admin', 'super_admin'] },
       { to: '/receiving', icon: Truck, labelKey: 'nav.receiving', roles: ['branch_user', 'branch_manager'] },

@@ -21,7 +21,8 @@ const NAVIGATION = [
     section: 'الفرع',
     roles: ['branch_user', 'branch_manager'],
     items: [
-      { to: '/inventory', icon: ClipboardList, label: 'الجرد اليومي', roles: ['branch_user', 'branch_manager'] },
+      { to: '/shift-ops', icon: ClipboardList, label: 'عمليات الشفت', roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
+      { to: '/inventory', icon: ClipboardList, label: 'الجرد اليومي (قديم)', roles: ['admin', 'super_admin'] },
       { to: '/orders', icon: Package, label: 'الطلبيات', roles: ['branch_user', 'branch_manager'] },
       { to: '/receiving', icon: Truck, label: 'الاستلام', roles: ['branch_user', 'branch_manager'] },
       { to: '/branch-stock', icon: BarChart3, label: 'حالة المخزون', roles: ['branch_user', 'branch_manager'] },

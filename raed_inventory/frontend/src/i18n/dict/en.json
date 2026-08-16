@@ -1241,7 +1241,9 @@
     "kitchens": "Kitchen sites",
     "items": "Items",
     "settings": "Settings",
-    "assistant_suggestions": "Assistant Suggestions"
+    "assistant_suggestions": "Assistant Suggestions",
+    "shift_ops": "Shift Operations",
+    "daily_inventory_legacy": "Daily Inventory (legacy)"
   },
   "roles": {
     "super_admin": "Super admin",
@@ -1589,6 +1591,123 @@
         "rejected": "Rejected",
         "implemented": "Implemented"
       }
+    }
+  },
+  "shift_ops": {
+    "title": "Shift Operations",
+    "open_shift": "Open new shift",
+    "opened": "Shift opened",
+    "shift_date": "Shift date",
+    "shift_number": "Shift number",
+    "shift_n": "Shift {n}",
+    "count": "Count",
+    "cash": "Cash",
+    "partial": "Incomplete",
+    "filter_partial_only": "Incomplete shifts only",
+    "shift_config_unavailable": "Branch shift configuration unavailable — contact admin",
+    "override_warning": "The previous shift is not closed. Continuing will close it as an exception.",
+    "override_reason_placeholder": "Override reason (min 5 chars)",
+    "confirm_override": "Confirm override and open shift",
+    "locked_readonly": "Shift is locked — read only",
+    "opening": "Opening",
+    "negative_movement_hint": "Movement difference is negative — a reason is required, submission is not blocked",
+    "movement_reason_placeholder": "Reason (unrecorded receipt, transfer, ...)",
+    "completed_of": "{done} of {total} complete",
+    "reason_missing": "Movement exception reason required",
+    "submit_count": "Submit count",
+    "count_submitted": "Count submitted",
+    "submit_cash": "Submit cash",
+    "cash_submitted": "Cash submitted",
+    "group_sales": "Sales",
+    "group_informational": "Informational only",
+    "group_drawer": "Drawer reconciliation",
+    "informational_hint": "Recorded for reference only — not part of any formula or check",
+    "payment_match": "✓ Payment methods match the total",
+    "payment_mismatch": "✗ Off by {diff} — payment methods do not match the total",
+    "expected_deposited": "Expected cash to deposit",
+    "variance": "Variance",
+    "variance_reason": "Variance reason",
+    "variance_over_tolerance": "exceeds tolerance ({tol}); reason required",
+    "negative_expected": "Expected cash is negative — check expense and carried float",
+    "cash_ready": "Cash ready to submit",
+    "cash_incomplete": "Cash incomplete",
+    "reopen": "Reopen",
+    "confirm_reopen": "Confirm reopen",
+    "reopened": "Reopened",
+    "reopen_reason_placeholder": "Reopen reason (min 5 chars)",
+    "close_no_activity": "Close (no activity)",
+    "confirm_close_no_activity": "Confirm close",
+    "closed_no_activity": "Closed with no activity",
+    "close_reason_placeholder": "Reason (min 5 chars)",
+    "report_title": "Shift Operations Report",
+    "movement_total": "Total movement difference",
+    "damaged_total": "Total damaged",
+    "negative_exceptions": "Negative movement exceptions",
+    "reopen_events": "Reopen events",
+    "chain_gap": "Opening-balance chain gap",
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "exception_locked": "Exception locked"
+    },
+    "section_status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "none": "Not started"
+    },
+    "exception_type": {
+      "stuck_previous": "Previous shift stuck",
+      "branch_closed": "Branch closed",
+      "manual_gap": "Manual gap"
+    },
+    "reopen_target": {
+      "count": "Count",
+      "cash": "Cash",
+      "both": "Both"
+    },
+    "expense_type": {
+      "invoices": "Invoices",
+      "advance": "Advance",
+      "handed_to_person": "Handed to person",
+      "operational": "Operational",
+      "other": "Other"
+    },
+    "field": {
+      "received_qty": "Received",
+      "returned_qty": "Returned",
+      "damaged_qty": "Damaged",
+      "closing_balance": "Closing",
+      "movement_diff": "Movement difference",
+      "total_sale": "Total sales",
+      "bill_count": "Bills",
+      "mada_sales": "Mada",
+      "cash_sales": "Cash",
+      "app_sales": "Apps",
+      "refund_bill": "Refunded bills",
+      "exchange_amount": "Exchange",
+      "expiry_amount": "Expired/damaged",
+      "cash_expense": "Cash expense",
+      "cash_float_carried_forward": "Carried float",
+      "cash_deposited": "Cash deposited",
+      "expense_type": "Expense type",
+      "expense_details": "Expense details",
+      "cash_variance_reason": "Variance reason"
+    },
+    "filter": {
+      "partial_only": "Incomplete",
+      "exception_only": "Exception",
+      "reopened_only": "Reopened",
+      "variance_only": "Cash variance",
+      "negative_movement_only": "Negative movement"
+    },
+    "error": {
+      "PAYMENT_METHODS_MISMATCH": "Payment methods do not match the total",
+      "EXPENSE_EXCEEDS_CASH": "Expense exceeds cash sales",
+      "CASH_FLOAT_EXCEEDS_AVAILABLE_CASH": "Float exceeds available cash",
+      "NEGATIVE_EXPECTED_CASH": "Expected cash is negative",
+      "CASH_VARIANCE_REASON_REQUIRED": "Variance reason required",
+      "BILL_COUNT_REQUIRED": "Bill count required",
+      "REQUIRED": "This field is required"
     }
   }
 }

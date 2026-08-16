@@ -1732,6 +1732,23 @@ from app.models.sales_channels import (  # noqa: E402,F401
     ReconciliationSnapshot,
 )
 
+from app.models.branch_shift_ops import (  # noqa: E402,F401
+    BranchShiftConfig,
+    BranchShift,
+    BrandShiftCountItem,
+    BranchShiftCountExclusion,
+    BranchShiftCount,
+    BranchShiftCountLine,
+    BranchShiftCash,
+    BranchShiftReopenEvent,
+    BranchShiftStatus,
+    BranchShiftExceptionType,
+    ShiftSectionStatus,
+    ShiftCountRowStatus,
+    ShiftReopenTarget,
+    ShiftExpenseType,
+)
+
 # ─────────────────────────────────────────────
 # AI Assistant — User Suggestions
 # ─────────────────────────────────────────────

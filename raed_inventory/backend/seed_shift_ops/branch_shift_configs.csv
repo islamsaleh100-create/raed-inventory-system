@@ -1,0 +1,24 @@
+branch_code,branch_name,brand,shifts_per_day,source_of_truth,notes
+BR-DMM-04,Onda 1 - ARKAN,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-RYD-06,Onda 13 - Al Malqa,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-HSA-01,Onda 14 - HASSA,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-05,Onda 16 - Namjah,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-06,Onda 18 - Al Midra Gym,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-07,Onda 2 - HOQAIL,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-RYD-07,Onda 4 - SEFARAT,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-08,Onda 5 - MUOWASAT,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-RTN-01,Onda 9 - Ras Tanura,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-09,ONDA DAU University,ONDA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-KHB-02,Pizza 1 - AlKHOBAR,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-10,Pizza 10 - Mazaar,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-RTN-02,Pizza 15 - Ras Tanura,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-11,Pizza 3 - Arkan,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-RYD-08,Pizza 4 - Riyadh Takhasosy,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-RYD-09,Pizza 5 - ALULYA,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-RYD-10,Pizza 6 - Riyadh Nada,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-12,Pizza 7 - Aramco,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-KHB-03,Pizza 9 - Al Azizia,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-13,Ronaldos DAU University,RONALDOS,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-KHB-04,SHAWERMA - 1 - Khobar,SHAWARMA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-DMM-14,SHAWERMA - 4 - ARKAN,SHAWARMA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع
+BR-RYD-11,SHAWERMA - OLAYA,SHAWARMA,1,OWNER_RULE_2026-08-15_DAILY,جرد وكاش يوميًا — شفت واحد لكل فرع

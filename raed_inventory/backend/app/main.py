@@ -19,7 +19,7 @@ from app.core.request_context import RequestIdMiddleware
 from app.core.sentry_init import init_sentry
 from app.database import SessionLocal, get_db
 from app.models import Role, RoleName, User, UserRole
-from app.routers import auth, users, master, inventory, orders, dashboard, stock, ledger, reports, alerts, export, audit, audit_findings, import_data, quality, training, delivery_analytics, notifications, documents, settings as settings_router, sales_channels, branch_requests, production_orders, warehouse_lines, delivery_orders, supply_chain, evaluations, procurement, branch_employees, assistant, item_change_requests
+from app.routers import auth, users, master, inventory, orders, dashboard, stock, ledger, reports, alerts, export, audit, audit_findings, import_data, quality, training, delivery_analytics, notifications, documents, settings as settings_router, sales_channels, branch_requests, production_orders, warehouse_lines, delivery_orders, supply_chain, evaluations, procurement, branch_employees, assistant, item_change_requests, shift_ops
 from app.core.tenant import TenantMiddleware
 from app.services.idempotency_service import cleanup_expired_idempotency_requests
 from app.services.scheduler_service import start_scheduler, stop_scheduler
@@ -385,6 +385,7 @@ app.include_router(documents.router)
 app.include_router(settings_router.router)
 app.include_router(assistant.router)
 app.include_router(item_change_requests.router)
+app.include_router(shift_ops.router)
 
 
 @app.get("/", include_in_schema=False)

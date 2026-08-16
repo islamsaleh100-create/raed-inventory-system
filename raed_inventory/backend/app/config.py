@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     REPLENISHMENT_SCHEDULE_HOUR: int = 6   # الساعة 6 صباحاً بتوقيت السعودية
     REPLENISHMENT_SCHEDULE_MINUTE: int = 0
 
+    # ─── Shift Operations ────────────────────────────────────────────────────
+    CASH_VARIANCE_TOLERANCE: float = 5.0
+
     # ─── File Upload Limits ──────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 20  # 20 MB كحد أقصى لأي ملف مرفوع
 

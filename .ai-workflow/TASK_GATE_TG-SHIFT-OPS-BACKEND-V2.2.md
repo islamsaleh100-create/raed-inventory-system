@@ -1,0 +1,534 @@
+# TASK_GATE_TG-SHIFT-OPS-BACKEND — V2.2
+
+## Task ID
+TG-SHIFT-OPS-BACKEND-V2.2 (يُلغي V1 و V2 و V2.1 بالكامل)
+
+## سجل التغيير — V2.1 ← V2.2
+| # | التغيير |
+|---|---|
+| 1 | **قرار المالك: قاعدة المرتجع محسومة = `net`.** الشرط المانع الأول **رُفع**. التفاصيل والدليل أدناه |
+| 2 | `refund_bill` انتقل إلى الحقول المعلوماتية مع `exchange_amount` و `expiry_amount` |
+| 3 | القاعدة ٥ (حد العهدة) عُدِّلت لإسقاط المرتجع |
+| 4 | ثابت `CASH_REFUND_MODE` **حُذف** — القرار محسوم، لا داعي لعَلَم إعدادات |
+
+## سجل التغيير — V2 ← V2.1 (خمسة تصحيحات إلزامية)
+| # | التصحيح | الخطورة |
+|---|---|---|
+| 1 | استثناء `movement_diff` من قاعدة عدم السالبية العامة | **كانت تناقضًا يُنتج Bug مؤكد** |
+| 2 | منع تداخل نطاقات `effective_from/to` | فجوة قراءة إعدادات |
+| 3 | نافذة إعادة الفتح تُحسب من **وقت اكتمال الترحيل** لا من `shift_date` | كانت تقلّص النافذة لأقل من ٢٥ ساعة |
+| 4 | `POST /shifts/{id}/count` أصبح idempotent | زر Refresh كان يتحول لمصيدة |
+| 5 | فصل `branch_closed` عن تجاوز الشفت العالق بـ `exception_type` | خلط محاسبي في التقرير |
+| + | تفاصيل `chain_gap` بدل boolean · تصريح استبعاد `exchange`/`expiry` من المعادلات | تحسينات المراجعة |
+
+## Status
+APPROVED
+
+## Cursor Permission
+EXECUTE — بشرط إتمام المرحلة صفر (التنظيف) والتحقق منها أولًا
+
+## تفويض المالك — 2026-08-14
+المالك (Islam) فوّض Cursor صراحةً بتنفيذ **مرحلة التنظيف** الموصوفة في المرحلة صفر،
+وهي تتضمن `git add -A` و `git commit` على **فرع أمان مؤقت**.
+
+> **ملاحظة المراجع:** `AGENTS.md` يمنع أي أداة ذكاء اصطناعي من تشغيل `git commit` بلا موافقة
+> بشرية مكتوبة. هذا التفويض هو تلك الموافقة، ونطاقه **محصور** في: commit حفظي واحد على فرع
+> `safety/*` لا يمس فرع العمل. **`git push` يبقى ممنوعًا مطلقًا**، وكذلك أي commit لكود
+> المرحلة الأولى — تسليم الكود يبقى للمالك.
+
+## Owner
+Islam. Executor: Cursor. Reviewer: Claude. Commit/Deploy: Islam.
+
+---
+
+# ⛔ شرط واحد يمنع التنفيذ (كانا اثنين — الأول رُفع)
+
+### ✅ الشرط ١ · قاعدة المرتجع — **محسومة، رُفع الحظر**
+
+**قرار المالك 2026-08-14، من مصدر تشغيلي (الكاشير / تقرير المبيعات اليومي):**
+
+> 1. `total_sale` و `cash_sales` يخرجان من الكاشير **بعد خصم المرتجعات** (صافي).
+> 2. المرتجع يُردّ للزبون **حسب المتاح** — كاش أحيانًا، وعلى البطاقة أحيانًا.
+
+**القاعدة المعتمدة:**
+```
+expected_deposited = cash_sales − cash_expense − cash_float_carried_forward
+```
+**`refund_bill` لا يُخصم إطلاقًا.**
+
+**لماذا الإجابة الثانية لا تغيّر شيئًا:** ما دام `cash_sales` صافيًا بالفعل، فالمرتجع المدفوع
+كاشًا **خرج من الرقم قبل أن يصلنا**، والمرتجع على البطاقة **لم يمسّ الدرج أصلًا**. الحالتان
+مغطّاتان دون أي تفريع، ولا حاجة لحقل `refund_cash` منفصل.
+
+**التحقق — أُعيد حساب الصفوف الأربعة الحقيقية بالقاعدة المعتمدة:**
+
+| الصف | مرتجع | كاش | مصروف | عهدة | المتوقع | المُسلَّم | **الفرق** |
+|---|---|---|---|---|---|---|---|
+| a19de250 | 0 | 40 | 0 | 0 | 40.00 | 40.00 | **0** |
+| **061595be** | **1.00** | 650 | 0 | 500 | **150.00** | **150.00** | **0** |
+| c212d58e | 0 | 1000 | 300 | 500.50 | 199.50 | 199.50 | **0** |
+| 961ffc8d | 0 | 1000 | 200 | 500 | 300.00 | 300.00 | **0** |
+
+مجموع القيم المطلقة للفروق = **0.00**. الصف الوحيد ذو المرتجع (`061595be`) انتقل من فرق 1.00
+إلى **صفر**. البيانات نفسها تؤكد القرار.
+
+> ### 🐞 نتيجة مهمة: معادلة جوجل شيت الحالية **بها خطأ**
+> `Validation.gs` يطرح `refund_bill` من `cash_sales` الصافي أصلًا — **خصم مزدوج**.
+> أثره التشغيلي: كل مرتجع يُنتج **عجزًا وهميًا في الصندوق بقيمة المرتجع نفسه**. مرتجع بـ50 ريال
+> يُظهر عجز 50، وهو يتجاوز حد التسامح (5)، فيُجبر النظام موظف الفرع على تسجيل "سبب عجز"
+> **عن عجز لم يحدث** — ويُقيَّد ضده في التقرير.
+>
+> **إجراء منفصل عن هذا الجيت:** يجب تصحيح `Validation.gs` قبل أي استخدام تشغيلي لنظام الشيت،
+> ومراجعة أي فروق كاش سُجّلت سابقًا على الفروع في شفتات بها مرتجعات.
+>
+> **تصحيح لسجل المشروع:** الوثيقة الأصلية ادّعت "صفر فروقات" بناءً على معادلة مبسّطة، وكان
+> الادعاء غير دقيق. المراجعة كشفت الخلل، والقرار التشغيلي أثبت أن الخلل في الشيت لا في البيانات.
+
+### ⛔ الشرط ٢ · شجرة العمل متسخة — يُرفع بالمرحلة صفر
+
+---
+
+# المرحلة صفر · تنظيف شجرة العمل — **قبل أي كود، وبأمر منفصل**
+
+الشجرة فيها **٢٢٦** ملفًا غير محفوظ. الحد المسموح **١٠**. فُحصت وتبيّن أنها **آمنة للحفظ**:
+صفر أسرار · صفر قواعد بيانات · صفر لوجات · صفر كاش. (`frontend/.env.development` يحوي
+`VITE_API_URL` و `VITE_DEV_PROXY_TARGET` فقط.)
+
+نفّذ بالترتيب حرفيًا:
+
+```powershell
+cd C:\raed_inventory_system
+git status --porcelain | Measure-Object -Line
+
+git switch -c safety/wip-before-shift-ops-backend-v2-2
+git add -A
+git commit -m "wip: preserve current worktree before shift ops backend"
+
+git switch release/lan-trial-2026-06-16
+git checkout safety/wip-before-shift-ops-backend-v2-2 -- .ai-workflow/
+
+git status --short
+git status --porcelain | Measure-Object -Line
+```
+
+**السطر `git checkout ... -- .ai-workflow/` إلزامي** — بدونه تختفي ملفات الجيت من الشجرة
+بعد الرجوع للفرع، ولن تجد ما تنفّذه.
+
+### بوابة الانتقال للمرحلة الأولى
+- العدد الأخير **≤ 10** وكل المتبقي داخل `.ai-workflow/` ⇒ أكمل.
+- العدد **> 10** أو ظهر ملف خارج `.ai-workflow/` ⇒ **قف**، اكتب `Status: BLOCKED` مع ناتج
+  `git status --short`، ولا تكتب أي كود.
+- فشل أي أمر git ⇒ **قف**. لا تحاول إصلاحه باجتهادك، ولا تستخدم `--force` ولا `reset --hard`
+  ولا `clean`.
+
+**ممنوع في هذه المرحلة:** `git push` · `git reset --hard` · `git clean` · حذف أي ملف ·
+تعديل `.gitignore` · أي commit خارج فرع الأمان.
+
+---
+
+# ما تغيّر عن V1 — سبعة تعديلات
+
+| # | التعديل | المصدر |
+|---|---|---|
+| 1 | قاعدة المرتجع — **حُسمت في V2.2 = `net`** | فحص Claude للبيانات + قرار المالك |
+| 2 | قفل تسلسلي للشفتات + تجاوز بأثر صريح | المراجع + تعديل Claude |
+| 3 | الحركة السالبة مسموحة بسبب إلزامي، **ولا تُسمّى استهلاكًا** | المراجع |
+| 4 | تجميد قائمة الأصناف لحظة إنشاء الجرد | المراجع |
+| 5 | جدول أحداث لإعادة الفتح بدل عدّاد | المراجع |
+| 6 | سقف إعادة الفتح: مرتان / ٤٨ ساعة | المراجع |
+| 7 | إخفاء الموديول القديم عن الفروع | المراجع — **خارج هذا الجيت**، انظر أدناه |
+
+### بخصوص التعديل ٧
+هذا الجيت **يمنع لمس الموديول القديم**، فلا يمكن تنفيذه هنا. يُنقل إلى
+`TG-SHIFT-OPS-FRONTEND` كـ**شرط إطلاق**: لا يُفتح النظام لأي فرع قبل إخفاء/منع موديول
+الجرد القديم عن أدوار الفروع.
+
+**السبب أخطر مما وُصف سابقًا:** التحقق من `routers/inventory.py:28` أظهر
+`_APPROVAL_ROLES = ("branch_manager", "admin", "super_admin")` — أي أن **مدير الفرع نفسه
+يستطيع الاعتماد**، والاعتماد يولّد أمر تجديد للمستودع تلقائيًا. الخطر مباشر، لا غير مباشر.
+
+### بخصوص كلمات المرور — قرار مسجّل، خارج نطاق الكود
+- **ممنوع** كلمة مرور موحّدة لكل الفروع، بأي قوة كانت. المساءلة على الكاش هي الغرض من التقرير،
+  وكلمة موحّدة تلغيها.
+- التشغيل لا يبدأ إلا بحسابات فروع **بكلمات مختلفة**.
+- **`must_change_password` لا يُضاف في هذا الجيت.** الحقل غير موجود في `User`، وإضافته migration
+  في نظام المستخدمين — جيت أمني منفصل لاحقًا.
+
+---
+
+# القرارات المعتمدة
+
+| القرار | القيمة |
+|---|---|
+| الدورة | الشفت. ٥ فروع أوندا بشفتين، ١٨ فرعًا بشفت واحد |
+| الاعتماد | لا يوجد. `draft → submitted` |
+| الترحيل | **مستقل** للجرد وللكاش. الشاشتان منفصلتان |
+| حالة الشفت | **مشتقّة**، لا تُضبط يدويًا |
+| الربط بالمستودع/المطبخ | **صفر** |
+| الموديول القديم | لا يُلمس في هذا الجيت |
+| قائمة العد | على مستوى **البراند**، مع استثناءات للفرع، **ومجمّدة لحظة إنشاء الجرد** |
+
+---
+
+# قيود العزل — أي خرق = `DO_NOT_COMMIT`
+
+**ممنوع استيراد أو نداء:**
+```
+replenishment_service    stock_ledger_service      stock_adjustment_service
+ledger_service           branch_request_split_service
+branch_request_detail_service                       delivery_service
+inventory_service        orders_service            procurement (أي شيء)
+```
+
+**ممنوع تعديل أي ملف قائم** عدا الملفات المحددة في قائمة **"تعديل محدود"** أدناه — وهي
+**أربعة** ملفات: `models/__init__.py` · `main.py` · `schemas/__init__.py` · `config.py`.
+**ممنوع نهائيًا:** لمس `routers/inventory.py` · `services/inventory_service.py` · أي جدول قائم ·
+أي migration قائم · أي ملف `.env` · إضافة أو حذف أي اعتمادية.
+
+---
+
+# الملفات المسموح بها
+
+**جديدة**
+1. `raed_inventory/backend/app/models/branch_shift_ops.py`
+2. `raed_inventory/backend/app/services/shift_ops_service.py`
+3. `raed_inventory/backend/app/services/shift_ops_validation.py`
+4. `raed_inventory/backend/app/routers/shift_ops.py`
+5. `raed_inventory/backend/alembic/versions/<rev>_branch_shift_operations.py`
+6. `raed_inventory/backend/tests/test_shift_ops_validation.py`
+7. `raed_inventory/backend/tests/test_shift_ops_api.py`
+8. `raed_inventory/backend/tests/test_shift_ops_isolation.py`
+9. `raed_inventory/backend/tests/test_shift_ops_sequencing.py`
+10. `.ai-workflow/CURSOR_REPORT_TG-SHIFT-OPS-BACKEND-V2.2.md`
+
+**تعديل محدود**
+11. `app/models/__init__.py` — استيراد/تصدير الكلاسات الجديدة فقط
+12. `app/main.py` — سطر `include_router` واحد
+13. `app/schemas/__init__.py` — سكيمات جديدة فقط
+14. `app/config.py` — ثابت جديد واحد فقط: `CASH_VARIANCE_TOLERANCE`
+
+أي ملف خارج القائمة ⇒ `BLOCKED`.
+
+---
+
+# الجداول
+
+### `branch_shift_configs`
+`id` · `branch_id` FK · `shift_number` · `shift_name_ar` · `is_active`
+· `effective_from` Date NOT NULL · `effective_to` Date nullable (null = مفتوح)
+· فريد `(branch_id, shift_number, effective_from)`
+
+**منع التداخل — إلزامي.** القيد الفريد وحده **لا يمنع** نطاقين متداخلين:
+```
+Shift 1: 2026-08-01 → 2026-08-31
+Shift 1: 2026-08-15 → null        ← أي إعداد يُقرأ يوم 20 أغسطس؟
+```
+المطلوب: **ممنوع وجود نطاقين متداخلين لنفس `(branch_id, shift_number)`.**
+- الأفضل: `EXCLUDE USING gist` في Postgres.
+- المقبول: تحقق في `shift_ops_service` عند الإدراج/التعديل + اختبار يغطي التداخل من الجهتين
+  ومن الاحتواء الكامل ومن النطاق المفتوح (`effective_to = null`).
+
+> التأريخ مطلوب: فرع يتحول من شفت لشفتين يجب ألا يُعاد قراءة تاريخه بقواعد اليوم.
+
+### `branch_shifts`
+`id` · `branch_id` FK · `shift_date` Date · `shift_number`
+· `status` enum(`draft`, `submitted`, `exception_locked`)
+· `opened_by` · `opened_at` · `submitted_at` nullable
+· **`exception_type` enum(`stuck_previous`, `branch_closed`, `manual_gap`) nullable**
+· `exception_reason` String(300) nullable · `exception_by` FK nullable · `exception_at` nullable
+· فريد `(branch_id, shift_date, shift_number)`
+
+> `exception_type` إلزامي كلما كانت الحالة `exception_locked`، ويُعرض في التقرير و API.
+> **فرع كان مغلقًا** و**فرع ساب شفت مفتوح فاتقفل استثنائيًا** ليسا نفس الخطر ولا نفس
+> المعالجة المحاسبية، وممنوع أن يظهرا كبند واحد.
+
+### `brand_shift_count_items`
+`id` · `brand_id` FK→brands · `item_id` FK→items · `display_order` · `is_active`
+· فريد `(brand_id, item_id)`
+
+### `branch_shift_count_exclusions`
+`id` · `branch_id` FK · `item_id` FK→items · `reason` · فريد `(branch_id, item_id)`
+
+### `branch_shift_counts`
+`id` · `shift_id` FK **UNIQUE** · `status` enum(`draft`,`submitted`)
+· **`items_frozen_at` DateTime NOT NULL** · `general_notes`
+· `created_by` · `updated_by` · `submitted_by` · `created_at` · `updated_at` · `submitted_at`
+
+### `branch_shift_count_lines`
+`id` · `count_id` FK · `item_id` FK→items
+· **`item_name_snapshot` String(150) NOT NULL** · **`unit_snapshot` String(30) NOT NULL**
+· `opening_balance` · `received_qty` · `returned_qty` · `damaged_qty` · `closing_balance`
+· **`movement_diff`** Numeric(12,2) — الاسم الجديد، انظر قواعد الجرد
+· `movement_exception_reason` String(300) nullable
+· `item_notes` · `row_status` enum(`incomplete`,`valid`,`invalid`)
+· فريد `(count_id, item_id)`
+
+### `branch_shift_cash`
+`id` · `shift_id` FK **UNIQUE** · `status` enum(`draft`,`submitted`)
+· `total_sale` · `bill_count` Integer · `mada_sales` · `cash_sales` · `app_sales`
+· `refund_bill` · `exchange_amount` · `expiry_amount` · `cash_expense`
+· `cash_float_carried_forward` · `cash_deposited`
+· `expense_type` enum · `expense_details` · `shift_notes`
+· `cash_variance` · `cash_variance_reason`
+· `created_by` · `updated_by` · `submitted_by` · `created_at` · `updated_at` · `submitted_at`
+
+### `branch_shift_reopen_events` — **جديد**
+`id` · `shift_id` FK · `target` enum(`count`,`cash`,`both`) · `reason` String(300) NOT NULL
+· `reopened_by` FK→users · `reopened_at` DateTime · فهرس على `(shift_id, reopened_at)`
+> **لا يوجد حقل `reopen_count`.** العدد يُشتق بـ `COUNT(*)` على هذا الجدول. سبب كل مرة محفوظ
+> مستقلًا — الحقل المفرد كان يفقد تاريخ المرات السابقة.
+
+### ⚠️ قاعدة السالبية — اقرأها بدقة، فيها استثناء واحد
+
+كل الحقول `Numeric(12,2)`. **ممنوع `Float` في أي حقل.**
+
+- **حقول الإدخال** (كل الحقول المالية، و`opening_balance`, `received_qty`, `returned_qty`,
+  `damaged_qty`, `closing_balance`): **غير سالبة** — قيد على مستوى القاعدة والتحقق.
+- **الحقل المشتق `movement_diff` وحده: يُسمح أن يكون سالبًا** بشرط
+  `movement_exception_reason`. **ممنوع** وضع `CHECK (movement_diff >= 0)` أو أي تحقق يرفض
+  السالب على هذا الحقل تحديدًا.
+
+> هذا التناقض كان موجودًا في V2 وكان سيُنتج قيدًا يمنع السلوك المطلوب في القسم نفسه.
+
+**Migration:** `op.get_bind()` **داخل** `upgrade()`/`downgrade()` فقط.
+
+---
+
+# قواعد الجرد
+
+### تجميد القائمة — التعديل ٤
+
+**`POST /shifts/{id}/count` سلوكه `create-if-missing` — إلزامي.**
+الشاشة هتتفتح كتير، والمستخدم هيعمل Refresh، والشبكة هتكرّر الطلب. الزر ده **ممنوع** يتحول لمصيدة.
+
+- الجرد **غير موجود** ⇒ يُنشأ (الخطوات ١–٣ أدناه) ويُرجع `201`.
+- الجرد **موجود** (`draft` أو `submitted`) ⇒ **يُرجع كما هو** بـ `200`.
+  **ممنوع** رمي `409`، وممنوع إعادة التجميد، وممنوع إنشاء أو حذف أي سطر، وممنوع تعديل
+  `items_frozen_at`.
+- قيد `shift_id UNIQUE` يبقى كشبكة أمان أخيرة، لا كآلية للرفض.
+
+عند الإنشاء فقط:
+1. تُقرأ قائمة العد الفعلية = أصناف براند الفرع النشطة **ناقص** استثناءات الفرع.
+2. **يُنشأ سطر لكل صنف فورًا**، مع نسخ `item_name` و `unit` في حقلي الـ snapshot.
+3. تُختم `items_frozen_at`.
+
+**القاعدة الحاكمة:** كل تحقق لاحق يعمل على **السطور الموجودة**، ولا يُعاد اشتقاق القائمة من
+`brand_shift_count_items` أبدًا. إضافة صنف للبراند بعد شهر **لا تؤثر** على جرد قائم، ولا على
+شفت يُعاد فتحه.
+
+### المعادلة وإعادة التسمية — التعديل ٣
+```
+movement_diff = opening + received − returned − damaged − closing
+```
+
+**الحقل اسمه `movement_diff` وليس `consumption`.** الرقم ليس استهلاكًا — هو فرق حركة الصنف،
+ويحتوي البيع والفقد والعينات والتحويلات وأخطاء التسجيل مجتمعة. أي عرض له في API أو تقرير
+يُسمّى **"فرق حركة"** أو `movement_diff`. **ممنوع** استخدام كلمة "استهلاك" أو `consumption`
+في أي اسم حقل أو مفتاح استجابة.
+
+**`movement_diff` سالب: مسموح، لا يُرفض.** لكن:
+- يتطلب `movement_exception_reason` غير فارغ (5 أحرف على الأقل)، وإلا `MOVEMENT_EXCEPTION_REASON_REQUIRED`
+- `row_status` يبقى `valid` — لا يمنع الترحيل
+- **يُعلَّم كاستثناء** ويظهر في قسم منفصل في التقرير باسم **"وارد غير مسجّل / فرق عدّ"**
+- **ممنوع** جمعه ضمن أي إجمالي "فرق حركة" عادي — يُجمع منفصلًا
+
+> السبب: المنع الكامل يشلّ الإقفال عند أول توريد غير مسجّل، ويدفع الموظف لإدخال `received`
+> وهمي — وهو أسوأ من تسجيل الاستثناء.
+
+### باقي القواعد
+- كل الكميات غير سالبة. الفراغ ⇒ `incomplete`.
+- الترحيل يتطلب كل السطور `valid`، وإلا `SHIFT_COUNT_INCOMPLETE`.
+- صنف خارج السطور المجمّدة ⇒ `SHIFT_COUNT_FOREIGN_ITEM`. تكرار ⇒ `SHIFT_COUNT_DUPLICATE_LINE`.
+
+### الرصيد الافتتاحي
+`opening` = `closing` لنفس (الفرع، الصنف) من **آخر جرد مُرحَّل** (`status=submitted`) سابق،
+بترتيب `shift_date` ثم `shift_number`. لا يوجد ⇒ **صفر**.
+
+**يُحسب في السيرفر فقط.** أي `opening` من العميل يُتجاهل.
+
+شفت `exception_locked` بجرد غير مُرحَّل **لا يساهم في السلسلة** — تتخطاه. وكل تخطٍّ من هذا
+النوع يجب أن يظهر في التقرير كـ`chain_gap`.
+
+---
+
+# قواعد الكاش
+
+**✅ القاعدة ٢ محسومة — `net`. أرقام الكاشير صافية بالفعل، فالمرتجع لا يُخصم.**
+
+1. `mada + cash + app = total_sale` (±0.01) وإلا `PAYMENT_METHODS_MISMATCH`
+2. `expected_deposited = cash_sales − cash_expense − cash_float_carried_forward`
+   **بدون `refund_bill`.** ممنوع إضافته للمعادلة تحت أي مسمى.
+3. `cash_expense > cash_sales` ⇒ `EXPENSE_EXCEEDS_CASH`
+4. `cash_expense > 0` ⇒ `expense_type` و `expense_details` إلزاميان
+5. `float > (cash_sales − cash_expense)` ⇒ `CASH_FLOAT_EXCEEDS_AVAILABLE_CASH`
+   **بدون `refund_bill`** — نفس السبب.
+6. `expected_deposited < 0` ⇒ `NEGATIVE_EXPECTED_CASH`
+7. `cash_variance = deposited − expected`. `abs > CASH_VARIANCE_TOLERANCE` بلا سبب ⇒
+   `CASH_VARIANCE_REASON_REQUIRED`
+8. `bill_count = 0` مع `total_sale > 0` ⇒ `BILL_COUNT_REQUIRED`
+
+### الحقول المعلوماتية الثلاثة — `refund_bill` · `exchange_amount` · `expiry_amount`
+
+الثلاثة تُحفظ **كمعلومة فقط**، و**يجب أن تسمّيها الاستجابة صراحةً `informational: true`**
+حتى لا توهم الواجهة المستخدم بأن النظام يراجعها محاسبيًا.
+
+> **نص صريح لمنع الربط الضمني لاحقًا:**
+> `refund_bill` و `exchange_amount` و `expiry_amount` **لا يُستخدم أي منها في حساب
+> `expected_deposited` ولا `cash_variance` ولا حد العهدة ولا أي قاعدة تحقق.**
+> أي كود يربط أيًّا منها بأيٍّ من هذه = انحراف عن الجيت ⇒ `DO_NOT_COMMIT`.
+
+`refund_bill` انضم لهذه المجموعة بقرار المالك (أرقام الكاشير صافية). يبقى محفوظًا لأنه
+معلومة تشغيلية مفيدة في التقرير، لا لأنه يدخل حسابًا.
+
+لو أراد المالك أثرًا محاسبيًا لأيٍّ منها، جيت منفصل.
+
+---
+
+# نقاط النهاية — `/api/v1/shift-ops`
+
+```
+POST   /shifts                        فتح شفت
+GET    /shifts                        قائمة + فلاتر (partial_only, exception_only)
+GET    /shifts/{id}                   تفاصيل + count_status + cash_status + is_partial
+POST   /shifts/{id}/reopen            إعادة فتح — مدير، target + سبب إلزاميان
+POST   /shifts/{id}/close-no-activity إغلاق بلا نشاط — branch_closed | manual_gap
+
+POST   /shifts/{id}/count             إنشاء الجرد وتجميد القائمة — idempotent
+GET    /shifts/{id}/count             السطور + opening محسوبًا
+PATCH  /shifts/{id}/count/lines       تعديل سطور (دفعة)
+POST   /shifts/{id}/count/submit      ترحيل الجرد — مستقل
+
+GET    /shifts/{id}/cash
+PUT    /shifts/{id}/cash              حفظ مسودة
+POST   /shifts/{id}/cash/submit       ترحيل الكاش — مستقل
+
+GET    /reports/shift-operations      تقرير المراجعة — قراءة فقط
+```
+
+### القفل التسلسلي والتجاوز — التعديل ٢
+
+**الأصل:** `POST /shifts` يُرفض بـ `409` وكود `PREVIOUS_SHIFT_NOT_CLOSED` إذا وُجد شفت سابق
+لنفس الفرع حالته ليست `submitted` ولا `exception_locked`.
+
+**التجاوز:** `POST /shifts` بحقلين إضافيين `override=true` و `override_reason` (5–300 حرف).
+- الصلاحية: `area_manager` (داخل نطاقه) · `operations_manager` · `admin` · `super_admin` فقط.
+  `branch_user` و `branch_manager` ⇒ `403`.
+- **أثر صريح إلزامي:** الشفت السابق يتحول إلى `exception_locked` مع
+  `exception_type = stuck_previous` وتُملأ `exception_reason` و `exception_by` و `exception_at`.
+  أجزاؤه غير المُرحَّلة تُجمَّد كما هي ولا تُرحَّل.
+- **ممنوع** أن يكون التجاوز مجرد فتح للشفت الجديد بلا أثر على السابق. لو لم تتغير حالة السابق،
+  فالتنفيذ خاطئ.
+- يظهر في التقرير كبند مستقل، وفي فلتر `exception_only`.
+
+### الفرع المغلق — مسار مستقل، ليس `override`
+
+تسجيل يوم بلا عمل **ليس تجاوزًا لشفت عالق**، فلا يستخدم نفس المسار ولا نفس المعنى.
+
+`POST /shifts/{id}/close-no-activity` بحقل `exception_type` من `branch_closed` أو `manual_gap`
+وسبب إلزامي:
+- يُقفل الشفت مباشرة بحالة `exception_locked` بلا جرد ولا كاش.
+- **لا يشترط وجود شفت سابق عالق** — يُستخدم استباقيًا لتسجيل يوم إغلاق معروف مسبقًا.
+- نفس صلاحيات التجاوز (`area_manager` فأعلى).
+- يظهر في التقرير مصنّفًا بنوعه، منفصلًا عن `stuck_previous`.
+
+**القاعدة:** لا تُترك فجوة بلا سجل — لكن السجل يجب أن يقول **أي نوع** من الفجوات.
+
+> **سبب التجاوز:** القفل الصارم وحده يعني أن شفتًا واحدًا عالقًا يشلّ الفرع بالكامل — لا يستطيع
+> فتح شفت اليوم. هذا مرجّح في الأسبوع الأول تحديدًا.
+
+### إعادة الفتح — التعديلات ٥ و ٦
+- الصلاحية: `area_manager` (نطاقه) · `operations_manager` · `admin` · `super_admin`.
+  **`branch_manager` مستبعد عمدًا** — طرف في عهدة الكاش.
+- `target` إلزامي: `count` | `cash` | `both`. الجزء غير المستهدف لا يُلمس.
+- `reason` إلزامي 5–300 حرف ⇒ وإلا `422 REOPEN_REASON_REQUIRED`.
+- **السقف: مرتان لكل شفت** (`COUNT(*)` على `branch_shift_reopen_events`) ⇒ الثالثة `409 REOPEN_LIMIT_REACHED`.
+- **النافذة: ٤٨ ساعة من لحظة وصول الشفت لحالته النهائية** ⇒ بعدها `409 REOPEN_WINDOW_EXPIRED`.
+  **ليست من `shift_date`** — شفت رُحِّل 11:50 مساءً كان سيحصل على أقل من ٢٥ ساعة.
+
+  ```
+  shift_closed_at = status == submitted        → max(count.submitted_at, cash.submitted_at)
+                    status == exception_locked → exception_at
+  ```
+  النافذة من `shift_closed_at` في الحالتين، **حتى لو أُعيد فتح جزء واحد فقط**.
+  `shift_closed_at` **مشتق ولا يُخزَّن** — يُحسب عند كل فحص.
+- **تجاوز السقف والنافذة معًا:** `admin` و `super_admin` فقط، بسبب إلزامي، ويُسجَّل كحدث عادي
+  في نفس الجدول.
+- كل إعادة فتح تُنشئ صفًا في `branch_shift_reopen_events` **وتُكتب في `audit_service`**.
+- `submitted_by` و `submitted_at` **لا تُمسح**.
+- جزء حالته `draft` ⇒ `409 NOT_SUBMITTED`.
+
+### الصلاحيات العامة
+- كتابة/فتح/ترحيل: `branch_user`, `branch_manager` — **فرعهم فقط**. فرع آخر ⇒ `403` لا `404`.
+- قراءة التقرير: `internal_auditor`, `admin`, `super_admin`, `operations_manager`,
+  `area_manager` (بنطاقه عبر `core/area_manager_scope.py` — **قراءة فقط**).
+
+### التقرير
+لكل شفت: الفرع · التاريخ · رقم الشفت · `status` · `count_status` · `cash_status` · `is_partial`
+· من رحّل ومتى · تفصيل المبيعات · الكاش المتوقع والمُسلَّم · **الفرق وسببه**
+· **كل أحداث إعادة الفتح بأسبابها ومن نفّذها** (لا سبب مفرد)
+· **التجاوزات وأسبابها مصنّفة بـ`exception_type`**
+· **`chain_gap` ككائن لا كـboolean:** `skipped_shift_id` · `skipped_shift_date` ·
+  `skipped_shift_number` · `skipped_reason` · `skipped_exception_type` —
+  لأن `chain_gap=true` تقول إن فيه ثقب ولا تقول **فين**
+· إجمالي فرق الحركة · **وقسم منفصل لاستثناءات الحركة السالبة**
+· إجمالي التالف.
+
+فلاتر: فرع · مدى تاريخي · فرق كاش فقط · **مُعاد فتحها فقط** · **جزئية فقط** ·
+**استثنائية فقط** · **بها استثناءات حركة سالبة فقط**.
+
+---
+
+# معايير القبول
+
+- [ ] `git status` = ملفات القائمة المسموحة فقط.
+- [ ] `grep -rn "replenishment_service\|stock_ledger_service\|branch_request_split_service\|inventory_service" app/services/shift_ops_service.py app/routers/shift_ops.py` ⇒ **صفر**.
+- [ ] `grep -rni "consumption" app/models/branch_shift_ops.py app/routers/shift_ops.py app/schemas/__init__.py` ⇒ **صفر**. الاسم `movement_diff`.
+- [ ] `git diff app/routers/inventory.py app/services/inventory_service.py` ⇒ **فارغ**.
+- [ ] `git diff app/main.py` ⇒ سطر `include_router` واحد.
+- [ ] `upgrade → downgrade → upgrade` على قاعدة نظيفة بلا خطأ.
+- [ ] **العزل (إلزامي):** ترحيل شفت لا يُنشئ صفًا في `replenishment_orders` ولا في الليدجر ولا في `branch_requests`.
+- [ ] **التجميد:** إضافة صنف لـ`brand_shift_count_items` بعد إنشاء جرد **لا** تغيّر سطوره ولا تمنع ترحيله ولا تظهر عند إعادة فتحه.
+- [ ] **الحركة السالبة:** تُقبل بسبب · تُرفض بلا سبب · `row_status` يبقى `valid` · تظهر في القسم المنفصل · **لا** تُجمع مع الإجمالي العادي.
+- [ ] **التسلسل:** فتح شفت مع سابق غير مقفل ⇒ 409 · تجاوز من `branch_manager` ⇒ 403 · تجاوز من `area_manager` ⇒ ينجح **ويحوّل السابق إلى `exception_locked` بـ`exception_type=stuck_previous` وسبب محفوظ** · تجاوز بلا سبب ⇒ 422.
+- [ ] **الفرع المغلق:** `close-no-activity` ينجح **بدون وجود شفت سابق عالق**، ويسجّل
+      `exception_type=branch_closed`، ولا يُنشئ جردًا ولا كاشًا · التقرير يفصله عن `stuck_previous`.
+- [ ] **سلسلة الرصيد:** شفت `exception_locked` بجرد غير مرحّل يُتخطّى، و`chain_gap` يرجع **بالتفاصيل الخمسة** لا `true`.
+- [ ] **عدم السالبية:** إدخال كمية سالبة (`received`/`closing`/أي حقل مالي) ⇒ مرفوض ·
+      `movement_diff` سالب ⇒ **مقبول ومُخزَّن** ولا يوجد أي قيد يرفضه.
+- [ ] **تداخل الفترات:** إدراج `effective_from/to` متداخل لنفس `(branch_id, shift_number)` ⇒ مرفوض —
+      تداخل من الجهتين، واحتواء كامل، ونطاق مفتوح (`effective_to = null`).
+- [ ] **Idempotency:** نداء `POST /shifts/{id}/count` مرتين ⇒ الثاني `200` بنفس `count_id`
+      و**نفس `items_frozen_at`** ونفس عدد السطور · نداؤه على جرد `submitted` ⇒ `200` لا `409`.
+- [ ] **نافذة إعادة الفتح:** شفت رُحِّل 23:50 لسه قابل لإعادة الفتح بعد ٣٠ ساعة (النافذة من وقت
+      الترحيل لا من `shift_date`) · شفت `exception_locked` نافذته من `exception_at`.
+- [ ] **إعادة الفتح:** الثالثة ⇒ 409 · بعد ٤٨ ساعة ⇒ 409 · `admin` يتجاوز الاثنين · `target=cash` لا يلمس الجرد · كل حدث صف مستقل بسبب مستقل · `submitted_by` لا يُمسح.
+- [ ] **الاستقلال:** ترحيل الجرد وحده ينجح والكاش يبقى `draft` والعكس · فشل الكاش لا يرجّع الجرد · الشفت `submitted` تلقائيًا عند اكتمال الاثنين فقط.
+- [ ] **الجزئي:** `is_partial` صحيح في الحالات الأربع · `GET /shifts?partial_only=true&date_to=<أمس>` يرجّع المنسية فقط.
+- [ ] **الكاش:** اختبارات للقواعد الثماني. **حالة تراجع إلزامية بصف `061595be` الحقيقي**
+      (كاش 650 · مصروف 0 · مرتجع 1.00 · عهدة 500 · مُسلَّم 150) ⇒ `expected = 150.00` و
+      `cash_variance = 0.00`. لو رجّع الاختبار 149.00 فالمرتجع دخل المعادلة = انحراف.
+- [ ] `grep -rn "refund" app/services/shift_ops_validation.py` ⇒ لا يظهر داخل أي معادلة حسابية.
+- [ ] `exchange_amount` و `expiry_amount` يظهران بعلامة `informational: true` ولا يدخلان أي معادلة.
+- [ ] الحزمة كاملة خضراء: `cd raed_inventory/backend && python -m pytest tests/ -x -q`. أي كسر في اختبار قائم ⇒ `BLOCKED`.
+- [ ] التقرير مكتوب مع ناتج pytest **حرفيًا** وقسم `Deviations`.
+
+# خارج النطاق
+
+الواجهة الأمامية · إخفاء الموديول القديم (جيت الواجهة) · `must_change_password` (جيت أمني) ·
+إنشاء حسابات الفروع أو كلمات مرورها · تشغيل الترحيلات على الإنتاج · `git commit` · `git push` ·
+النشر · تعبئة قوائم الأصناف · اعتماد/رفض الشفت · أي مساس بالموديول القديم.
+
+# شرط الإيقاف
+
+أي مطلوب لا يمكن تنفيذه دون لمس ملف ممنوع ⇒ **توقّف**، `Status: BLOCKED` مع السبب، ولا تغيّر شيئًا.
+
+---
+
+## سجل القرارات المعلّقة على المالك
+
+| # | القرار | الحالة |
+|---|---|---|
+| 1 | `total_sale`/`cash_sales` قبل المرتجع أم بعده؟ | ✅ **محسوم: بعده (net)** — 2026-08-14 |
+| 2 | تنظيف شجرة العمل (٢١٩ ملف) | ⛔ **يمنع التنفيذ** |
+| 3 | هل لـ`exchange`/`expiry` أثر محاسبي؟ | مؤجَّل — معلومة فقط حاليًا |
+| 4 | هل ٣ أصناف تكفي رونالدوز وصنفان للشاورما؟ | مؤجَّل — لا يمنع البناء |

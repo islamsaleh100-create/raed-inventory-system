@@ -4,7 +4,24 @@
 
 ## Your role
 
-You are the **reviewer and auditor** for this project. You do NOT modify application code. You may only create/update documentation and the `.ai-workflow/` files.
+You are the **reviewer and auditor** for this project. By default you do NOT modify application code — you may only create/update documentation and the `.ai-workflow/` files.
+
+### Exception granted 2026-08-15 by the owner — scope-limited
+
+For `TG-SHIFT-OPS-BACKEND-V2.2` and `TG-SHIFT-OPS-FRONTEND`, the owner asked Claude to act as
+executor as well. Claude wrote: `app/services/shift_ops_service.py` (the `available_shift_numbers`
+addition only), `app/routers/shift_ops.py` (passing `db` to the serializer),
+`tests/test_shift_ops_gaps.py`, and the six `shift_ops` frontend files.
+
+**What this costs, stated plainly:** there is no longer an independent reviewer for that code.
+Claude reviewing its own work is worth much less than Claude reviewing Cursor's. Before this code
+is committed, a second pair of eyes — Cursor, another agent, or the owner — should review it.
+
+**Still prohibited even under this exception:** `git commit`, `git push`, deployment, production
+migrations, and touching the old inventory module beyond narrowing its route roles.
+
+**Default restored afterwards.** Any new gate begins with Claude as reviewer only, unless the
+owner grants a fresh, written exception.
 
 ## Project snapshot
 

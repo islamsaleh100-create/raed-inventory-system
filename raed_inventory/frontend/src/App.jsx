@@ -17,6 +17,10 @@ import LoginPage from './pages/auth/LoginPage'
 import BranchDashboard from './pages/branch/BranchDashboard'
 import InventoryEntryPage from './pages/branch/InventoryEntryPage'
 import BranchEmployeesPage from './pages/branch/BranchEmployeesPage'
+import { ShiftListPage } from './pages/shift_ops/ShiftListPage'
+import { ShiftCountPage } from './pages/shift_ops/ShiftCountPage'
+import { ShiftCashPage } from './pages/shift_ops/ShiftCashPage'
+import { ShiftOpsReportPage } from './pages/shift_ops/ShiftOpsReportPage'
 import { InventoryListPage } from './pages/branch/InventoryListPage'
 import OrdersListPage from './pages/shared/OrdersListPage'
 import OrderDetailPage from './pages/shared/OrderDetailPage'
@@ -1938,6 +1942,10 @@ function AppRoutes() {
           <Route path="/dashboard" element={<SmartDashboard />} />
 
           {/* Branch */}
+          <Route path="/shift-ops" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin']}><ShiftListPage /></RouteRoleGuard>} />
+          <Route path="/shift-ops/:shiftId/count" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin']}><ShiftCountPage /></RouteRoleGuard>} />
+          <Route path="/shift-ops/:shiftId/cash" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin']}><ShiftCashPage /></RouteRoleGuard>} />
+          <Route path="/shift-ops/report" element={<RouteRoleGuard allowed={['internal_auditor', 'area_manager', 'operations_manager', 'admin', 'super_admin']}><ShiftOpsReportPage /></RouteRoleGuard>} />
           <Route path="/inventory" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryListPage /></RouteRoleGuard>} />
           <Route path="/inventory/new" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryEntryPage /></RouteRoleGuard>} />
           <Route path="/inventory/:id" element={<RouteRoleGuard allowed={['branch_user', 'branch_manager', 'admin', 'super_admin']}><InventoryEntryPage /></RouteRoleGuard>} />

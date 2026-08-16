@@ -110,6 +110,8 @@ api.interceptors.response.use(
   }
 )
 
+export { shiftOpsApi } from './shiftOpsApi'
+
 export default api
 
 export const authApi = {
