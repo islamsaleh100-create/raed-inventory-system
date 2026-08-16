@@ -473,3 +473,67 @@ def test_partial_only_filter_finds_forgotten_shifts(db, client):
         headers=hdr,
     ).json()["items"]
     assert [r["id"] for r in rows] == [forgotten]
+
+
+# ───────────────────── 8. branch without count items (deploy assumption) ─────────────────────
+
+def _seed_no_count_items(db, *, suffix: str = "NC"):
+    """Branch + brand link, shift config, but zero BrandShiftCountItem rows."""
+    wh = Warehouse(warehouse_code=f"{suffix}-WH", warehouse_name="WH", location="Riyadh", active=True)
+    db.add(wh)
+    db.flush()
+    branch = Branch(
+        branch_code=f"{suffix}-B1", branch_name="No Count Items Branch", city="Riyadh",
+        area="Olaya", warehouse_id=wh.id,
+    )
+    db.add(branch)
+    db.flush()
+    brand = Brand(name=f"{suffix} Brand", active=True)
+    db.add(brand)
+    db.flush()
+    db.add(BranchBrand(branch_id=branch.id, brand_id=brand.id))
+    cat = ItemCategory(code=f"{suffix}-CAT", name_ar="فئة", name_en="Cat")
+    db.add(cat)
+    unit = UnitOfMeasure(code=f"{suffix}-PCS", name_ar="قطعة", name_en="pcs")
+    db.add(unit)
+    db.flush()
+    item = Item(
+        item_code=f"{suffix}-ITEM-0", item_name_ar="صنف", item_name_en="Item",
+        category_id=cat.id, unit_id=unit.id, active=True, is_deleted=False,
+    )
+    db.add(item)
+    db.flush()
+    db.add(ItemBrand(item_id=item.id, brand_id=brand.id))
+    db.add(BranchShiftConfig(
+        branch_id=branch.id, shift_number=1, shift_name_ar="الشفت 1",
+        is_active=True, effective_from=date(2020, 1, 1), effective_to=None,
+    ))
+    users = {
+        "branch": _user(db, f"{suffix}_bu".lower(), RoleName.branch_user, branch.id),
+        "admin": _user(db, f"{suffix}_admin".lower(), RoleName.admin),
+    }
+    db.commit()
+    return {"branch_id": branch.id, "usernames": {k: v.username for k, v in users.items()}}
+
+
+def test_branch_without_count_items_empty_count_submits(db, client):
+    """فرع بلا brand_shift_count_items: جرد فارغ يُرحَّل، الكاش يُرحَّل، التقرير 0/0."""
+    seed = _seed_no_count_items(db, suffix="NC")
+    hdr = _login(client, seed["usernames"]["branch"])
+    admin_hdr = _login(client, seed["usernames"]["admin"])
+    shift_id = _open_shift(client, hdr)
+
+    created = client.post(f"{API}/shifts/{shift_id}/count", headers=hdr)
+    assert created.status_code in (200, 201), created.text
+    assert created.json()["lines"] == []
+
+    assert client.post(f"{API}/shifts/{shift_id}/count/submit", headers=hdr).status_code == 200
+    _fill_and_submit_cash(client, hdr, shift_id)
+
+    body = client.get(f"{API}/shifts/{shift_id}", headers=hdr).json()
+    assert body["status"] == "submitted"
+
+    report = client.get(f"{API}/reports/shift-operations", headers=admin_hdr).json()
+    row = next(i for i in report["items"] if i["id"] == shift_id)
+    assert row["count_lines_total"] == 0
+    assert row["count_lines_filled"] == 0

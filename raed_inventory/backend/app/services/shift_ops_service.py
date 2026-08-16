@@ -824,6 +824,13 @@ def build_shift_report(db: Session, user: User, **filters: Any) -> list[dict[str
             "damaged_total": str(damaged_total),
             "reopen_events": reopen_events,
             "chain_gap": _chain_gap_for_shift(db, shift),
+            # يميّز الجرد الفارغ عن الجرد الحقيقي. 13 فرعًا (Ronaldos · Shawarma) بلا أصناف عدّ
+            # في الإنتاج عند إطلاق 2026-08، فترحّل جردًا بصفر أسطر يبدو في التقرير مطابقًا لجرد
+            # مكتمل. بدون هذا الحقل يقرأ المراجع "23 فرعًا رحّلوا الجرد" وهي ليست الحقيقة.
+            "count_lines_total": len(shift.count.lines) if shift.count else 0,
+            "count_lines_filled": sum(
+                1 for l in shift.count.lines if l.row_status == ShiftCountRowStatus.valid.value
+            ) if shift.count else 0,
         }
 
         if filters.get("cash_variance_only") and shift.cash and shift.cash.cash_variance is not None:

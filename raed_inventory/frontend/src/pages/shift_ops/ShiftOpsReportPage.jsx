@@ -114,9 +114,18 @@ export function ShiftOpsReportPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
             <div><span className="text-gray-500">{t('shift_ops.movement_total')}:</span> {row.movement_diff_total}</div>
             <div><span className="text-gray-500">{t('shift_ops.damaged_total')}:</span> {row.damaged_total}</div>
+            <div className={Number(row.count_lines_total || 0) === 0 ? 'text-gray-400 italic' : ''}>
+              <span className="text-gray-500">{t('shift_ops.count')}:</span>{' '}
+              {row.count_lines_filled ?? 0}/{row.count_lines_total ?? 0}
+              {Number(row.count_lines_total || 0) === 0 && (
+                <span className="ms-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] not-italic text-gray-500">
+                  {t('shift_ops.no_count_items')}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* negative movement exceptions are listed apart from the normal total */}

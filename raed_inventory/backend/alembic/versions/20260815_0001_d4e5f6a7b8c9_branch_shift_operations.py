@@ -9,7 +9,9 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "d4e5f6a7b8c9"
+# تعارض: d4e5f6a7b8c9 مستخدم بالفعل في 20260416_0003_..._add_inventory_pending_approval_status.py
+# وهو ما سبب "Cycle is detected in revisions". أُبدل بمعرّف فريد 2026-08-16.
+revision: str = "a9b8c7d6e5f4"
 down_revision: Union[str, None] = "c1d2e3f4a5b6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -163,17 +165,29 @@ def upgrade() -> None:
     op.create_index("ix_branch_shift_reopen_shift_at", "branch_shift_reopen_events", ["shift_id", "reopened_at"])
 
     if is_pg:
-        op.execute(
-            """
-            ALTER TABLE branch_shift_configs
-            ADD CONSTRAINT ex_branch_shift_config_no_overlap
-            EXCLUDE USING gist (
-                branch_id WITH =,
-                shift_number WITH =,
-                daterange(effective_from, COALESCE(effective_to, 'infinity'::date), '[]') WITH &&
+        # EXCLUDE USING gist مع عامل "=" على أعمدة عددية يحتاج امتداد btree_gist.
+        # بدونه يفشل بـ: data type integer has no default operator class for gist.
+        # الامتداد قد لا يكون متاحًا على كل استضافة، ولذلك نتدهور بأمان:
+        # الحماية الفعلية موجودة أصلًا في shift_ops_service.validate_config_no_overlap
+        # وعليها اختبار يغطي أشكال التداخل الأربعة.
+        try:
+            op.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
+            op.execute(
+                """
+                ALTER TABLE branch_shift_configs
+                ADD CONSTRAINT ex_branch_shift_config_no_overlap
+                EXCLUDE USING gist (
+                    branch_id WITH =,
+                    shift_number WITH =,
+                    daterange(effective_from, COALESCE(effective_to, 'infinity'::date), '[]') WITH &&
+                )
+                """
             )
-            """
-        )
+        except Exception as exc:  # noqa: BLE001
+            print(
+                "تحذير: تعذّر إنشاء قيد منع التداخل على مستوى القاعدة "
+                f"({type(exc).__name__}). التحقق في طبقة الخدمة يظل ساريًا. التفاصيل: {exc}"
+            )
 
 
 def downgrade() -> None:

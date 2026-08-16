@@ -1601,6 +1601,7 @@
     "shift_number": "رقم الشفت",
     "shift_n": "الشفت {n}",
     "count": "الجرد",
+    "no_count_items": "بلا أصناف",
     "cash": "الكاش",
     "partial": "ناقص",
     "filter_partial_only": "الشفتات الناقصة فقط",

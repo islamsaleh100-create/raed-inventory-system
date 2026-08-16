@@ -1601,6 +1601,7 @@
     "shift_number": "Shift number",
     "shift_n": "Shift {n}",
     "count": "Count",
+    "no_count_items": "no items",
     "cash": "Cash",
     "partial": "Incomplete",
     "filter_partial_only": "Incomplete shifts only",
