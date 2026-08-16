@@ -1606,6 +1606,7 @@
     "partial": "ناقص",
     "filter_partial_only": "الشفتات الناقصة فقط",
     "shift_config_unavailable": "إعدادات شفتات الفرع غير متاحة — راجع الإدارة",
+    "no_shift_config": "لا يوجد إعداد شفتات لهذا الفرع — راجع الإدارة",
     "override_warning": "الشفت السابق غير مقفول. المتابعة ستقفله استثنائيًا.",
     "override_reason_placeholder": "سبب التجاوز (٥ أحرف على الأقل)",
     "confirm_override": "تأكيد التجاوز وفتح الشفت",

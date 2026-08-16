@@ -34,6 +34,7 @@ build/
 .vite/
 
 # Local databases and journals
+*.dump
 *.db
 *.db-journal
 *.sqlite

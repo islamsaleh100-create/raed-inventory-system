@@ -58,8 +58,15 @@ export function ShiftListPage() {
       .then((r) => {
         const items = r.data?.items || []
         setRows(items)
-        const known = items.find((i) => Array.isArray(i.available_shift_numbers))
-        if (known) setAvailableShiftNumbers(known.available_shift_numbers)
+        // مستوى الرد أولًا: يصل حتى مع صفر شفتات، ويخصّ الفرع المطلوب لا أول عنصر صادفناه.
+        // القراءة من العناصر تبقى احتياطًا لو خدم قديم لم يُنشر بعد.
+        const top = r.data?.available_shift_numbers
+        if (Array.isArray(top)) {
+          setAvailableShiftNumbers(top)
+        } else {
+          const known = items.find((i) => Array.isArray(i.available_shift_numbers))
+          if (known) setAvailableShiftNumbers(known.available_shift_numbers)
+        }
       })
       .catch(() => toast.error(t('common.load_failed')))
       .finally(() => setLoading(false))
@@ -144,9 +151,11 @@ export function ShiftListPage() {
             </label>
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-gray-500 text-xs">{t('shift_ops.shift_number')}</span>
-              {availableShiftNumbers === null ? (
+              {availableShiftNumbers === null || availableShiftNumbers.length === 0 ? (
                 <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  {t('shift_ops.shift_config_unavailable')}
+                  {availableShiftNumbers === null
+                    ? t('shift_ops.shift_config_unavailable')
+                    : t('shift_ops.no_shift_config')}
                 </span>
               ) : (
                 <select
@@ -189,7 +198,7 @@ export function ShiftListPage() {
           {!needsOverride && (
             <button
               type="button"
-              disabled={saving || availableShiftNumbers === null}
+              disabled={saving || !availableShiftNumbers?.length}
               onClick={() => submitOpen(false)}
               className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:bg-gray-300"
             >

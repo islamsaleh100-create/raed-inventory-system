@@ -80,7 +80,19 @@ def list_shifts(
         partial_only=partial_only,
         exception_only=exception_only,
     )
-    return {"total": len(items), "items": items}
+    # يُرسَل على مستوى الرد لا داخل العناصر: الفرع الذي لم يفتح شفتًا قط ليس له عنصر
+    # يحمل الحقل، فتُقفل شاشة الفتح ولا يستطيع فتح أول شفت إطلاقًا. وأخذه من أول عنصر
+    # يعطي الأدمن أرقام شفتات فرع آخر. المصدر هنا هو الفرع المطلوب صراحةً.
+    scope_branch = branch_id or current_user.branch_id
+    available = (
+        svc.available_shift_numbers(db, scope_branch, date_to or date.today())
+        if scope_branch else []
+    )
+    return {
+        "total": len(items),
+        "items": items,
+        "available_shift_numbers": available,
+    }
 
 
 @router.get("/shifts/{shift_id}")

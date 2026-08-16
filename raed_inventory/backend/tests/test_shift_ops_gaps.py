@@ -224,6 +224,54 @@ def test_available_shift_numbers_present_in_list(db, client):
     assert rows and rows[0]["available_shift_numbers"] == [1, 2]
 
 
+def test_list_shifts_exposes_config_with_zero_shifts(db, client):
+    """Branch with shift config but no opened shifts must still get numbers at response level."""
+    seed = _seed(db, shifts=1, suffix="Z0")
+    hdr = _login(client, seed["usernames"]["branch"])
+    body = client.get(f"{API}/shifts", headers=hdr).json()
+    assert body["items"] == []
+    assert body["available_shift_numbers"] == [1]
+
+
+def test_list_shifts_empty_config_returns_empty_array(db, client):
+    """Branch with no BranchShiftConfig rows must get [], not null and no error."""
+    wh = Warehouse(warehouse_code="NC-WH", warehouse_name="WH", location="Riyadh", active=True)
+    db.add(wh)
+    db.flush()
+    branch = Branch(
+        branch_code="NC-B1", branch_name="No Config Branch", city="Riyadh",
+        area="Olaya", warehouse_id=wh.id,
+    )
+    db.add(branch)
+    db.flush()
+    brand = Brand(name="NC Brand", active=True)
+    db.add(brand)
+    db.flush()
+    db.add(BranchBrand(branch_id=branch.id, brand_id=brand.id))
+    user = _user(db, "nc_bu", RoleName.branch_user, branch.id)
+    db.commit()
+    hdr = _login(client, user.username)
+    body = client.get(f"{API}/shifts", headers=hdr).json()
+    assert body["items"] == []
+    assert body["available_shift_numbers"] == []
+
+
+def test_list_shifts_admin_scope_uses_requested_branch(db, client):
+    """Admin listing branch A must not inherit shift numbers from branch B's open shift."""
+    seed_one = _seed(db, shifts=1, suffix="S1")
+    seed_two = _seed(db, shifts=2, suffix="S2")
+    admin_hdr = _login(client, seed_one["usernames"]["admin"])
+    branch_hdr = _login(client, seed_two["usernames"]["branch"])
+    _open_shift(client, branch_hdr, day="2026-08-01")
+    body = client.get(
+        f"{API}/shifts",
+        params={"branch_id": seed_one["branch_id"]},
+        headers=admin_hdr,
+    ).json()
+    assert body["available_shift_numbers"] == [1]
+    assert body["available_shift_numbers"] != [1, 2]
+
+
 # ───────────────────── 3. reopen limit + admin bypass ─────────────────────
 
 def _reopen(client, hdr, shift_id, target="both", reason="تصحيح رقم", admin_override=False):

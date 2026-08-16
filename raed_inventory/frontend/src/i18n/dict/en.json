@@ -1606,6 +1606,7 @@
     "partial": "Incomplete",
     "filter_partial_only": "Incomplete shifts only",
     "shift_config_unavailable": "Branch shift configuration unavailable — contact admin",
+    "no_shift_config": "No shift configuration for this branch — contact admin",
     "override_warning": "The previous shift is not closed. Continuing will close it as an exception.",
     "override_reason_placeholder": "Override reason (min 5 chars)",
     "confirm_override": "Confirm override and open shift",
