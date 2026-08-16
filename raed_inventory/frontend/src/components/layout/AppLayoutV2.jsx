@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   LayoutDashboard, ClipboardList, Package, Truck, BarChart3,
-  Users, Settings, LogOut, Menu, X,
+  Users, Settings, LogOut, Menu, X, Wallet,
   Warehouse, Building2, FileText, ArrowLeftRight,
   Star, GraduationCap, Bike, Globe, AlertCircle, TrendingUp, ChefHat, ShieldCheck, Flag, History, Lightbulb, Bell
 } from 'lucide-react'
@@ -27,6 +27,8 @@ const NAVIGATION = [
     roles: ['branch_user', 'branch_manager'],
     items: [
       { to: '/shift-ops', icon: ClipboardList, labelKey: 'nav.shift_ops', roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
+      { to: '/shift-ops/today/count', icon: ClipboardList, labelKey: 'nav.shift_count', roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
+      { to: '/shift-ops/today/cash', icon: Wallet, labelKey: 'nav.shift_cash', roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
       { to: '/inventory', icon: ClipboardList, labelKey: 'nav.daily_inventory_legacy', roles: ['admin', 'super_admin'] },
       { to: '/orders', icon: Package, labelKey: 'nav.orders', roles: ['branch_user', 'branch_manager'] },
       { to: '/orders/daily', icon: ClipboardList, labelKey: 'nav.daily_order', roles: ['branch_manager', 'admin', 'super_admin'] },

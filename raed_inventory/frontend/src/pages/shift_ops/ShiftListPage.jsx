@@ -1,6 +1,6 @@
 // ShiftListPage.jsx — عمليات الشفت: قائمة الشفتات ونقطة الدخول
 import React, { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { Plus, ClipboardList, Wallet, AlertTriangle, Unlock, CalendarOff } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -32,13 +32,15 @@ export function ShiftListPage() {
   const roles = useSelector(selectUserRoles) || []
   const isManager = roles.some((r) => MANAGER_ROLES.includes(r))
 
+  const [searchParams] = useSearchParams()
+
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [partialOnly, setPartialOnly] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
-  const [openForm, setOpenForm] = useState(false)
+  const [openForm, setOpenForm] = useState(() => searchParams.get('open') === '1')
   const [shiftDate, setShiftDate] = useState(todayString())
   const [shiftNumber, setShiftNumber] = useState(1)
   // Never hardcoded: comes from the backend (available_shift_numbers).
@@ -73,6 +75,10 @@ export function ShiftListPage() {
   }, [partialOnly, dateFrom, dateTo, t])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (searchParams.get('open') === '1') setOpenForm(true)
+  }, [searchParams])
 
   const singleShiftBranch = Array.isArray(availableShiftNumbers) && availableShiftNumbers.length === 1
   useEffect(() => {

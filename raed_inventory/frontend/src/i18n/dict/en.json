@@ -26,6 +26,8 @@
     "actions": "Actions",
     "status": "Status",
     "date": "Date",
+    "date_from": "From date",
+    "date_to": "To date",
     "notes": "Notes",
     "reason": "Reason",
     "quantity": "Quantity",
@@ -41,7 +43,10 @@
     "forbidden_page_title": "Access denied",
     "forbidden_page_body": "You do not have permission to view this page.",
     "lan_trial_legacy_blocked_title": "Screen not used in LAN trial",
-    "lan_trial_legacy_blocked_body": "This screen is not used in the LAN trial. Use Supply Chain screens instead."
+    "lan_trial_legacy_blocked_body": "This screen is not used in the LAN trial. Use Supply Chain screens instead.",
+    "load_failed": "Failed to load data",
+    "save_failed": "Failed to save",
+    "saved": "Saved"
   },
   "auth": {
     "login": "Sign in",
@@ -1243,6 +1248,8 @@
     "settings": "Settings",
     "assistant_suggestions": "Assistant Suggestions",
     "shift_ops": "Shift Operations",
+    "shift_count": "Shift count",
+    "shift_cash": "Shift cash",
     "daily_inventory_legacy": "Daily Inventory (legacy)"
   },
   "roles": {
@@ -1709,7 +1716,9 @@
       "NEGATIVE_EXPECTED_CASH": "Expected cash is negative",
       "CASH_VARIANCE_REASON_REQUIRED": "Variance reason required",
       "BILL_COUNT_REQUIRED": "Bill count required",
-      "REQUIRED": "This field is required"
+      "REQUIRED": "This field is required",
+      "MOVEMENT_EXCEPTION_REASON_REQUIRED": "Movement variance reason is required",
+      "NEGATIVE_VALUE": "Value cannot be negative"
     }
   }
 }

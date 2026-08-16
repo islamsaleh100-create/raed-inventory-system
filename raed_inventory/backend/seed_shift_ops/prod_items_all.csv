@@ -1,0 +1,143 @@
+﻿item_code,item_name_en,item_name_ar,active
+ONDA-PRD-001,Onda Latte,أوندا لاتيه,True
+ONDA-PRD-002,Spanish Latte,سبانش لاتيه,True
+ONDA-PRD-003,Cappuccino,كابتشينو,True
+ONDA-PRD-004,Americano,أمريكانو,True
+ONDA-PRD-005,Flat White,فلات وايت,True
+ONDA-PRD-006,Iced Latte,آيس لاتيه,True
+ONDA-PRD-007,Iced Spanish Latte,آيس سبانش لاتيه,True
+ONDA-PRD-008,Matcha Latte,ماتشا لاتيه,True
+ONDA-PRD-009,Passion Fruit Mojito,موهيتو باشن فروت,True
+ONDA-PRD-010,Butter Croissant,كروسان زبدة,True
+ONDA-PRD-011,Chocolate Cookies,كوكيز شوكولاتة,True
+ONDA-PRD-012,San Sebastian Cheesecake,تشيزكيك سان سيباستيان,True
+ONDA-RAW-001,Onda House Blend Beans,حبوب قهوة أوندا بليند,True
+ONDA-RAW-002,Ethiopian Coffee Beans,حبوب قهوة إثيوبية,True
+ONDA-RAW-003,Full Fat Milk,حليب كامل الدسم,True
+ONDA-RAW-004,Oat Milk,حليب شوفان,True
+ONDA-RAW-005,Almond Milk,حليب لوز,True
+ONDA-RAW-006,Vanilla Syrup,صوص فانيلا,True
+ONDA-RAW-007,Caramel Syrup,صوص كراميل,True
+ONDA-RAW-008,Hazelnut Syrup,صوص بندق,True
+ONDA-RAW-009,hassan Sauce,صلصة حسان,True
+ONDA-RAW-010,Matcha Powder,ماتشا بودرة,True
+ONDA-RAW-011,Earl Grey Tea,شاي إيرل جراي,True
+ONDA-RAW-012,White Sugar,سكر أبيض,True
+ONDA-RAW-013,Hot Cups 12oz,أكواب ساخنة 12 أونص,True
+ONDA-RAW-014,Cold Cups 16oz,أكواب باردة 16 أونص,True
+ONDA-RAW-015,Cup Lids,أغطية أكواب,True
+ONDA-RAW-016,Paper Straws,شفاطات ورقية,True
+ONDA-RAW-017,Dessert Cups,أكواب حلى,True
+SUPF-ONDA-007D7822F3,Face mask,Face mask,True
+SUPF-ONDA-0146B42F94,Butter paper,Butter paper,True
+SUPF-ONDA-020DBB8931,CHEESE CROISSANT,CHEESE CROISSANT,True
+SUPF-ONDA-048ACEB471,كركديه,كركديه,True
+SUPF-ONDA-06E1A2462F,Wiper,Wiper,True
+SUPF-ONDA-087E6DE769,Gloves,Gloves,True
+SUPF-ONDA-095E1706CD,Stirrer (اعواد تحريك خشب),Stirrer (اعواد تحريك خشب),True
+SUPF-ONDA-0EF44938E5,غاز النيتروجين,غاز النيتروجين,True
+SUPF-ONDA-15587E52FB,Water (nova),Water (nova),True
+SUPF-ONDA-195F38A7D6,Garbage bags (big),Garbage bags (big),True
+SUPF-ONDA-19B3529C18,8 oz Cups yellow,8 oz Cups yellow,True
+SUPF-ONDA-1C2622CF6A,12 oz cup plastic,12 oz cup plastic,True
+SUPF-ONDA-1CFFADDEF9,Mini eclair 3pc,Mini eclair 3pc,True
+SUPF-ONDA-1E067D70A2,CHOCOLATE CROISSANT,CHOCOLATE CROISSANT,True
+SUPF-ONDA-2130ABF5FD,Roll Napkin,Roll Napkin,True
+SUPF-ONDA-21580339BF,Hand soap,Hand soap,True
+SUPF-ONDA-2491890466,Watermelon Syrup,Watermelon Syrup,True
+SUPF-ONDA-249A0D6AB6,Mob bucket cart,Mob bucket cart,True
+SUPF-ONDA-26EE2C982A,Onda bags,Onda bags,True
+SUPF-ONDA-2C3AE2DA3B,8 oz Lid,8 oz Lid,True
+SUPF-ONDA-33E8B3CC5B,White chocolate sauce,White chocolate sauce,True
+SUPF-ONDA-357BE6EAF3,Tiramisu cream (for hot chocolate),Tiramisu cream (for hot chocolate),True
+SUPF-ONDA-35DA28B2F2,Milk skim,Milk skim,True
+SUPF-ONDA-40BD4C817A,FETA SANDWICH,FETA SANDWICH,True
+SUPF-ONDA-42EF9C48D0,Brown sugar,Brown sugar,True
+SUPF-ONDA-44F8472036,ATM papers,ATM papers,True
+SUPF-ONDA-4B9E546307,Vanilla Syrup,Vanilla Syrup,True
+SUPF-ONDA-4BD6B8CECB,Sweet box (small),Sweet box (small),True
+SUPF-ONDA-510D2907FF,White sugar,White sugar,True
+SUPF-ONDA-52C824B9AE,شوكلت فليك,شوكلت فليك,True
+SUPF-ONDA-53ED2DA6AA,Cheesecake berry,Cheesecake berry,True
+SUPF-ONDA-54602C12CC,Small broom,Small broom,True
+SUPF-ONDA-5A5CD0E442,6 oz Cups,6 oz Cups,True
+SUPF-ONDA-5EAD74E079,ZAATER CROISSANT,ZAATER CROISSANT,True
+SUPF-ONDA-66EC851308,12 oz Cups paper,12 oz Cups paper,True
+SUPF-ONDA-68C88A818D,Square napkin,Square napkin,True
+SUPF-ONDA-68F4E906E5,Onda sticker,Onda sticker,True
+SUPF-ONDA-6ACEAB5C52,Holder 4 hole,Holder 4 hole,True
+SUPF-ONDA-6AE520F68B,Whipping cream,Whipping cream,True
+SUPF-ONDA-6F081A76A1,Caramel Syrup,Caramel Syrup,True
+SUPF-ONDA-71D9362744,Cold Brew Filter,Cold Brew Filter,True
+SUPF-ONDA-72798D5C93,4 oz Cups,4 oz Cups,True
+SUPF-ONDA-75D8DF75DE,LEMON FRESH,LEMON FRESH,True
+SUPF-ONDA-767ED8D93F,4 oz Lid,4 oz Lid,True
+SUPF-ONDA-76B3FE1A0B,Brown Sugar 5KG (for karkadeh),Brown Sugar 5KG (for karkadeh),True
+SUPF-ONDA-775AC584CF,Espresso machine cleaning powder,Espresso machine cleaning powder,True
+SUPF-ONDA-78D939BBD0,Holder 2 hole,Holder 2 hole,True
+SUPF-ONDA-7EDB086482,Printer papers,Printer papers,True
+SUPF-ONDA-8116FC45A6,Dettol for floor,Dettol for floor,True
+SUPF-ONDA-81814898B4,Double CHOCOLATE CAKE,Double CHOCOLATE CAKE,True
+SUPF-ONDA-8226919A02,Garbage bags (small),Garbage bags (small),True
+SUPF-ONDA-82FF7926B8,CHOCOLATE CHIP COOKIE,CHOCOLATE CHIP COOKIE,True
+SUPF-ONDA-842D118DFC,ECLAIR CHOCOLATE,ECLAIR CHOCOLATE,True
+SUPF-ONDA-84BCA694A3,Santa air fresh,Santa air fresh,True
+SUPF-ONDA-85746FE891,Chocolate Belgium,Chocolate Belgium,True
+SUPF-ONDA-8580FFEA66,Wax paper,Wax paper,True
+SUPF-ONDA-85C22FCBA4,LEMON CAKE,LEMON CAKE,True
+SUPF-ONDA-86D7CBE691,Sanitizer,Sanitizer,True
+SUPF-ONDA-89CC53B235,BROWNIE Zatar,BROWNIE Zatar,True
+SUPF-ONDA-89FC81E952,Battery for machine air fresh,Battery for machine air fresh,True
+SUPF-ONDA-8A4EF55B9C,Clorox,Clorox,True
+SUPF-ONDA-8AE39A46B3,Cheese cream (for hot chocolate),Cheese cream (for hot chocolate),True
+SUPF-ONDA-8CA7CD2DF2,Chocolate slice,Chocolate slice,True
+SUPF-ONDA-9272E7334E,Steviana sugar,Steviana sugar,True
+SUPF-ONDA-9348E260CA,Strawberry syrup,Strawberry syrup,True
+SUPF-ONDA-96E1AB2A30,Mango sauce,Mango sauce,True
+SUPF-ONDA-9A005F90E0,Condensed Milk,Condensed Milk,True
+SUPF-ONDA-9AB9F720C0,Coffee Beans Costa Rica,Coffee Beans Costa Rica,True
+SUPF-ONDA-9D6E29BF44,Milk low fat,Milk low fat,True
+SUPF-ONDA-9EBA45246A,Dishwashing sponge,Dishwashing sponge,True
+SUPF-ONDA-9F5C93F249,Mini eclair 9pc,Mini eclair 9pc,True
+SUPF-ONDA-A0DABE5605,Dettol for table,Dettol for table,True
+SUPF-ONDA-A32007B0D5,SPINACH SANDWICH,SPINACH SANDWICH,True
+SUPF-ONDA-A3A7BC4858,Straw,Straw,True
+SUPF-ONDA-A7097EDBFB,8 oz Cups,8 oz Cups,True
+SUPF-ONDA-A847D41053,Coffee Beans Colombian,Coffee Beans Colombian,True
+SUPF-ONDA-A938B4D024,MINT FRESH,MINT FRESH,True
+SUPF-ONDA-AA9EBF931F,Data printing machine,Data printing machine,True
+SUPF-ONDA-AE71A8ADF4,12 oz Lid (plastic),12 oz Lid (plastic),True
+SUPF-ONDA-AEC345EE02,Fairy,Fairy,True
+SUPF-ONDA-B004694CF7,Passion fruit Syrup,Passion fruit Syrup,True
+SUPF-ONDA-B0A266B5C3,DOUBLE CHOCOLATE,DOUBLE CHOCOLATE,True
+SUPF-ONDA-B61382DAE9,ECLAIR KINDER,ECLAIR KINDER,True
+SUPF-ONDA-B7ECD7268D,ملاعق وشوك,ملاعق وشوك,True
+SUPF-ONDA-BD345D4281,Blue Lagoon Syrup,Blue Lagoon Syrup,True
+SUPF-ONDA-BECB520A1A,hopla,hopla,True
+SUPF-ONDA-C0443235C8,CHEESE CAKE,CHEESE CAKE,True
+SUPF-ONDA-C061A06769,BROWNIE,BROWNIE,True
+SUPF-ONDA-C267646B2B,Napkin blue (espresso machine),Napkin blue (espresso machine),True
+SUPF-ONDA-C36F2E173E,Sweet box (square),Sweet box (square),True
+SUPF-ONDA-CA71240AE2,Lactose free milk,Lactose free milk,True
+SUPF-ONDA-CBDE83D0E6,Hand sanitizer,Hand sanitizer,True
+SUPF-ONDA-CBFBF59B5D,V 60 filter,V 60 filter,True
+SUPF-ONDA-CCCC8A8906,Croissant bag,Croissant bag,True
+SUPF-ONDA-D362A79697,Large broom,Large broom,True
+SUPF-ONDA-D5A06AEF54,Coconut milk,Coconut milk,True
+SUPF-ONDA-D70AFE47CA,12 oz Lid (paper),12 oz Lid (paper),True
+SUPF-ONDA-D933CCC32E,Cheesecake pekan,Cheesecake pekan,True
+SUPF-ONDA-E13E4B7EB9,Sweet box (big),Sweet box (big),True
+SUPF-ONDA-E1AC6EDCAB,7 up,7 up,True
+SUPF-ONDA-E42D4FE77F,Machine for air fresh,Machine for air fresh,True
+SUPF-ONDA-E657FBDE68,Milk full fat,Milk full fat,True
+SUPF-ONDA-E9A5871DEF,Coffee Beans Guatemala,Coffee Beans Guatemala,True
+SUPF-ONDA-F2CD63F1D2,Tiramisu,Tiramisu,True
+SUPF-ONDA-F501A14BF1,Coffee stirrers,Coffee stirrers,True
+SUPF-ONDA-F606BE5BD6,Coffee of the day filter (size 13),Coffee of the day filter (size 13),True
+SUPF-ONDA-F6FD138E79,Data printing machine papers,Data printing machine papers,True
+SUPF-ONDA-F871C8E993,Lemon Syrup,Lemon Syrup,True
+SUPF-ONDA-FA4D760435,6 oz Lid,6 oz Lid,True
+SUPF-ONDA-FA5465032E,Coffee Beans Ethiopia,Coffee Beans Ethiopia,True
+SUPF-ONDA-FAE93E0BAB,TURKEY CROISSANT,TURKEY CROISSANT,True
+SUPF-ONDA-FEAC319934,Matcha,Matcha,True
+SUPF-ONDA-FFC04AA45A,Alpro vanilla milk,Alpro vanilla milk,True

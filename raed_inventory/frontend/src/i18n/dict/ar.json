@@ -26,6 +26,8 @@
     "actions": "الإجراءات",
     "status": "الحالة",
     "date": "التاريخ",
+    "date_from": "من تاريخ",
+    "date_to": "إلى تاريخ",
     "notes": "ملاحظات",
     "reason": "السبب",
     "quantity": "الكمية",
@@ -41,7 +43,10 @@
     "forbidden_page_title": "غير مصرّح",
     "forbidden_page_body": "ليس لديك صلاحية لعرض هذه الصفحة.",
     "lan_trial_legacy_blocked_title": "شاشة غير مستخدمة في تجربة LAN",
-    "lan_trial_legacy_blocked_body": "هذه الشاشة غير مستخدمة في تجربة LAN. استخدم شاشات سلسلة الإمداد."
+    "lan_trial_legacy_blocked_body": "هذه الشاشة غير مستخدمة في تجربة LAN. استخدم شاشات سلسلة الإمداد.",
+    "load_failed": "تعذّر تحميل البيانات",
+    "save_failed": "تعذّر الحفظ",
+    "saved": "تم الحفظ"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -1243,6 +1248,8 @@
     "settings": "الإعدادات",
     "assistant_suggestions": "اقتراحات المساعد",
     "shift_ops": "عمليات الشفت",
+    "shift_count": "جرد الشفت",
+    "shift_cash": "كاش الشفت",
     "daily_inventory_legacy": "الجرد اليومي (قديم)"
   },
   "roles": {
@@ -1709,7 +1716,9 @@
       "NEGATIVE_EXPECTED_CASH": "الكاش المتوقع سالب",
       "CASH_VARIANCE_REASON_REQUIRED": "سبب الفرق مطلوب",
       "BILL_COUNT_REQUIRED": "عدد الفواتير مطلوب",
-      "REQUIRED": "هذا الحقل مطلوب"
+      "REQUIRED": "هذا الحقل مطلوب",
+      "MOVEMENT_EXCEPTION_REASON_REQUIRED": "سبب فرق الحركة مطلوب",
+      "NEGATIVE_VALUE": "القيمة لا تقبل السالب"
     }
   }
 }
