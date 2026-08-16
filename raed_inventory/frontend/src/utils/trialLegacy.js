@@ -33,6 +33,10 @@ export const LEGACY_TRIAL_BLOCKED_PATHS = new Set([
 ])
 
 export function isTrialLegacyBlocked(roles = []) {
+  // حُجِبت هذه الشاشات لتجربة الـLAN، ثم وصل المكوّن إلى الإنتاج ضمن دمج 7929cdc
+  // بلا شرط بيئة، فحجب مستخدمين حقيقيين. الحظر الآن اختياري وصريح: مطفأ ما لم
+  // تُضبط VITE_TRIAL_LEGACY_BLOCK=true في بيئة التجربة وحدها.
+  if (import.meta.env.VITE_TRIAL_LEGACY_BLOCK !== 'true') return false
   if (roles.includes('admin') || roles.includes('super_admin')) return false
   return TRIAL_SUPPLY_CHAIN_ROLES.some((r) => roles.includes(r))
 }
