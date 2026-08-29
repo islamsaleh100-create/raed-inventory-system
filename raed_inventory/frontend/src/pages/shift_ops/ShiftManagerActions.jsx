@@ -8,6 +8,7 @@ import { Unlock, CalendarOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { shiftOpsApi } from '../../services/shiftOpsApi'
 import { useT } from '../../i18n'
+import { shiftOpsError } from './shiftOpsError'
 
 const REOPEN_ROLES = ['area_manager', 'operations_manager', 'admin', 'super_admin']
 const TARGETS = ['count', 'cash', 'both']
@@ -31,6 +32,15 @@ export default function ShiftManagerActions({
   // This only keeps the UI honest about who the action belongs to.
   if (!allowed) return null
 
+  // `shift` was passed in but never read, so both buttons showed on every shift.
+  // Reopening a draft shift returns 409 NOT_SUBMITTED — the action was offered on
+  // a shift it can never apply to. Offer only what the current state allows.
+  const status = shift?.status
+  const isClosed = status === 'submitted' || status === 'exception_locked'
+  const canReopen = isClosed
+  const canCloseNoActivity = status === 'draft'
+  if (!canReopen && !canCloseNoActivity) return null
+
   const doReopen = async () => {
     setBusy(true)
     try {
@@ -40,7 +50,7 @@ export default function ShiftManagerActions({
       setReason('')
       onDone?.()
     } catch (err) {
-      toast.error(err?.response?.data?.message || t('common.save_failed'))
+      toast.error(shiftOpsError(err, t, 'common.save_failed'))
     } finally {
       setBusy(false)
     }
@@ -58,7 +68,7 @@ export default function ShiftManagerActions({
       setCloseReason('')
       onDone?.()
     } catch (err) {
-      toast.error(err?.response?.data?.message || t('common.save_failed'))
+      toast.error(shiftOpsError(err, t, 'common.save_failed'))
     } finally {
       setBusy(false)
     }
@@ -67,17 +77,21 @@ export default function ShiftManagerActions({
   return (
     <div className="bg-white border rounded-xl p-3 space-y-3">
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => setShowReopen((v) => !v)}
-                className="inline-flex items-center gap-1 border border-amber-300 text-amber-800 rounded-lg px-3 py-1.5 text-xs">
-          <Unlock size={14} /> {t('shift_ops.reopen')}
-        </button>
-        <button type="button" onClick={() => setShowClose((v) => !v)}
-                className="inline-flex items-center gap-1 border rounded-lg px-3 py-1.5 text-xs">
-          <CalendarOff size={14} /> {t('shift_ops.close_no_activity')}
-        </button>
+        {canReopen && (
+          <button type="button" onClick={() => setShowReopen((v) => !v)}
+                  className="inline-flex items-center gap-1 border border-amber-300 text-amber-800 rounded-lg px-3 py-1.5 text-xs">
+            <Unlock size={14} /> {t('shift_ops.reopen')}
+          </button>
+        )}
+        {canCloseNoActivity && (
+          <button type="button" onClick={() => setShowClose((v) => !v)}
+                  className="inline-flex items-center gap-1 border rounded-lg px-3 py-1.5 text-xs">
+            <CalendarOff size={14} /> {t('shift_ops.close_no_activity')}
+          </button>
+        )}
       </div>
 
-      {showReopen && (
+      {canReopen && showReopen && (
         <div className="border rounded-lg p-3 space-y-2 bg-amber-50">
           <div className="flex flex-wrap gap-2">
             {TARGETS.map((v) => (
@@ -98,7 +112,7 @@ export default function ShiftManagerActions({
         </div>
       )}
 
-      {showClose && (
+      {canCloseNoActivity && showClose && (
         <div className="border rounded-lg p-3 space-y-2 bg-gray-50">
           <select value={exceptionType} onChange={(e) => setExceptionType(e.target.value)}
                   className="w-full border rounded-lg px-3 py-2 text-sm">

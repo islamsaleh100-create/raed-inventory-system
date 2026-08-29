@@ -1,6 +1,15 @@
 from datetime import date, datetime, timedelta
 
+import pytest
+
 from app.core.security import get_password_hash
+
+
+@pytest.fixture(autouse=True)
+def _enable_shift_cash_for_legacy_tests(monkeypatch):
+    monkeypatch.setattr("app.config.settings.SHIFT_CASH_ENABLED", True)
+
+
 from app.models import (
     AreaManagerAssignment,
     Branch,
@@ -93,7 +102,6 @@ def _seed(db):
     db.flush()
     db.add(ItemBrand(item_id=item.id, brand_id=brand.id))
     db.add(BrandShiftCountItem(brand_id=brand.id, item_id=item.id, display_order=1, is_active=True))
-    _user(db, "sq_branch", RoleName.branch_user, branch.id)
     _user(db, "sq_mgr", RoleName.branch_manager, branch.id)
     am_user = _user(db, "sq_am", RoleName.area_manager)
     db.add(AreaManagerAssignment(user_id=am_user.id, city="Riyadh", brand_id=brand.id, active=True))
@@ -103,7 +111,7 @@ def _seed(db):
 
 def test_previous_shift_blocks_open(client, db):
     _seed(db)
-    token = _login(client, "sq_branch")
+    token = _login(client, "sq_mgr")
     first = client.post(
         "/api/v1/shift-ops/shifts",
         json={"shift_date": "2026-08-01", "shift_number": 1},
@@ -121,7 +129,7 @@ def test_previous_shift_blocks_open(client, db):
 
 def test_branch_manager_cannot_override(client, db):
     _seed(db)
-    branch_token = _login(client, "sq_branch")
+    branch_token = _login(client, "sq_mgr")
     client.post(
         "/api/v1/shift-ops/shifts",
         json={"shift_date": "2026-08-02", "shift_number": 1},
@@ -143,7 +151,7 @@ def test_branch_manager_cannot_override(client, db):
 
 def test_area_manager_override_locks_previous(client, db):
     _seed(db)
-    branch_token = _login(client, "sq_branch")
+    branch_token = _login(client, "sq_mgr")
     first = client.post(
         "/api/v1/shift-ops/shifts",
         json={"shift_date": "2026-08-03", "shift_number": 1},
@@ -169,7 +177,7 @@ def test_area_manager_override_locks_previous(client, db):
 
 def test_post_count_is_idempotent(client, db):
     _seed(db)
-    token = _login(client, "sq_branch")
+    token = _login(client, "sq_mgr")
     shift = client.post(
         "/api/v1/shift-ops/shifts",
         json={"shift_date": "2026-08-04", "shift_number": 1},
@@ -186,7 +194,7 @@ def test_post_count_is_idempotent(client, db):
 
 def test_close_no_activity_without_stuck_previous(client, db):
     _seed(db)
-    token = _login(client, "sq_branch")
+    token = _login(client, "sq_mgr")
     am_token = _login(client, "sq_am")
     shift = client.post(
         "/api/v1/shift-ops/shifts",
@@ -236,7 +244,7 @@ def test_config_overlap_rejected(db):
 
 def test_reopen_window_from_submission_time(db, client):
     _seed(db)
-    token = _login(client, "sq_branch")
+    token = _login(client, "sq_mgr")
     am_token = _login(client, "sq_am")
     shift_resp = client.post(
         "/api/v1/shift-ops/shifts",

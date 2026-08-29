@@ -66,6 +66,9 @@ class Settings(BaseSettings):
 
     # ─── Shift Operations ────────────────────────────────────────────────────
     CASH_VARIANCE_TOLERANCE: float = 5.0
+    # Shift cash screen deferred by owner 2026-08-18, not removed. While False, a shift
+    # completes on count submit alone. Re-enable via env without code changes.
+    SHIFT_CASH_ENABLED: bool = False
 
     # ─── File Upload Limits ──────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 20  # 20 MB كحد أقصى لأي ملف مرفوع

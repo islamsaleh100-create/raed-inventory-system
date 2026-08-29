@@ -16,6 +16,13 @@ from decimal import Decimal
 import pytest
 
 from app.core.security import get_password_hash
+
+
+@pytest.fixture(autouse=True)
+def _enable_shift_cash_for_legacy_tests(monkeypatch):
+    monkeypatch.setattr("app.config.settings.SHIFT_CASH_ENABLED", True)
+
+
 from app.models import (
     Branch,
     BranchBrand,
@@ -114,7 +121,8 @@ def _seed(db, *, shifts: int = 1, items: int = 1, suffix: str = "G"):
         ))
 
     users = {
-        "branch": _user(db, f"{suffix}_bu".lower(), RoleName.branch_user, branch.id),
+        "branch": _user(db, f"{suffix}_bm".lower(), RoleName.branch_manager, branch.id),
+        "branch_user": _user(db, f"{suffix}_bu".lower(), RoleName.branch_user, branch.id),
         "admin": _user(db, f"{suffix}_admin".lower(), RoleName.admin),
         "ops": _user(db, f"{suffix}_ops".lower(), RoleName.operations_manager),
     }
@@ -330,11 +338,31 @@ def test_reopen_requires_reason(db, client):
 
 def test_branch_user_cannot_reopen(db, client):
     seed = _seed(db, suffix="RB")
-    bhdr = _login(client, seed["usernames"]["branch"])
-    shift_id = _open_shift(client, bhdr)
-    _fill_and_submit_count(client, bhdr, shift_id)
-    _fill_and_submit_cash(client, bhdr, shift_id)
-    assert _reopen(client, bhdr, shift_id).status_code == 403
+    mhdr = _login(client, seed["usernames"]["branch"])
+    shift_id = _open_shift(client, mhdr)
+    _fill_and_submit_count(client, mhdr, shift_id)
+    _fill_and_submit_cash(client, mhdr, shift_id)
+    buhdr = _login(client, seed["usernames"]["branch_user"])
+    assert _reopen(client, buhdr, shift_id).status_code == 403
+
+
+def test_branch_user_cannot_open_shift(db, client):
+    seed = _seed(db, suffix="BU")
+    hdr = _login(client, seed["usernames"]["branch_user"])
+    resp = client.post(
+        f"{API}/shifts",
+        json={"shift_date": "2026-08-01", "shift_number": 1},
+        headers=hdr,
+    )
+    assert resp.status_code == 403
+
+
+def test_get_cash_before_save_returns_404(db, client):
+    seed = _seed(db, suffix="GC")
+    hdr = _login(client, seed["usernames"]["branch"])
+    shift_id = _open_shift(client, hdr)
+    resp = client.get(f"{API}/shifts/{shift_id}/cash", headers=hdr)
+    assert resp.status_code == 404
 
 
 # ───────────────────── 4. chain_gap with five details ─────────────────────
@@ -557,7 +585,7 @@ def _seed_no_count_items(db, *, suffix: str = "NC"):
         is_active=True, effective_from=date(2020, 1, 1), effective_to=None,
     ))
     users = {
-        "branch": _user(db, f"{suffix}_bu".lower(), RoleName.branch_user, branch.id),
+        "branch": _user(db, f"{suffix}_bm".lower(), RoleName.branch_manager, branch.id),
         "admin": _user(db, f"{suffix}_admin".lower(), RoleName.admin),
     }
     db.commit()

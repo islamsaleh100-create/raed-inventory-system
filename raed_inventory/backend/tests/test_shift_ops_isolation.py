@@ -2,7 +2,16 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from app.core.security import get_password_hash
+
+
+@pytest.fixture(autouse=True)
+def _enable_shift_cash_for_legacy_tests(monkeypatch):
+    monkeypatch.setattr("app.config.settings.SHIFT_CASH_ENABLED", True)
+
+
 from app.models import (
     Branch,
     BranchBrand,
@@ -88,9 +97,9 @@ def _seed(db):
     db.flush()
     db.add(ItemBrand(item_id=item.id, brand_id=brand.id))
     db.add(BrandShiftCountItem(brand_id=brand.id, item_id=item.id, display_order=1, is_active=True))
-    branch_user = _user(db, "so_branch_user", RoleName.branch_user, branch.id)
+    branch_manager = _user(db, "so_branch_mgr", RoleName.branch_manager, branch.id)
     db.commit()
-    return {"branch_id": branch.id, "item_id": item.id, "brand_id": brand.id, "branch_user": branch_user.username}
+    return {"branch_id": branch.id, "item_id": item.id, "brand_id": brand.id, "branch_manager": branch_manager.username}
 
 
 def test_shift_ops_service_has_no_forbidden_imports():
@@ -110,7 +119,7 @@ def test_shift_ops_service_has_no_forbidden_imports():
 
 def test_count_submit_does_not_touch_replenishment(db, client):
     seed = _seed(db)
-    token = _login(client, seed["branch_user"])
+    token = _login(client, seed["branch_manager"])
     open_resp = client.post(
         "/api/v1/shift-ops/shifts",
         json={"shift_date": "2026-08-01", "shift_number": 1},

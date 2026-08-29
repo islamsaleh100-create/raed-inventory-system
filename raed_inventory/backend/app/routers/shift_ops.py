@@ -33,7 +33,7 @@ def open_shift(
     if payload.override:
         if not roles & {"area_manager", "operations_manager", "admin", "super_admin"}:
             raise AppError(status_code=403, error_code="shift_ops.override_forbidden", message="Override not permitted for this role", detail={})
-    elif not roles & {"branch_user", "branch_manager"}:
+    elif not roles & {"branch_manager"}:
         raise AppError(status_code=403, error_code="shift_ops.forbidden", message="Access denied", detail={})
 
     if payload.override:
@@ -153,25 +153,34 @@ def create_or_get_count(
     shift_id: int,
     response: Response,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("branch_user", "branch_manager")),
+    current_user: User = Depends(require_roles("branch_manager")),
 ):
     count, created = svc.create_or_get_count(db, current_user, shift_id)
     db.commit()
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-    return svc._serialize_count(count)
+    return svc._serialize_count(count, db)
 
 
 @router.get("/shifts/{shift_id}/count")
 def get_count(
     shift_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("branch_user", "branch_manager")),
+    current_user: User = Depends(
+        require_roles(
+            "branch_manager",
+            "admin",
+            "super_admin",
+            "operations_manager",
+            "internal_auditor",
+            "area_manager",
+        )
+    ),
 ):
     shift = svc._get_shift(db, shift_id)
-    svc._require_branch_write(current_user, shift.branch_id, db)
+    svc._require_branch_read(current_user, shift.branch_id, db)
     if not shift.count:
         raise AppError(status_code=404, error_code="shift_ops.count_not_found", message="Count not created yet", detail={})
-    return svc._serialize_count(shift.count)
+    return svc._serialize_count(shift.count, db)
 
 
 @router.patch("/shifts/{shift_id}/count/lines")
@@ -179,32 +188,41 @@ def patch_count_lines(
     shift_id: int,
     payload: ShiftCountLinesPatchPayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("branch_user", "branch_manager")),
+    current_user: User = Depends(require_roles("branch_manager")),
 ):
     count = svc.patch_count_lines(db, current_user, shift_id, [line.model_dump() for line in payload.lines])
     db.commit()
-    return svc._serialize_count(count)
+    return svc._serialize_count(count, db)
 
 
 @router.post("/shifts/{shift_id}/count/submit")
 def submit_count(
     shift_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("branch_user", "branch_manager")),
+    current_user: User = Depends(require_roles("branch_manager")),
 ):
     count = svc.submit_count(db, current_user, shift_id)
     db.commit()
-    return svc._serialize_count(count)
+    return svc._serialize_count(count, db)
 
 
 @router.get("/shifts/{shift_id}/cash")
 def get_cash(
     shift_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("branch_user", "branch_manager")),
+    current_user: User = Depends(
+        require_roles(
+            "branch_manager",
+            "admin",
+            "super_admin",
+            "operations_manager",
+            "internal_auditor",
+            "area_manager",
+        )
+    ),
 ):
     shift = svc._get_shift(db, shift_id)
-    svc._require_branch_write(current_user, shift.branch_id, db)
+    svc._require_branch_read(current_user, shift.branch_id, db)
     if not shift.cash:
         raise AppError(status_code=404, error_code="shift_ops.cash_not_found", message="Cash record not found", detail={})
     return svc._serialize_cash(shift.cash)
@@ -215,7 +233,7 @@ def save_cash(
     shift_id: int,
     payload: ShiftOpsCashSavePayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("branch_user", "branch_manager")),
+    current_user: User = Depends(require_roles("branch_manager")),
 ):
     body = svc.save_cash(db, current_user, shift_id, payload.model_dump(exclude_none=True))
     db.commit()
@@ -226,7 +244,7 @@ def save_cash(
 def submit_cash(
     shift_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("branch_user", "branch_manager")),
+    current_user: User = Depends(require_roles("branch_manager")),
 ):
     body = svc.submit_cash(db, current_user, shift_id)
     db.commit()

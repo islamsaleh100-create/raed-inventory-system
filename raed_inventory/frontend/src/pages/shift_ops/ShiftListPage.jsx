@@ -1,6 +1,6 @@
 // ShiftListPage.jsx — عمليات الشفت: قائمة الشفتات ونقطة الدخول
 import React, { useState, useEffect, useCallback } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { Plus, ClipboardList, Wallet, AlertTriangle, Unlock, CalendarOff } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -9,8 +9,11 @@ import { selectUser, selectUserRoles } from '../../store'
 import { PageLoader } from '../../components/common'
 import { todayString } from '../../utils/helpers'
 import { useT } from '../../i18n'
+import { shiftOpsError } from './shiftOpsError'
 
 const MANAGER_ROLES = ['area_manager', 'operations_manager', 'admin', 'super_admin']
+// Matches backend SHIFT_CASH_ENABLED default (false). Set VITE_SHIFT_CASH_ENABLED=true to show cash links.
+const SHIFT_CASH_ENABLED = import.meta.env.VITE_SHIFT_CASH_ENABLED === 'true'
 
 function SectionBadge({ label, status, t }) {
   const map = {
@@ -28,14 +31,17 @@ function SectionBadge({ label, status, t }) {
 
 export function ShiftListPage() {
   const t = useT()
+  const navigate = useNavigate()
   const user = useSelector(selectUser)
   const roles = useSelector(selectUserRoles) || []
   const isManager = roles.some((r) => MANAGER_ROLES.includes(r))
 
   const [searchParams] = useSearchParams()
+  const redirectReason = searchParams.get('reason')
 
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [partialOnly, setPartialOnly] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -48,20 +54,20 @@ export function ShiftListPage() {
   const [overrideReason, setOverrideReason] = useState('')
   const [needsOverride, setNeedsOverride] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [openError, setOpenError] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
+    setLoadError(false)
     const params = {}
     if (partialOnly) params.partial_only = true
     if (dateFrom) params.date_from = dateFrom
     if (dateTo) params.date_to = dateTo
-    shiftOpsApi
+    return shiftOpsApi
       .listShifts(params)
       .then((r) => {
         const items = r.data?.items || []
         setRows(items)
-        // مستوى الرد أولًا: يصل حتى مع صفر شفتات، ويخصّ الفرع المطلوب لا أول عنصر صادفناه.
-        // القراءة من العناصر تبقى احتياطًا لو خدم قديم لم يُنشر بعد.
         const top = r.data?.available_shift_numbers
         if (Array.isArray(top)) {
           setAvailableShiftNumbers(top)
@@ -69,8 +75,13 @@ export function ShiftListPage() {
           const known = items.find((i) => Array.isArray(i.available_shift_numbers))
           if (known) setAvailableShiftNumbers(known.available_shift_numbers)
         }
+        return items
       })
-      .catch(() => toast.error(t('common.load_failed')))
+      .catch(() => {
+        setLoadError(true)
+        toast.error(t('common.load_failed'))
+        return []
+      })
       .finally(() => setLoading(false))
   }, [partialOnly, dateFrom, dateTo, t])
 
@@ -87,26 +98,49 @@ export function ShiftListPage() {
 
   const submitOpen = async (withOverride = false) => {
     setSaving(true)
+    setOpenError(null)
     try {
       const payload = { shift_date: shiftDate, shift_number: Number(shiftNumber) }
       if (withOverride) {
         payload.override = true
         payload.override_reason = overrideReason
       }
-      await shiftOpsApi.openShift(payload)
+      const res = await shiftOpsApi.openShift(payload)
       toast.success(t('shift_ops.opened'))
       setOpenForm(false)
       setNeedsOverride(false)
       setOverrideReason('')
-      load()
+      setOpenError(null)
+      const newId = res.data?.id
+      if (redirectReason === 'no_shift_today' && newId) {
+        navigate(`/shift-ops/${newId}/count`, { replace: true })
+        return
+      }
+      await load()
     } catch (err) {
       const code = err?.response?.data?.error_code
+      const detail = err?.response?.data?.detail || {}
       if (code === 'PREVIOUS_SHIFT_NOT_CLOSED') {
-        // Never auto-override: the previous shift gets force-closed, so the
-        // manager must see and accept that consequence explicitly.
+        setOpenError(null)
+        toast.error(shiftOpsError(err, t, 'shift_ops.open_shift_failed'))
         setNeedsOverride(true)
+        setOpenForm(true)
+      } else if (code === 'shift_ops.already_exists') {
+        setOpenError({
+          type: 'already_exists',
+          shiftId: detail.shift_id,
+          message: shiftOpsError(err, t, 'shift_ops.open_shift_failed'),
+        })
+        setOpenForm(true)
+      } else if (!err?.response) {
+        setOpenError({ type: 'network', message: t('shift_ops.open_shift_failed') })
+        setOpenForm(true)
       } else {
-        toast.error(err?.response?.data?.message || t('common.save_failed'))
+        setOpenError({
+          type: 'api',
+          message: shiftOpsError(err, t, 'shift_ops.open_shift_failed'),
+        })
+        setOpenForm(true)
       }
     } finally {
       setSaving(false)
@@ -115,13 +149,39 @@ export function ShiftListPage() {
 
   if (loading) return <PageLoader />
 
+  if (loadError) {
+    return (
+      <div className="p-4 space-y-3">
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-4">
+          {t('common.load_failed')}
+        </p>
+        <button type="button" onClick={() => load()} className="text-sm text-primary-600 font-semibold">
+          {t('common.try_again')}
+        </button>
+      </div>
+    )
+  }
+
+  const today = todayString()
+  const hasTodayShift = rows.some((r) => String(r.shift_date).slice(0, 10) === today)
+  const showNoShiftBanner = redirectReason === 'no_shift_today' && !hasTodayShift
+
   return (
     <div className="p-4 space-y-4">
+      {showNoShiftBanner && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-sm text-amber-900 font-medium">
+          {t('shift_ops.no_shift_today')}
+        </div>
+      )}
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-bold">{t('shift_ops.title')}</h1>
         <button
           type="button"
-          onClick={() => setOpenForm((v) => !v)}
+          onClick={() => {
+            setOpenForm((v) => !v)
+            setOpenError(null)
+          }}
           className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-semibold"
         >
           <Plus size={16} /> {t('shift_ops.open_shift')}
@@ -149,6 +209,23 @@ export function ShiftListPage() {
       {/* ── open shift form ── */}
       {openForm && (
         <div className="bg-white border rounded-xl p-4 space-y-3">
+          {openError && (
+            <div className="border border-red-300 bg-red-50 rounded-lg p-3 space-y-2 text-sm text-red-800">
+              <p className="font-semibold flex items-center gap-2">
+                <AlertTriangle size={16} />
+                {openError.message}
+              </p>
+              {openError.type === 'already_exists' && openError.shiftId && (
+                <Link
+                  to={`/shift-ops/${openError.shiftId}/count`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-400 px-3 py-1.5 text-xs font-semibold text-red-900 hover:bg-red-100"
+                >
+                  {t('shift_ops.open_shift_enter_existing')}
+                </Link>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-gray-500 text-xs">{t('shift_ops.shift_date')}</span>
@@ -161,7 +238,7 @@ export function ShiftListPage() {
                 <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                   {availableShiftNumbers === null
                     ? t('shift_ops.shift_config_unavailable')
-                    : t('shift_ops.no_shift_config')}
+                    : t('shift_ops.no_shift_config_admin')}
                 </span>
               ) : (
                 <select
@@ -244,7 +321,9 @@ export function ShiftListPage() {
             {/* count and cash are never merged into one status */}
             <div className="flex flex-wrap gap-2">
               <SectionBadge label={t('shift_ops.count')} status={row.count_status} t={t} />
-              <SectionBadge label={t('shift_ops.cash')} status={row.cash_status} t={t} />
+              {SHIFT_CASH_ENABLED && (
+                <SectionBadge label={t('shift_ops.cash')} status={row.cash_status} t={t} />
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
@@ -252,10 +331,12 @@ export function ShiftListPage() {
                     className="inline-flex items-center gap-1 border rounded-lg px-3 py-1.5 text-xs">
                 <ClipboardList size={14} /> {t('shift_ops.count')}
               </Link>
-              <Link to={`/shift-ops/${row.id}/cash`}
-                    className="inline-flex items-center gap-1 border rounded-lg px-3 py-1.5 text-xs">
-                <Wallet size={14} /> {t('shift_ops.cash')}
-              </Link>
+              {SHIFT_CASH_ENABLED && (
+                <Link to={`/shift-ops/${row.id}/cash`}
+                      className="inline-flex items-center gap-1 border rounded-lg px-3 py-1.5 text-xs">
+                  <Wallet size={14} /> {t('shift_ops.cash')}
+                </Link>
+              )}
               {isManager && (
                 <>
                   <Link to={`/shift-ops/${row.id}/count?manage=1`}

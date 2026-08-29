@@ -3,11 +3,11 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   LayoutDashboard, ClipboardList, Package, Truck, BarChart3,
-  Users, Settings, LogOut, Menu, X, Wallet,
+  Users, Settings, LogOut, Menu, X,
   Warehouse, Building2, FileText, ArrowLeftRight,
   Star, GraduationCap, Bike, Globe, AlertCircle, TrendingUp, ChefHat, ShieldCheck, Flag, History, Lightbulb, Bell
 } from 'lucide-react'
-import { logout, selectUser, selectUserRoles, selectSidebarOpen, toggleSidebar } from '../../store'
+import { logout, selectUser, selectUserRoles, selectSidebarOpen, toggleSidebar, setSidebarOpen } from '../../store'
 import NotificationBell from '../common/NotificationBell'
 import { useT, useLanguage } from '../../i18n'
 import AssistantWidget from '../assistant/AssistantWidget'
@@ -26,9 +26,23 @@ const NAVIGATION = [
     sectionKey: 'nav.section_branch',
     roles: ['branch_user', 'branch_manager'],
     items: [
-      { to: '/shift-ops', icon: ClipboardList, labelKey: 'nav.shift_ops', roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
-      { to: '/shift-ops/today/count', icon: ClipboardList, labelKey: 'nav.shift_count', roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
-      { to: '/shift-ops/today/cash', icon: Wallet, labelKey: 'nav.shift_cash', roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
+      {
+        to: '/shift-ops',
+        icon: ClipboardList,
+        labelKey: 'nav.shift_ops',
+        roles: ['branch_manager', 'admin', 'super_admin'],
+        activeMatch: '/shift-ops',
+      },
+      {
+        to: '/shift-ops/today/count',
+        icon: ClipboardList,
+        labelKey: 'nav.shift_count',
+        roles: ['branch_manager', 'admin', 'super_admin'],
+        activeMatch: /^\/shift-ops\/[^/]+\/count(\/review)?$/,
+      },
+      // TG-DEFER-CASH / SHIFT_CASH_ENABLED=false — cash nav deferred, not deleted. Restore by uncommenting.
+      // { to: '/shift-ops/today/cash', icon: Wallet, labelKey: 'nav.shift_cash', roles: ['branch_manager', 'admin', 'super_admin'], activeMatch: /^\/shift-ops\/[^/]+\/cash$/ },
+      // Legacy daily inventory — admin/super_admin only (removed from branch_manager visibility).
       { to: '/inventory', icon: ClipboardList, labelKey: 'nav.daily_inventory_legacy', roles: ['admin', 'super_admin'] },
       { to: '/orders', icon: Package, labelKey: 'nav.orders', roles: ['branch_user', 'branch_manager'] },
       { to: '/orders/daily', icon: ClipboardList, labelKey: 'nav.daily_order', roles: ['branch_manager', 'admin', 'super_admin'] },
@@ -71,6 +85,7 @@ const NAVIGATION = [
         { to: '/supply-chain/kitchen', icon: Package, labelKey: 'nav.supply_chain_kitchen', roles: ['kitchen_section_manager', 'internal_auditor', 'admin', 'super_admin'] },
         { to: '/supply-chain/warehouse', icon: Warehouse, labelKey: 'nav.supply_chain_warehouse', roles: ['warehouse_user', 'warehouse_manager', 'internal_auditor', 'admin', 'super_admin'] },
         { to: '/supply-chain/delivery', icon: Truck, labelKey: 'nav.supply_chain_delivery', roles: ['delivery_user', 'internal_auditor', 'admin', 'super_admin'] },
+        { to: '/shift-ops/report', icon: ClipboardList, labelKey: 'nav.shift_ops_report', roles: ['internal_auditor', 'area_manager', 'operations_manager', 'admin', 'super_admin'] },
       ]
     },
     {
@@ -158,14 +173,21 @@ function isLegacyHiddenForTrial(item, roles) {
   return false
 }
 
+function navItemIsActive(pathname, item) {
+  if (item.activeMatch !== undefined) {
+    if (item.activeMatch instanceof RegExp) return item.activeMatch.test(pathname)
+    if (typeof item.activeMatch === 'string') return pathname === item.activeMatch
+  }
+  return pathname === item.to
+    || (item.to !== '/dashboard'
+      && item.to !== '/supply-chain/control'
+      && pathname.startsWith(item.to))
+}
+
 function NavItem({ item, roles, onClick }) {
   const location = useLocation()
   const t = useT()
-  const isActive =
-    location.pathname === item.to
-    || (item.to !== '/dashboard'
-      && item.to !== '/supply-chain/control'
-      && location.pathname.startsWith(item.to))
+  const isActive = navItemIsActive(location.pathname, item)
   const isElevatedUser = roles.includes('admin') || roles.includes('super_admin')
   const visible = !isLegacyHiddenForTrial(item, roles)
     && (isElevatedUser || item.roles.length === 0 || item.roles.some((r) => roles.includes(r)))
@@ -210,14 +232,22 @@ export default function AppLayoutV2({ children }) {
   const primaryRole = ROLE_PRIORITY.find((r) => roles.includes(r))
   const roleLabel = primaryRole ? t(`roles.${primaryRole}`) : ''
 
+  const handleMenuToggle = () => {
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+      dispatch(toggleSidebar())
+    } else {
+      setMobileMenuOpen((open) => !open)
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <aside className={`
         fixed inset-y-0 right-0 z-40 bg-white border-l border-gray-200 flex flex-col
-        transition-all duration-300
-        ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'}
+        transition-all duration-300 overflow-hidden
+        ${mobileMenuOpen ? 'flex w-64' : 'hidden w-0'}
         lg:relative lg:flex
-        ${mobileMenuOpen ? 'flex' : 'hidden lg:flex'}
+        ${sidebarOpen ? 'lg:w-64' : 'lg:w-0'}
       `}>
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -230,7 +260,7 @@ export default function AppLayoutV2({ children }) {
             </div>
           </div>
           <button
-            onClick={() => { dispatch(toggleSidebar()); setMobileMenuOpen(false) }}
+            onClick={() => { dispatch(setSidebarOpen(false)); setMobileMenuOpen(false) }}
             className="p-1 hover:bg-gray-100 rounded-lg lg:hidden"
             title={closeLabel}
             aria-label={closeLabel}
@@ -298,7 +328,7 @@ export default function AppLayoutV2({ children }) {
         <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => { dispatch(toggleSidebar()); setMobileMenuOpen(!mobileMenuOpen) }}
+              onClick={handleMenuToggle}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title={sidebarOpen ? closeLabel : openLabel}
               aria-label={sidebarOpen ? closeLabel : openLabel}

@@ -1,4 +1,8 @@
+from datetime import datetime
 from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
 
 from app.core.security import get_password_hash
 from app.models import (
@@ -16,6 +20,19 @@ from app.models import (
     UserRole,
     Warehouse,
 )
+from app.models.branch_shift_ops import (
+    BranchShiftCash,
+    BranchShiftCount,
+    BranchShiftCountLine,
+    ShiftCountRowStatus,
+    ShiftSectionStatus,
+)
+from app.services import shift_ops_service
+
+
+@pytest.fixture(autouse=True)
+def _enable_shift_cash_for_legacy_tests(monkeypatch):
+    monkeypatch.setattr("app.config.settings.SHIFT_CASH_ENABLED", True)
 
 
 def _role(db, name: RoleName) -> Role:
@@ -95,7 +112,7 @@ def _seed(db):
     db.add(ItemBrand(item_id=item1.id, brand_id=brand.id))
     db.add(ItemBrand(item_id=item2.id, brand_id=brand.id))
     db.add(BrandShiftCountItem(brand_id=brand.id, item_id=item1.id, display_order=1, is_active=True))
-    _user(db, "sa_branch", RoleName.branch_user, branch.id)
+    _user(db, "sa_branch", RoleName.branch_manager, branch.id)
     _user(db, "sa_admin", RoleName.admin)
     db.commit()
     return branch.id, item1.id, item2.id, brand.id
@@ -186,6 +203,90 @@ def test_frozen_list_ignores_new_brand_item(client, db):
     second_count = client.post(f"/api/v1/shift-ops/shifts/{shift['id']}/count", headers=_auth(token)).json()
     assert len(second_count["lines"]) == 1
     assert second_count["id"] == first_count["id"]
+
+
+def test_create_or_get_count_integrity_error_returns_winner_once(client, db, monkeypatch):
+    branch_id, item1_id, _item2_id, _brand_id = _seed(db)
+    token = _login(client, "sa_branch")
+    shift = client.post(
+        "/api/v1/shift-ops/shifts",
+        json={"shift_date": "2026-08-14", "shift_number": 1},
+        headers=_auth(token),
+    ).json()
+    user = db.query(User).filter(User.username == "sa_branch").one()
+    winner = BranchShiftCount(
+        shift_id=shift["id"],
+        status=ShiftSectionStatus.draft.value,
+        items_frozen_at=datetime.utcnow(),
+        created_by=user.id,
+    )
+    db.add(winner)
+    db.flush()
+    db.add(
+        BranchShiftCountLine(
+            count_id=winner.id,
+            item_id=item1_id,
+            item_name_snapshot="صنف 1",
+            unit_snapshot="قطعة",
+            opening_balance=0,
+            row_status=ShiftCountRowStatus.incomplete.value,
+        )
+    )
+    db.flush()
+
+    monkeypatch.setattr(
+        shift_ops_service,
+        "_get_shift",
+        lambda _db, _shift_id: SimpleNamespace(id=shift["id"], branch_id=branch_id, count=None),
+    )
+
+    count, created = shift_ops_service.create_or_get_count(db, user, shift["id"])
+
+    assert created is False
+    assert count.id == winner.id
+    assert db.query(BranchShiftCount).filter_by(shift_id=shift["id"]).count() == 1
+    assert db.query(BranchShiftCountLine).filter_by(count_id=winner.id).count() == 1
+
+
+def test_cash_save_persists_validation_errors_and_submit_still_blocks(client, db):
+    _seed(db)
+    token = _login(client, "sa_branch")
+    shift = client.post(
+        "/api/v1/shift-ops/shifts",
+        json={"shift_date": "2026-08-15", "shift_number": 1},
+        headers=_auth(token),
+    ).json()
+    body = {
+        "total_sale": 1000,
+        "bill_count": 40,
+        "mada_sales": 350,
+        "cash_sales": 650,
+        "app_sales": 0,
+        "refund_bill": 1,
+        "exchange_amount": 0,
+        "expiry_amount": 0,
+        "cash_expense": 0,
+        "cash_float_carried_forward": 500,
+        "cash_deposited": 130,
+    }
+    saved = client.put(
+        f"/api/v1/shift-ops/shifts/{shift['id']}/cash",
+        json=body,
+        headers=_auth(token),
+    )
+    assert saved.status_code == 200, saved.text
+    payload = saved.json()
+    assert payload["cash_variance"] == "-20.00"
+    assert payload["validation_errors"]
+    assert {e["code"] for e in payload["validation_errors"]} == {"CASH_VARIANCE_REASON_REQUIRED"}
+
+    cash = db.query(BranchShiftCash).filter_by(shift_id=shift["id"]).one()
+    assert Decimal(str(cash.cash_deposited)) == Decimal("130.00")
+    assert Decimal(str(cash.cash_variance)) == Decimal("-20.00")
+
+    submitted = client.post(f"/api/v1/shift-ops/shifts/{shift['id']}/cash/submit", headers=_auth(token))
+    assert submitted.status_code == 422
+    assert submitted.json()["detail"]["errors"][0]["code"] == "CASH_VARIANCE_REASON_REQUIRED"
 
 
 def test_negative_movement_in_report_section(client, db):

@@ -22,7 +22,7 @@ export function ShiftTodayRedirect({ target }) {
         if (items.length > 0) {
           navigate(`/shift-ops/${items[0].id}/${target}`, { replace: true })
         } else {
-          navigate('/shift-ops?open=1', { replace: true })
+          navigate('/shift-ops?open=1&reason=no_shift_today', { replace: true })
         }
       })
       .catch(() => {

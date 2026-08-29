@@ -67,6 +67,9 @@ raed_inventory/frontend/lighthouse-reports/
 # Temp / generated folders at workspace root
 pytest-cache-files-*/
 screenshots/
+_ui_journey/
+_e2e/
+_final/
 mnt/
 unpacked_design/
 write_test.txt
@@ -100,3 +103,6 @@ figma-sales-*.png
 # Sensitive user/branch exports
 outputs/users_branches_*.xlsx
 tools/users_branches_export_data.json
+
+# Close-everything walkthrough screenshots (TG-CLOSE-EVERYTHING)
+_final/

@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy import and_, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -33,7 +34,18 @@ from app.services.shift_ops_validation import evaluate_count_line, validate_cash
 
 OVERRIDE_ROLES = {"area_manager", "operations_manager", "admin", "super_admin"}
 REOPEN_ROLES = OVERRIDE_ROLES
-BRANCH_WRITE_ROLES = {"branch_user", "branch_manager"}
+# 2026-08-16 owner decision: only branch_manager may write shift-ops at branch level.
+# Existing non-manager branch accounts (25 in prod) lose shift-ops access; accounts are not deleted.
+BRANCH_WRITE_ROLES = {"branch_manager"}
+# Read vs write are separate permissions. Write stays branch_manager-only (owner 2026-08-16).
+# Read for oversight: admin + audit/management roles (owner 2026-08-20). Scope via can_access_branch.
+BRANCH_READ_ROLES = BRANCH_WRITE_ROLES | {
+    "admin",
+    "super_admin",
+    "operations_manager",
+    "internal_auditor",
+    "area_manager",
+}
 REOPEN_LIMIT = 2
 REOPEN_WINDOW_HOURS = 48
 
@@ -44,6 +56,13 @@ def _roles(user: User) -> set[str]:
 
 def _require_branch_write(user: User, branch_id: int, db: Session) -> None:
     if not any(r in _roles(user) for r in BRANCH_WRITE_ROLES):
+        raise AppError(status_code=403, error_code="shift_ops.forbidden", message="Access denied", detail={})
+    if not can_access_branch(user, branch_id, db):
+        raise AppError(status_code=403, error_code="shift_ops.cross_branch_forbidden", message="Access denied for this branch", detail={"branch_id": branch_id})
+
+
+def _require_branch_read(user: User, branch_id: int, db: Session) -> None:
+    if not (_roles(user) & BRANCH_READ_ROLES):
         raise AppError(status_code=403, error_code="shift_ops.forbidden", message="Access denied", detail={})
     if not can_access_branch(user, branch_id, db):
         raise AppError(status_code=403, error_code="shift_ops.cross_branch_forbidden", message="Access denied for this branch", detail={"branch_id": branch_id})
@@ -102,6 +121,8 @@ def _is_partial(shift: BranchShift) -> bool:
     cs, ks = _count_status(shift), _cash_status(shift)
     if shift.status == BranchShiftStatus.exception_locked.value:
         return False
+    if not settings.SHIFT_CASH_ENABLED:
+        return False
     submitted_parts = sum(1 for s in (cs, ks) if s == ShiftSectionStatus.submitted.value)
     return submitted_parts == 1
 
@@ -129,7 +150,22 @@ def available_shift_numbers(db: Session, branch_id: int, on_date: date) -> list[
     return sorted({int(r[0]) for r in rows})
 
 
-def _serialize_shift_summary(shift: BranchShift, db: Optional[Session] = None) -> dict[str, Any]:
+def _branch_names_by_id(db: Session, branch_ids: set[int]) -> dict[int, dict[str, str]]:
+    if not branch_ids:
+        return {}
+    rows = db.query(Branch.id, Branch.branch_name).filter(Branch.id.in_(branch_ids)).all()
+    return {
+        bid: {"branch_name": name, "branch_name_ar": name}
+        for bid, name in rows
+    }
+
+
+def _serialize_shift_summary(
+    shift: BranchShift,
+    db: Optional[Session] = None,
+    *,
+    branch_names: Optional[dict[int, dict[str, str]]] = None,
+) -> dict[str, Any]:
     payload = {
         "id": shift.id,
         "branch_id": shift.branch_id,
@@ -144,6 +180,15 @@ def _serialize_shift_summary(shift: BranchShift, db: Optional[Session] = None) -
         "opened_at": shift.opened_at.isoformat() if shift.opened_at else None,
         "submitted_at": shift.submitted_at.isoformat() if shift.submitted_at else None,
     }
+    if branch_names and shift.branch_id in branch_names:
+        info = branch_names[shift.branch_id]
+        payload["branch_name"] = info["branch_name"]
+        payload["branch_name_ar"] = info["branch_name_ar"]
+    elif db is not None and shift.branch_id:
+        row = db.query(Branch.branch_name).filter(Branch.id == shift.branch_id).first()
+        if row:
+            payload["branch_name"] = row[0]
+            payload["branch_name_ar"] = row[0]
     if db is not None:
         payload["available_shift_numbers"] = available_shift_numbers(db, shift.branch_id, shift.shift_date)
     return payload
@@ -179,12 +224,13 @@ def _maybe_complete_shift(db: Session, shift: BranchShift) -> None:
     if shift.status == BranchShiftStatus.exception_locked.value:
         return
     cs, ks = _count_status(shift), _cash_status(shift)
-    if cs == ShiftSectionStatus.submitted.value and ks == ShiftSectionStatus.submitted.value:
+    cash_done = (ks == ShiftSectionStatus.submitted.value) if settings.SHIFT_CASH_ENABLED else True
+    if cs == ShiftSectionStatus.submitted.value and cash_done:
         shift.status = BranchShiftStatus.submitted.value
         times = []
         if shift.count and shift.count.submitted_at:
             times.append(shift.count.submitted_at)
-        if shift.cash and shift.cash.submitted_at:
+        if settings.SHIFT_CASH_ENABLED and shift.cash and shift.cash.submitted_at:
             times.append(shift.cash.submitted_at)
         shift.submitted_at = max(times) if times else utcnow_aware().replace(tzinfo=None)
 
@@ -389,8 +435,18 @@ def create_or_get_count(db: Session, user: User, shift_id: int) -> tuple[BranchS
         items_frozen_at=frozen_at,
         created_by=user.id,
     )
-    db.add(count)
-    db.flush()
+    try:
+        with db.begin_nested():
+            db.add(count)
+            db.flush()
+    except IntegrityError:
+        # Another request won the unique shift_id race between the relationship
+        # check and insert. Keep the outer transaction alive and return the winner.
+        db.expire_all()
+        winner = db.query(BranchShiftCount).filter_by(shift_id=shift.id).first()
+        if winner is None:
+            raise
+        return winner, False
 
     for item_id, name, unit, _order in _frozen_item_ids(db, shift.branch_id):
         opening = _opening_for_item(db, shift.branch_id, item_id, shift)
@@ -510,9 +566,23 @@ def save_cash(db: Session, user: User, shift_id: int, payload: dict[str, Any]) -
         if field in payload:
             setattr(cash, field, payload[field])
 
-    result = validate_cash_payload(payload)
-    if result["errors"]:
-        raise AppError(status_code=422, error_code=result["errors"][0]["code"], message="Cash validation failed", detail={"errors": result["errors"]})
+    merged_payload = {
+        "total_sale": cash.total_sale,
+        "bill_count": cash.bill_count,
+        "mada_sales": cash.mada_sales,
+        "cash_sales": cash.cash_sales,
+        "app_sales": cash.app_sales,
+        "refund_bill": cash.refund_bill,
+        "exchange_amount": cash.exchange_amount,
+        "expiry_amount": cash.expiry_amount,
+        "cash_expense": cash.cash_expense,
+        "cash_float_carried_forward": cash.cash_float_carried_forward,
+        "cash_deposited": cash.cash_deposited,
+        "expense_type": cash.expense_type,
+        "expense_details": cash.expense_details,
+        "cash_variance_reason": cash.cash_variance_reason,
+    }
+    result = validate_cash_payload(merged_payload)
 
     cash.cash_variance = result["cash_variance"]
     cash.updated_by = user.id
@@ -520,6 +590,7 @@ def save_cash(db: Session, user: User, shift_id: int, payload: dict[str, Any]) -
     out = _serialize_cash(cash)
     out["expected_deposited"] = f"{result['expected_deposited']:.2f}"
     out["informational_fields"] = result["informational_fields"]
+    out["validation_errors"] = result["errors"]
     return out
 
 
@@ -600,31 +671,58 @@ def _serialize_cash(cash: BranchShiftCash) -> dict[str, Any]:
     }
 
 
-def _serialize_count(count: BranchShiftCount) -> dict[str, Any]:
+def _serialize_count(count: BranchShiftCount, db: Optional[Session] = None) -> dict[str, Any]:
+    order_map: dict[int, int] = {}
+    if db is not None:
+        branch_row = (
+            db.query(BranchShift.branch_id)
+            .filter(BranchShift.id == count.shift_id)
+            .first()
+        )
+        if branch_row:
+            order_map = {
+                item_id: order
+                for item_id, _, _, order in _frozen_item_ids(db, branch_row[0])
+            }
+
+    lines = list(count.lines)
+    if order_map:
+        lines.sort(
+            key=lambda ln: (
+                order_map.get(ln.item_id, 999999),
+                ln.item_id,
+                ln.item_name_snapshot or "",
+            )
+        )
+
+    serialized_lines = []
+    for line in lines:
+        entry: dict[str, Any] = {
+            "id": line.id,
+            "item_id": line.item_id,
+            "item_name_snapshot": line.item_name_snapshot,
+            "unit_snapshot": line.unit_snapshot,
+            "opening_balance": str(line.opening_balance),
+            "received_qty": str(line.received_qty) if line.received_qty is not None else None,
+            "returned_qty": str(line.returned_qty) if line.returned_qty is not None else None,
+            "damaged_qty": str(line.damaged_qty) if line.damaged_qty is not None else None,
+            "closing_balance": str(line.closing_balance) if line.closing_balance is not None else None,
+            "movement_diff": str(line.movement_diff) if line.movement_diff is not None else None,
+            "movement_exception_reason": line.movement_exception_reason,
+            "item_notes": line.item_notes,
+            "row_status": line.row_status,
+        }
+        if order_map:
+            entry["display_order"] = order_map.get(line.item_id, 999999)
+        serialized_lines.append(entry)
+
     return {
         "id": count.id,
         "shift_id": count.shift_id,
         "status": count.status,
         "items_frozen_at": count.items_frozen_at.isoformat() if count.items_frozen_at else None,
         "general_notes": count.general_notes,
-        "lines": [
-            {
-                "id": line.id,
-                "item_id": line.item_id,
-                "item_name_snapshot": line.item_name_snapshot,
-                "unit_snapshot": line.unit_snapshot,
-                "opening_balance": str(line.opening_balance),
-                "received_qty": str(line.received_qty) if line.received_qty is not None else None,
-                "returned_qty": str(line.returned_qty) if line.returned_qty is not None else None,
-                "damaged_qty": str(line.damaged_qty) if line.damaged_qty is not None else None,
-                "closing_balance": str(line.closing_balance) if line.closing_balance is not None else None,
-                "movement_diff": str(line.movement_diff) if line.movement_diff is not None else None,
-                "movement_exception_reason": line.movement_exception_reason,
-                "item_notes": line.item_notes,
-                "row_status": line.row_status,
-            }
-            for line in count.lines
-        ],
+        "lines": serialized_lines,
     }
 
 
@@ -714,7 +812,7 @@ def list_shifts(
             raise AppError(status_code=403, error_code="shift_ops.forbidden", message="Access denied", detail={})
         q = q.filter(BranchShift.branch_id == branch_id)
     else:
-        if _roles(user) & {"branch_user", "branch_manager"}:
+        if _roles(user) & {"branch_manager"}:
             if not user.branch_id:
                 return []
             q = q.filter(BranchShift.branch_id == user.branch_id)
@@ -734,7 +832,8 @@ def list_shifts(
         q = q.filter(BranchShift.status == BranchShiftStatus.exception_locked.value)
 
     rows = q.order_by(BranchShift.shift_date.desc(), BranchShift.shift_number.desc()).all()
-    items = [_serialize_shift_summary(s, db) for s in rows]
+    branch_names = _branch_names_by_id(db, {s.branch_id for s in rows})
+    items = [_serialize_shift_summary(s, db, branch_names=branch_names) for s in rows]
     if partial_only:
         items = [i for i in items if i["is_partial"]]
     return items
@@ -799,7 +898,12 @@ def build_shift_report(db: Session, user: User, **filters: Any) -> list[dict[str
                 diff = Decimal(str(line.movement_diff))
                 if diff < 0:
                     negative_exceptions.append(
-                        {"item_id": line.item_id, "movement_diff": str(diff), "reason": line.movement_exception_reason}
+                        {
+                            "item_id": line.item_id,
+                            "item_name_snapshot": line.item_name_snapshot,
+                            "movement_diff": str(diff),
+                            "reason": line.movement_exception_reason or "",
+                        }
                     )
                 else:
                     movement_total += diff
