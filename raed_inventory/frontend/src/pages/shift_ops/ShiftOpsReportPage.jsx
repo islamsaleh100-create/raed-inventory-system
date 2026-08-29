@@ -24,6 +24,56 @@ const API_FILTER_MAP = {
   variance_only: 'cash_variance_only',
 }
 
+/** Same query params for table load and CSV export (single source of truth). */
+export function buildReportParams(dateFrom, dateTo, active) {
+  const params = {}
+  FILTER_KEYS.forEach((key) => {
+    if (active[key]) {
+      params[API_FILTER_MAP[key] || key] = true
+    }
+  })
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
+  return params
+}
+
+function rowsToCsvContent(rows, user, t) {
+  const headers = [
+    t('shift_ops.export_col_date'),
+    t('shift_ops.export_col_branch'),
+    t('shift_ops.export_col_shift'),
+    t('shift_ops.export_col_status'),
+    t('shift_ops.export_col_items'),
+    t('shift_ops.export_col_filled'),
+    t('shift_ops.movement_total'),
+    t('shift_ops.damaged_total'),
+    t('shift_ops.export_col_negative_count'),
+    t('shift_ops.export_col_reopened'),
+  ]
+  const lines = rows.map((row) => {
+    const statusKey = row.count_status || row.status || 'none'
+    const statusLabel = t(`shift_ops.section_status.${statusKey}`, statusKey)
+    const negativeCount = Array.isArray(row.negative_movement_exceptions)
+      ? row.negative_movement_exceptions.length
+      : 0
+    const reopenCount = Array.isArray(row.reopen_events) ? row.reopen_events.length : 0
+    return [
+      row.shift_date,
+      formatBranch(row, user, t),
+      row.shift_number,
+      statusLabel,
+      rawNumber(row.count_lines_total ?? 0),
+      rawNumber(row.count_lines_filled ?? 0),
+      rawNumber(row.movement_diff_total),
+      rawNumber(row.damaged_total),
+      rawNumber(negativeCount),
+      rawNumber(reopenCount),
+    ].map(csvEscape).join(',')
+  })
+  const bom = '\uFEFF'
+  return bom + [headers.map(csvEscape).join(','), ...lines].join('\r\n')
+}
+
 function csvEscape(value) {
   if (value == null || value === '') return ''
   const s = String(value)
@@ -64,6 +114,7 @@ export function ShiftOpsReportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [initialLoad, setInitialLoad] = useState(true)
   const reqRef = useRef(0)
 
@@ -105,14 +156,7 @@ export function ShiftOpsReportPage() {
     setLoading(true)
     setRows([])
 
-    const params = {}
-    FILTER_KEYS.forEach((key) => {
-      if (active[key]) {
-        params[API_FILTER_MAP[key] || key] = true
-      }
-    })
-    if (dateFrom) params.date_from = dateFrom
-    if (dateTo) params.date_to = dateTo
+    const params = buildReportParams(dateFrom, dateTo, active)
 
     shiftOpsApi
       .report(params)
@@ -136,52 +180,30 @@ export function ShiftOpsReportPage() {
     }
   }, [dateFrom, dateTo, activeKey, dateRangeInvalid, t])
 
-  const exportCsv = () => {
-    if (rows.length === 0) {
-      toast.error(t('common.no_data'))
-      return
+  const exportCsv = async () => {
+    if (dateRangeInvalid) return
+    const params = buildReportParams(dateFrom, dateTo, active)
+    setExporting(true)
+    try {
+      const r = await shiftOpsApi.report(params)
+      const exportRows = r.data?.items || []
+      if (exportRows.length === 0) {
+        toast.error(t('common.no_data'))
+        return
+      }
+      const content = rowsToCsvContent(exportRows, user, t)
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = exportFilename(dateFrom, dateTo)
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error(t('common.load_failed'))
+    } finally {
+      setExporting(false)
     }
-    const headers = [
-      t('shift_ops.export_col_date'),
-      t('shift_ops.export_col_branch'),
-      t('shift_ops.export_col_shift'),
-      t('shift_ops.export_col_status'),
-      t('shift_ops.export_col_items'),
-      t('shift_ops.export_col_filled'),
-      t('shift_ops.movement_total'),
-      t('shift_ops.damaged_total'),
-      t('shift_ops.export_col_negative_count'),
-      t('shift_ops.export_col_reopened'),
-    ]
-    const lines = rows.map((row) => {
-      const statusKey = row.count_status || row.status || 'none'
-      const statusLabel = t(`shift_ops.section_status.${statusKey}`, statusKey)
-      const negativeCount = Array.isArray(row.negative_movement_exceptions)
-        ? row.negative_movement_exceptions.length
-        : 0
-      const reopenCount = Array.isArray(row.reopen_events) ? row.reopen_events.length : 0
-      return [
-        row.shift_date,
-        formatBranch(row, user, t),
-        row.shift_number,
-        statusLabel,
-        rawNumber(row.count_lines_total ?? 0),
-        rawNumber(row.count_lines_filled ?? 0),
-        rawNumber(row.movement_diff_total),
-        rawNumber(row.damaged_total),
-        rawNumber(negativeCount),
-        rawNumber(reopenCount),
-      ].map(csvEscape).join(',')
-    })
-    const bom = '\uFEFF'
-    const content = bom + [headers.map(csvEscape).join(','), ...lines].join('\r\n')
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = exportFilename(dateFrom, dateTo)
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   if (initialLoad && loading) return <PageLoader />
@@ -199,7 +221,7 @@ export function ShiftOpsReportPage() {
         <button
           type="button"
           onClick={exportCsv}
-          disabled={rows.length === 0 || loading}
+          disabled={rows.length === 0 || loading || exporting}
           className="inline-flex items-center gap-1.5 rounded-lg border border-primary-600 text-primary-700 px-3 py-1.5 text-sm font-semibold disabled:opacity-40"
         >
           <Download size={16} />
