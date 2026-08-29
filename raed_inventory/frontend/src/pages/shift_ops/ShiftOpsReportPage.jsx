@@ -24,6 +24,21 @@ const API_FILTER_MAP = {
   variance_only: 'cash_variance_only',
 }
 
+function formatLocalDate(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Last 7 calendar days inclusive (today + 6 prior days). */
+export function defaultReportDateRange() {
+  const to = new Date()
+  const from = new Date()
+  from.setDate(from.getDate() - 6)
+  return { date_from: formatLocalDate(from), date_to: formatLocalDate(to) }
+}
+
 /** Same query params for table load and CSV export (single source of truth). */
 export function buildReportParams(dateFrom, dateTo, active) {
   const params = {}
@@ -117,6 +132,7 @@ export function ShiftOpsReportPage() {
   const [exporting, setExporting] = useState(false)
   const [initialLoad, setInitialLoad] = useState(true)
   const reqRef = useRef(0)
+  const defaultDatesApplied = useRef(false)
 
   const dateFrom = searchParams.get('date_from') || ''
   const dateTo = searchParams.get('date_to') || ''
@@ -143,6 +159,17 @@ export function ShiftOpsReportPage() {
   const setDateFrom = (value) => updateParams({ date_from: value || null })
   const setDateTo = (value) => updateParams({ date_to: value || null })
   const toggle = (key) => updateParams({ [key]: active[key] ? null : '1' })
+
+  useEffect(() => {
+    if (defaultDatesApplied.current) return
+    if (!searchParams.get('date_from') && !searchParams.get('date_to')) {
+      defaultDatesApplied.current = true
+      const { date_from, date_to } = defaultReportDateRange()
+      updateParams({ date_from, date_to })
+    } else {
+      defaultDatesApplied.current = true
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (dateRangeInvalid) {
@@ -229,7 +256,12 @@ export function ShiftOpsReportPage() {
         </button>
       </div>
 
+      <p className="text-xs text-gray-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        {t('shift_ops.report_received_disclaimer')}
+      </p>
+
       <div className="bg-white border rounded-xl p-3 space-y-3">
+        <p className="text-xs text-gray-500">{t('shift_ops.report_default_period_hint')}</p>
         <div className="flex flex-wrap gap-3 items-end text-sm">
           <label className="flex flex-col gap-1">
             <span className="text-gray-500 text-xs">{t('common.date_from')}</span>

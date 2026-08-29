@@ -248,7 +248,7 @@ export function ShiftCountPage() {
     el?.select?.()
   }
 
-  const handleClosingFocus = (e) => {
+  const handleNumberFocus = (e) => {
     e.target.select()
   }
 
@@ -371,7 +371,7 @@ export function ShiftCountPage() {
 
       {locked && (
         <p className="text-xs bg-gray-100 border rounded-lg p-2 text-gray-600 shrink-0 mb-2">
-          {t('shift_ops.locked_readonly')}
+          {t('shift_ops.locked_readonly')} {t('shift_ops.locked_reopen_hint')}
         </p>
       )}
 
@@ -410,7 +410,12 @@ export function ShiftCountPage() {
                       {t('shift_ops.field.item')}
                     </th>
                     <th className="border border-gray-300 px-2 py-2 font-semibold">{t('shift_ops.field.unit')}</th>
-                    <th className="border border-gray-300 px-2 py-2 font-semibold">{t('shift_ops.opening')}</th>
+                    <th className="border border-gray-300 px-2 py-2 font-semibold">
+                      {t('shift_ops.opening')}
+                      <span className="block font-normal text-[10px] text-gray-500 mt-0.5">
+                        {t('shift_ops.opening_hint')}
+                      </span>
+                    </th>
                     <th className="border border-gray-300 px-2 py-2 font-semibold bg-primary-50 text-primary-800">
                       {t('shift_ops.field.closing_balance')}
                     </th>
@@ -419,7 +424,12 @@ export function ShiftCountPage() {
                         {t(`shift_ops.field.${f}`)}
                       </th>
                     ))}
-                    <th className="border border-gray-300 px-2 py-2 font-semibold">{t('shift_ops.field.movement_diff')}</th>
+                    <th className="border border-gray-300 px-2 py-2 font-semibold">
+                      {t('shift_ops.field.movement_diff')}
+                      <span className="block font-normal text-[10px] text-gray-500 mt-0.5">
+                        {t('shift_ops.movement_diff_hint')}
+                      </span>
+                    </th>
                     <th className="border border-gray-300 px-2 py-2 font-semibold">{t('shift_ops.field.item_notes')}</th>
                   </tr>
                 </thead>
@@ -468,7 +478,7 @@ export function ShiftCountPage() {
                             value={closingStored(ln) ? ln.closing_balance : ''}
                             placeholder="0.00"
                             onChange={(e) => setField(ln.item_id, 'closing_balance', e.target.value)}
-                            onFocus={handleClosingFocus}
+                            onFocus={handleNumberFocus}
                             onKeyDown={(e) => {
                               preventEnterSubmit(e)
                               handleClosingKeyDown(e, displayIndex)
@@ -486,6 +496,7 @@ export function ShiftCountPage() {
                               disabled={locked || !canWrite}
                               value={ln[f] ?? ''}
                               onChange={(e) => setField(ln.item_id, f, e.target.value)}
+                              onFocus={handleNumberFocus}
                               onKeyDown={preventEnterSubmit}
                               className="w-20 border border-gray-300 rounded px-1.5 py-1 text-center tabular-nums disabled:bg-gray-100"
                             />
@@ -525,6 +536,9 @@ export function ShiftCountPage() {
 
       {!locked && canWrite && (
         <div className="fixed bottom-0 inset-x-0 bg-white border-t p-3 flex flex-wrap items-center justify-end gap-2 z-40">
+          <p className="text-[10px] text-gray-500 w-full text-center sm:text-start sm:w-auto sm:me-auto">
+            {t('shift_ops.draft_vs_submit_hint')}
+          </p>
           {blockedByReason && (
             <span className="text-xs text-red-600 font-semibold me-auto flex items-center gap-1">
               <AlertTriangle size={14} /> {t('shift_ops.reason_missing')}
