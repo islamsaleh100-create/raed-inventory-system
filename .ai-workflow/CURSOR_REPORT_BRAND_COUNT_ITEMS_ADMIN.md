@@ -89,7 +89,8 @@ python -m pytest tests/test_brand_count_items_admin.py -q
 
 ## 6 · commit محلي
 
-*(يُملأ بعد `git commit`)*
+- **hash:** `ca3458b`
+- **ملفات (11):** `shift_ops_service.py` · `master.py` · `schemas/__init__.py` · `test_brand_count_items_admin.py` · `BrandCountItemsAdminPage.jsx` · `App.jsx` · `AppLayoutV2.jsx` · `api.js` · `ar.json` · `en.json` · `CURSOR_REPORT_BRAND_COUNT_ITEMS_ADMIN.md`
 
 ---
 
