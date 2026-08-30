@@ -63,7 +63,13 @@ Commit/Push      : commit محلي فقط — لا push
 | 7 | branch_manager ⇒ ممنوع | ✓ pytest 403 | `test_branch_manager_forbidden_on_count_items_api` |
 | 8 | جرد مُرحَّل ⇒ لم يتغير | ✓ منطق + pytest | ترتيب `line.id` ثابت؛ اختبار التجميد السابق في `test_frozen_list_survives_reopen` (gaps) لم ينكسر |
 
-**لقطات UI:** `.ai-workflow/screenshots/TG-BRAND-COUNT-ITEMS-ADMIN/` — **لم تُلتقط** (فشل دخول المتصفح الآلي — كلمة المرور لا تُمرَّر في حقل password من fill). التحقق البصري يعتمد على pytest + `npm run build`.
+**لقطات UI:** `.ai-workflow/screenshots/TG-BRAND-COUNT-ITEMS-ADMIN/01-admin-page-loaded.png` — شاشة الأدمن تعمل (بعد إصلاح استدعاء `supplyChainApi` بدل `masterApi`). باقي البنود 1–8: pytest (جدول §4).
+
+| # | لقطة |
+|---:|---|
+| 1–6, 8 | pytest (انظر §4) |
+| 7 | pytest 403 + `RouteRoleGuard` — لا لقطة (دخول branch_manager عبر المتصفح الآلي تعثّر) |
+| — | `01-admin-page-loaded.png` — جدول + banners + 8 أصناف E2E brand |
 
 ---
 
@@ -89,7 +95,7 @@ python -m pytest tests/test_brand_count_items_admin.py -q
 
 ## 6 · commit محلي
 
-- **hash:** `ca3458b`
+- **hash:** `ca3458b` (+ follow-up fix commit below)
 - **ملفات (11):** `shift_ops_service.py` · `master.py` · `schemas/__init__.py` · `test_brand_count_items_admin.py` · `BrandCountItemsAdminPage.jsx` · `App.jsx` · `AppLayoutV2.jsx` · `api.js` · `ar.json` · `en.json` · `CURSOR_REPORT_BRAND_COUNT_ITEMS_ADMIN.md`
 
 ---
@@ -97,8 +103,9 @@ python -m pytest tests/test_brand_count_items_admin.py -q
 ## 7 · Deviations
 
 - **المرحلة 0:** لم تُنفَّذ — كما طلب الباب (محسوم من الكود).
-- **لقطات 1–8:** لم تُلتقط عبر المتصفح — pytest يغطي 1–7 و8 منطقيًا.
-- **`listBrands` في api.js:** كان موجودًا مسبقًا؛ أُضيفت فقط دوال count-items.
+- **إصلاح v2.1:** الصفحة كانت تستدعي `masterApi.listBrands` بينما الدوال أُضيفت إلى `supplyChainApi` — أُصلح في `BrandCountItemsAdminPage.jsx`.
+- **لقطات 2–6:** pytest فقط؛ لقطة واحدة للشاشة (§4).
+- **`listBrands` في api.js:** موجود مسبقًا على `supplyChainApi` فقط — لم يُضف إلى `masterApi`.
 
 ---
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { masterApi } from '../../services/api'
+import { masterApi, supplyChainApi } from '../../services/api'
 import { PageLoader, Modal, SearchInput } from '../../components/common'
 import { useLanguage, useT } from '../../i18n'
 
@@ -24,7 +24,7 @@ export default function BrandCountItemsAdminPage() {
   const [searchLoading, setSearchLoading] = useState(false)
 
   useEffect(() => {
-    masterApi.listBrands({ active_only: false })
+    supplyChainApi.listBrands({ active_only: false })
       .then((r) => {
         const list = Array.isArray(r.data) ? r.data : []
         setBrands(list)
@@ -41,7 +41,7 @@ export default function BrandCountItemsAdminPage() {
     }
     setLoading(true)
     try {
-      const r = await masterApi.listBrandCountItems(id)
+      const r = await supplyChainApi.listBrandCountItems(id)
       setData(r.data)
     } catch (e) {
       toast.error(e?.response?.data?.message || t('admin.brand_count_items_load_error'))
@@ -58,7 +58,7 @@ export default function BrandCountItemsAdminPage() {
   const patchRow = async (rowId, body) => {
     setSavingId(rowId)
     try {
-      await masterApi.updateBrandCountItem(brandId, rowId, body)
+      await supplyChainApi.updateBrandCountItem(brandId, rowId, body)
       await loadItems(brandId)
       toast.success(t('admin.brand_count_items_saved'))
     } catch (e) {
@@ -76,8 +76,8 @@ export default function BrandCountItemsAdminPage() {
     const other = items[swapIdx]
     setSavingId(row.id)
     try {
-      await masterApi.updateBrandCountItem(brandId, row.id, { display_order: other.display_order })
-      await masterApi.updateBrandCountItem(brandId, other.id, { display_order: row.display_order })
+      await supplyChainApi.updateBrandCountItem(brandId, row.id, { display_order: other.display_order })
+      await supplyChainApi.updateBrandCountItem(brandId, other.id, { display_order: row.display_order })
       await loadItems(brandId)
     } catch (e) {
       toast.error(e?.response?.data?.message || t('admin.brand_count_items_save_error'))
@@ -105,7 +105,7 @@ export default function BrandCountItemsAdminPage() {
 
   const addItem = async (item) => {
     try {
-      await masterApi.addBrandCountItem(brandId, { item_id: item.id })
+      await supplyChainApi.addBrandCountItem(brandId, { item_id: item.id })
       toast.success(t('admin.brand_count_items_added'))
       setAddOpen(false)
       setItemSearch('')
