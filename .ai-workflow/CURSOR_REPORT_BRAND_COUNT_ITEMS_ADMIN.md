@@ -95,7 +95,7 @@ python -m pytest tests/test_brand_count_items_admin.py -q
 
 ## 6 · commit محلي
 
-- **hash:** `ca3458b` (+ follow-up fix commit below)
+- **hash:** `ca3458b` · **`7c4b560`** (إصلاح supplyChainApi)
 - **ملفات (11):** `shift_ops_service.py` · `master.py` · `schemas/__init__.py` · `test_brand_count_items_admin.py` · `BrandCountItemsAdminPage.jsx` · `App.jsx` · `AppLayoutV2.jsx` · `api.js` · `ar.json` · `en.json` · `CURSOR_REPORT_BRAND_COUNT_ITEMS_ADMIN.md`
 
 ---
