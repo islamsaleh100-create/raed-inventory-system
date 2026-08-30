@@ -280,6 +280,44 @@ class BrandOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BrandCountItemBranchOut(BaseModel):
+    id: int
+    branch_code: str
+    branch_name: str
+    city: Optional[str] = None
+
+
+class BrandCountItemOut(BaseModel):
+    id: int
+    brand_id: int
+    item_id: int
+    item_code: str
+    item_name_ar: str
+    item_name_en: str
+    unit_name_ar: str
+    unit_name_en: str
+    display_order: int
+    is_active: bool
+
+
+class BrandCountItemsListResponse(BaseModel):
+    brand_id: int
+    brand_name: str
+    branch_count: int
+    branches: list[BrandCountItemBranchOut]
+    items: list[BrandCountItemOut]
+
+
+class BrandCountItemCreate(BaseModel):
+    item_id: int
+    display_order: Optional[int] = None
+
+
+class BrandCountItemUpdate(BaseModel):
+    display_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
 class KitchenSectionCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     active: bool = True

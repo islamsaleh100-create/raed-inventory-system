@@ -17,6 +17,7 @@ from app.models import (
     AreaManagerAssignment, Brand, Branch, BranchBrand, Item, ItemBrand,
     Kitchen, KitchenSection, KitchenSectionAssignment, TransactionType, User,
 )
+from app.models.branch_shift_ops import BrandShiftCountItem
 from app.schemas import (
     # Warehouse
     WarehouseCreate, WarehouseUpdate, WarehouseOut,
@@ -28,6 +29,8 @@ from app.schemas import (
     UnitCreate, UnitUpdate, UnitOut,
     # Supply chain master data
     AreaManagerAssignmentCreate, BrandCreate, BrandOut, BranchBrandCreate,
+    BrandCountItemBranchOut, BrandCountItemCreate, BrandCountItemOut, BrandCountItemsListResponse,
+    BrandCountItemUpdate,
     ItemBrandCreate, KitchenSectionAssignmentCreate, KitchenSectionAssignmentOut,
     KitchenSectionCreate, KitchenSectionOut, KitchenCreate, KitchenOut,
     # Item
@@ -336,6 +339,163 @@ def create_brand(
     db.commit()
     db.refresh(brand)
     return brand
+
+
+def _serialize_brand_count_item(row: BrandShiftCountItem, item: Item) -> BrandCountItemOut:
+    unit = item.unit
+    return BrandCountItemOut(
+        id=row.id,
+        brand_id=row.brand_id,
+        item_id=row.item_id,
+        item_code=item.item_code,
+        item_name_ar=item.item_name_ar,
+        item_name_en=item.item_name_en,
+        unit_name_ar=unit.name_ar if unit else "",
+        unit_name_en=unit.name_en if unit else "",
+        display_order=row.display_order,
+        is_active=row.is_active,
+    )
+
+
+def _brand_branches(db: Session, brand_id: int) -> list[Branch]:
+    return (
+        db.query(Branch)
+        .join(BranchBrand, BranchBrand.branch_id == Branch.id)
+        .filter(
+            BranchBrand.brand_id == brand_id,
+            Branch.active == True,
+            Branch.is_deleted == False,
+        )
+        .order_by(Branch.branch_code)
+        .all()
+    )
+
+
+@router.get("/brands/{brand_id}/count-items", response_model=BrandCountItemsListResponse)
+def list_brand_count_items(
+    brand_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(*admin_roles)),
+):
+    brand = _ensure_exists(db, Brand, brand_id, "brand")
+    branches = _brand_branches(db, brand_id)
+    rows = (
+        db.query(BrandShiftCountItem, Item)
+        .join(Item, Item.id == BrandShiftCountItem.item_id)
+        .options(joinedload(Item.unit))
+        .filter(BrandShiftCountItem.brand_id == brand_id)
+        .order_by(BrandShiftCountItem.display_order, BrandShiftCountItem.id)
+        .all()
+    )
+    return BrandCountItemsListResponse(
+        brand_id=brand.id,
+        brand_name=brand.name,
+        branch_count=len(branches),
+        branches=[
+            BrandCountItemBranchOut(
+                id=b.id,
+                branch_code=b.branch_code,
+                branch_name=b.branch_name,
+                city=b.city,
+            )
+            for b in branches
+        ],
+        items=[_serialize_brand_count_item(cfg, item) for cfg, item in rows],
+    )
+
+
+@router.post("/brands/{brand_id}/count-items", response_model=BrandCountItemOut, status_code=201)
+def add_brand_count_item(
+    brand_id: int,
+    payload: BrandCountItemCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(*admin_roles)),
+):
+    _ensure_exists(db, Brand, brand_id, "brand")
+    item = db.query(Item).options(joinedload(Item.unit)).filter(Item.id == payload.item_id).first()
+    if not item:
+        raise AppError(
+            status_code=404,
+            error_code="master.item_not_found",
+            message="الصنف غير موجود",
+            detail={"item_id": payload.item_id},
+        )
+    if not item.active or item.is_deleted:
+        raise AppError(
+            status_code=400,
+            error_code="master.count_item_inactive",
+            message="لا يمكن إضافة صنف غير نشط أو محذوف لقائمة جرد البراند",
+            detail={"item_id": payload.item_id, "active": item.active, "is_deleted": item.is_deleted},
+        )
+    exists = (
+        db.query(BrandShiftCountItem)
+        .filter(
+            BrandShiftCountItem.brand_id == brand_id,
+            BrandShiftCountItem.item_id == payload.item_id,
+        )
+        .first()
+    )
+    if exists:
+        raise AppError(
+            status_code=400,
+            error_code="master.count_item_duplicate",
+            message="هذا الصنف مضاف مسبقاً لقائمة جرد هذا البراند",
+            detail={"brand_id": brand_id, "item_id": payload.item_id},
+        )
+    if payload.display_order is not None:
+        display_order = payload.display_order
+    else:
+        max_order = (
+            db.query(func.max(BrandShiftCountItem.display_order))
+            .filter(BrandShiftCountItem.brand_id == brand_id)
+            .scalar()
+        )
+        display_order = (max_order or 0) + 1
+    row = BrandShiftCountItem(
+        brand_id=brand_id,
+        item_id=payload.item_id,
+        display_order=display_order,
+        is_active=True,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _serialize_brand_count_item(row, item)
+
+
+@router.patch("/brands/{brand_id}/count-items/{row_id}", response_model=BrandCountItemOut)
+def update_brand_count_item(
+    brand_id: int,
+    row_id: int,
+    payload: BrandCountItemUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(*admin_roles)),
+):
+    _ensure_exists(db, Brand, brand_id, "brand")
+    row = (
+        db.query(BrandShiftCountItem)
+        .filter(BrandShiftCountItem.id == row_id, BrandShiftCountItem.brand_id == brand_id)
+        .first()
+    )
+    if not row:
+        raise AppError(
+            status_code=404,
+            error_code="master.count_item_not_found",
+            message="سطر قائمة الجرد غير موجود",
+            detail={"brand_id": brand_id, "id": row_id},
+        )
+    data = payload.model_dump(exclude_unset=True)
+    if not data:
+        item = db.query(Item).options(joinedload(Item.unit)).filter(Item.id == row.item_id).first()
+        return _serialize_brand_count_item(row, item)
+    if "display_order" in data:
+        row.display_order = data["display_order"]
+    if "is_active" in data:
+        row.is_active = data["is_active"]
+    db.commit()
+    db.refresh(row)
+    item = db.query(Item).options(joinedload(Item.unit)).filter(Item.id == row.item_id).first()
+    return _serialize_brand_count_item(row, item)
 
 
 @router.get("/kitchens", response_model=list[KitchenOut])

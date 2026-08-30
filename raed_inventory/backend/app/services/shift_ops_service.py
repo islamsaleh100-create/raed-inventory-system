@@ -672,31 +672,12 @@ def _serialize_cash(cash: BranchShiftCash) -> dict[str, Any]:
 
 
 def _serialize_count(count: BranchShiftCount, db: Optional[Session] = None) -> dict[str, Any]:
-    order_map: dict[int, int] = {}
-    if db is not None:
-        branch_row = (
-            db.query(BranchShift.branch_id)
-            .filter(BranchShift.id == count.shift_id)
-            .first()
-        )
-        if branch_row:
-            order_map = {
-                item_id: order
-                for item_id, _, _, order in _frozen_item_ids(db, branch_row[0])
-            }
-
-    lines = list(count.lines)
-    if order_map:
-        lines.sort(
-            key=lambda ln: (
-                order_map.get(ln.item_id, 999999),
-                ln.item_id,
-                ln.item_name_snapshot or "",
-            )
-        )
+    # Membership is frozen at count creation; order must stay at creation order (line.id),
+    # not the live brand_shift_count_items display_order map.
+    lines = sorted(count.lines, key=lambda ln: ln.id)
 
     serialized_lines = []
-    for line in lines:
+    for idx, line in enumerate(lines, start=1):
         entry: dict[str, Any] = {
             "id": line.id,
             "item_id": line.item_id,
@@ -711,9 +692,8 @@ def _serialize_count(count: BranchShiftCount, db: Optional[Session] = None) -> d
             "movement_exception_reason": line.movement_exception_reason,
             "item_notes": line.item_notes,
             "row_status": line.row_status,
+            "display_order": idx,
         }
-        if order_map:
-            entry["display_order"] = order_map.get(line.item_id, 999999)
         serialized_lines.append(entry)
 
     return {

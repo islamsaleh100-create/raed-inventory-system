@@ -159,6 +159,7 @@ const NAVIGATION = [
       { to: '/admin/warehouses', icon: Warehouse, labelKey: 'nav.warehouses', roles: ['admin', 'super_admin'] },
       { to: '/admin/kitchens', icon: ChefHat, labelKey: 'nav.kitchens', roles: ['admin', 'super_admin'] },
       { to: '/admin/items', icon: Package, labelKey: 'nav.items', roles: ['admin', 'super_admin'] },
+      { to: '/admin/brand-count-items', icon: ClipboardList, labelKey: 'nav.brand_count_items', roles: ['admin', 'super_admin'] },
       { to: '/admin/suggestions', icon: Lightbulb, labelKey: 'nav.assistant_suggestions', roles: ['admin', 'super_admin'] },
       { to: '/admin/settings', icon: Settings, labelKey: 'nav.settings', roles: ['admin', 'super_admin'] },
     ]

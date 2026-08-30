@@ -30,6 +30,7 @@ import ReceivingPage from './pages/branch/ReceivingPage'
 import { OperationsDashboard, WarehouseDashboard } from './pages/shared/DashboardPages'
 import { ItemsManagementPage, UsersManagementPage } from './pages/admin/AdminPages'
 import KitchensAdminPage from './pages/admin/KitchensAdminPage'
+import BrandCountItemsAdminPage from './pages/admin/BrandCountItemsAdminPage'
 import AssistantSuggestionsPage from './pages/admin/AssistantSuggestionsPage'
 import { ConsumptionTrendPage, OrderDelayAnalyticsPage, BranchesOpenActionsPage } from './pages/admin/AnalyticsDashboards'
 import { QualityVisitListPage, QualityVisitFormPage, QualityVisitDetailPage, QualityOpenActionsPage, QualityAnalyticsPage } from './pages/quality/QualityPages'
@@ -2076,6 +2077,7 @@ function AppRoutes() {
           {/* Admin â€” طµظ„ط§ط­ظٹط§طھ ظ…ط³ط§ط±ط§طھ (ظٹطھظ… طھط¬ط§ظˆط²ظ‡ط§ ظ„ظ€ admin/super_admin ط¯ط§ط®ظ„ RouteRoleGuard) */}
           <Route path="/admin/users" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><UsersManagementPage /></RouteRoleGuard>} />
           <Route path="/admin/items" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><ItemsManagementPage /></RouteRoleGuard>} />
+          <Route path="/admin/brand-count-items" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><BrandCountItemsAdminPage /></RouteRoleGuard>} />
           <Route path="/admin/branches" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><BranchesAdminPage /></RouteRoleGuard>} />
           <Route path="/admin/warehouses" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><WarehousesAdminPage /></RouteRoleGuard>} />
           <Route path="/admin/kitchens" element={<RouteRoleGuard allowed={['admin', 'super_admin']}><KitchensAdminPage /></RouteRoleGuard>} />
