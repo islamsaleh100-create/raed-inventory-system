@@ -10,6 +10,7 @@ Thumbs.db
 *.orig
 
 # Local env / secrets
+_secrets/
 .env
 *.env
 .env.local

@@ -1,5 +1,5 @@
-﻿import React, { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom'
+﻿import React, { lazy, Suspense, useMemo } from 'react'
+import { Route, Navigate, Outlet, Link, createBrowserRouter, createRoutesFromElements, RouterProvider } from 'react-router-dom'
 import { Provider, useSelector } from 'react-redux'
 import toast, { Toaster } from 'react-hot-toast'
 import { store, selectIsAuthenticated, selectUser, selectUserRoles } from './store'
@@ -1902,6 +1902,12 @@ function NotificationsPage() {
 }
 
 
+// Login route — auth check lives in the element, not in useMemo deps
+function LoginRoute() {
+  const isAuth = useSelector(selectIsAuthenticated)
+  return isAuth ? <Navigate to="/dashboard" replace /> : <LoginPage />
+}
+
 // Protected route wrapper
 function ProtectedRoute({ children }) {
   const isAuth = useSelector(selectIsAuthenticated)
@@ -1933,12 +1939,11 @@ function SmartDashboard() {
 }
 
 function AppRoutes() {
-  const isAuth = useSelector(selectIsAuthenticated)
-
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={isAuth ? <Navigate to="/dashboard" /> : <LoginPage />} />
+  const router = useMemo(
+    () => createBrowserRouter(
+      createRoutesFromElements(
+        <>
+        <Route path="/login" element={<LoginRoute />} />
         <Route path="/" element={<Navigate to="/dashboard" />} />
 
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
@@ -2092,9 +2097,13 @@ function AppRoutes() {
         </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" />} />
-      </Routes>
-    </BrowserRouter>
+        </>
+      ),
+    ),
+    [],
   )
+
+  return <RouterProvider router={router} />
 }
 
 // Inline simple admin pages

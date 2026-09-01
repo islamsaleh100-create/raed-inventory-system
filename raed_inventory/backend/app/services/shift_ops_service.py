@@ -304,7 +304,11 @@ def open_shift(
                 status_code=409,
                 error_code="PREVIOUS_SHIFT_NOT_CLOSED",
                 message="Previous shift is not closed",
-                detail={"previous_shift_id": previous.id},
+                detail={
+                    "previous_shift_id": previous.id,
+                    "previous_shift_date": previous.shift_date.isoformat(),
+                    "previous_shift_number": previous.shift_number,
+                },
             )
         _require_override_role(user)
         reason = (override_reason or "").strip()
@@ -393,6 +397,27 @@ def _frozen_item_ids(db: Session, branch_id: int) -> list[tuple[int, str, str, i
     return result
 
 
+def _is_opening_count(db: Session, branch_id: int, current_shift: BranchShift) -> bool:
+    """True when the branch has no prior submitted count before this shift (opening day)."""
+    prior = (
+        db.query(BranchShiftCount.id)
+        .join(BranchShift, BranchShift.id == BranchShiftCount.shift_id)
+        .filter(
+            BranchShift.branch_id == branch_id,
+            BranchShiftCount.status == ShiftSectionStatus.submitted.value,
+            or_(
+                BranchShift.shift_date < current_shift.shift_date,
+                and_(
+                    BranchShift.shift_date == current_shift.shift_date,
+                    BranchShift.shift_number < current_shift.shift_number,
+                ),
+            ),
+        )
+        .first()
+    )
+    return prior is None
+
+
 def _opening_for_item(db: Session, branch_id: int, item_id: int, current_shift: BranchShift) -> Decimal:
     prior_lines = (
         db.query(BranchShiftCountLine, BranchShift)
@@ -475,6 +500,7 @@ def patch_count_lines(db: Session, user: User, shift_id: int, lines: list[dict[s
         raise AppError(status_code=409, error_code="shift_ops.count_already_submitted", message="Count already submitted", detail={})
 
     by_item = {line.item_id: line for line in count.lines}
+    opening_count = _is_opening_count(db, shift.branch_id, shift)
     for payload in lines:
         item_id = payload["item_id"]
         line = by_item.get(item_id)
@@ -499,6 +525,7 @@ def patch_count_lines(db: Session, user: User, shift_id: int, lines: list[dict[s
             damaged_qty=Decimal(str(damaged)) if damaged is not None else None,
             closing_balance=Decimal(str(closing)) if closing is not None else None,
             movement_exception_reason=reason,
+            opening_count=opening_count,
         )
         if eval_result.get("error_code") == "MOVEMENT_EXCEPTION_REASON_REQUIRED":
             raise AppError(status_code=422, error_code="MOVEMENT_EXCEPTION_REASON_REQUIRED", message="Movement exception reason required", detail={"item_id": item_id})
@@ -696,10 +723,17 @@ def _serialize_count(count: BranchShiftCount, db: Optional[Session] = None) -> d
         }
         serialized_lines.append(entry)
 
+    is_opening_count = False
+    if db is not None:
+        shift = count.shift if getattr(count, "shift", None) is not None else db.get(BranchShift, count.shift_id)
+        if shift is not None:
+            is_opening_count = _is_opening_count(db, shift.branch_id, shift)
+
     return {
         "id": count.id,
         "shift_id": count.shift_id,
         "status": count.status,
+        "is_opening_count": is_opening_count,
         "items_frozen_at": count.items_frozen_at.isoformat() if count.items_frozen_at else None,
         "general_notes": count.general_notes,
         "lines": serialized_lines,
@@ -867,7 +901,9 @@ def build_shift_report(db: Session, user: User, **filters: Any) -> list[dict[str
         shift = _get_shift(db, summary["id"])
         movement_total = Decimal("0")
         negative_exceptions: list[dict[str, Any]] = []
+        opening_balance_lines: list[dict[str, Any]] = []
         damaged_total = Decimal("0")
+        is_opening = _is_opening_count(db, shift.branch_id, shift)
 
         if shift.count:
             for line in shift.count.lines:
@@ -877,14 +913,16 @@ def build_shift_report(db: Session, user: User, **filters: Any) -> list[dict[str
                     continue
                 diff = Decimal(str(line.movement_diff))
                 if diff < 0:
-                    negative_exceptions.append(
-                        {
-                            "item_id": line.item_id,
-                            "item_name_snapshot": line.item_name_snapshot,
-                            "movement_diff": str(diff),
-                            "reason": line.movement_exception_reason or "",
-                        }
-                    )
+                    entry = {
+                        "item_id": line.item_id,
+                        "item_name_snapshot": line.item_name_snapshot,
+                        "movement_diff": str(diff),
+                        "reason": line.movement_exception_reason or "",
+                    }
+                    if is_opening:
+                        opening_balance_lines.append(entry)
+                    else:
+                        negative_exceptions.append(entry)
                 else:
                     movement_total += diff
 
@@ -902,9 +940,11 @@ def build_shift_report(db: Session, user: User, **filters: Any) -> list[dict[str
 
         row = {
             **summary,
+            "is_opening_count": is_opening,
             "cash": cash_block,
             "movement_diff_total": str(movement_total),
             "negative_movement_exceptions": negative_exceptions,
+            "opening_balance_lines": opening_balance_lines,
             "damaged_total": str(damaged_total),
             "reopen_events": reopen_events,
             "chain_gap": _chain_gap_for_shift(db, shift),

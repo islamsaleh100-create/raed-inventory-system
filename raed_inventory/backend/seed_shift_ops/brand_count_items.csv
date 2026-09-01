@@ -1,29 +1,29 @@
-brand,item_code,item_name,name_aliases,display_order,notes
-ONDA,,TRH 996g,TRH|TRH 996,1,لم يُطابَق في ملف التصنيف
-ONDA,,Costa Rica,Coffee Beans Costa Rica|Costa Rica,2,
-ONDA,,Colombian 990g,Coffee Beans Colombian|Colombian,3,
-ONDA,,Guatemala 990g,Coffee Beans Guatemala|Guatemala,4,
-ONDA,,12 oz - paper,12 oz Cups paper|12 oz Cup paper,5,
-ONDA,,12 oz - plastic,12 oz cup plastic|12 oz Cups plastic,6,
-ONDA,,8 oz,8 oz Cups|8 oz Cup,7,
-ONDA,,8 oz - lids,8 oz Lid|8 oz Lids,8,
-ONDA,,6 oz,6 oz Cups|6 oz Cup,9,
-ONDA,,6 oz - lids,6 oz Lid|6 oz Lids,10,
-ONDA,,4 oz,4 oz Cups|4 oz Cup,11,
-ONDA,,4 oz - lids,4 oz Lid|4 oz Lids,12,
-ONDA,,Lemon cake,LEMON CAKE,13,
-ONDA,,Cookies,COOKIE|COOKIES,14,لم يُطابَق
-ONDA,,Brownies,BROWNIE|BROWNIES,15,
-ONDA,,Brownies - zaatar,BROWNIE ZAATAR|ZAATAR BROWNIE,16,لم يُطابَق — مطابقة تلقائية أعطت BROWNIE وهي خاطئة
-ONDA,,Cheese strawberry,CHEESE STRAWBERRY|STRAWBERRY CHEESE,17,لم يُطابَق — مطابقة تلقائية أعطت Straw وهي خاطئة
-ONDA,,Cheese pecan,CHEESE PECAN|PECAN,18,لم يُطابَق
-ONDA,,Tiramisu,Tiramisu|TIRAMISU,19,
-ONDA,,Eclair,ECLAIR CHOCOLATE|ECLAIR,20,
-ONDA,,Cheese croissant,CHEESE CROISSANT,21,
-ONDA,,Zaatar croissant,ZAATAR CROISSANT,22,لم يُطابَق
-ONDA,,Turkey croissant,TURKEY CROISSANT,23,
-RONALDOS,,العجين,عجين|Dough|DOUGH,1,غير موجود في ملف التصنيف — صنف إنتاج
-RONALDOS,,الدجاج,دجاج|Chicken|CHICKEN,2,غير موجود — صنف إنتاج
-RONALDOS,,شرمب,شريمب|Shrimp|SHRIMP,3,غير موجود — صنف إنتاج
-SHAWARMA,,سيخ دجاج,سيخ الدجاج|Chicken Skewer,1,غير موجود — صنف إنتاج
-SHAWARMA,,سيخ لحم,سيخ اللحم|Meat Skewer|Beef Skewer,2,غير موجود — صنف إنتاج
+﻿brand,item_code,item_name,name_aliases,display_order,notes
+ONDA,,TRH 996g,TRH|TRH 996,1,MISSING — لا مرشّح في الإنتاج
+ONDA,SUPF-ONDA-9AB9F720C0,Costa Rica,Coffee Beans Costa Rica|Costa Rica,2,
+ONDA,SUPF-ONDA-A847D41053,Colombian 990g,Coffee Beans Colombian|Colombian,3,
+ONDA,SUPF-ONDA-E9A5871DEF,Guatemala 990g,Coffee Beans Guatemala|Guatemala,4,
+ONDA,SUPF-ONDA-66EC851308,12 oz - paper,12 oz Cups paper|12 oz Cup paper,5,
+ONDA,SUPF-ONDA-1C2622CF6A,12 oz - plastic,12 oz cup plastic|12 oz Cups plastic,6,
+ONDA,SUPF-ONDA-A7097EDBFB,8 oz,8 oz Cups|8 oz Cup,7,
+ONDA,SUPF-ONDA-2C3AE2DA3B,8 oz - lids,8 oz Lid|8 oz Lids,8,
+ONDA,SUPF-ONDA-5A5CD0E442,6 oz,6 oz Cups|6 oz Cup,9,
+ONDA,SUPF-ONDA-FA4D760435,6 oz - lids,6 oz Lid|6 oz Lids,10,
+ONDA,SUPF-ONDA-72798D5C93,4 oz,4 oz Cups|4 oz Cup,11,
+ONDA,SUPF-ONDA-767ED8D93F,4 oz - lids,4 oz Lid|4 oz Lids,12,
+ONDA,SUPF-ONDA-85C22FCBA4,Lemon cake,LEMON CAKE,13,
+ONDA,SUPF-ONDA-82FF7926B8,Cookies,COOKIE|COOKIES,14,WRONG→SUPF-ONDA-82FF7926B8 (CHOCOLATE CHIP COOKIE)
+ONDA,SUPF-ONDA-C061A06769,Brownies,BROWNIE|BROWNIES,15,
+ONDA,SUPF-ONDA-89CC53B235,Brownies - zaatar,BROWNIE ZAATAR|ZAATAR BROWNIE,16,WRONG→SUPF-ONDA-89CC53B235 (BROWNIE Zatar)
+ONDA,SUPF-ONDA-53ED2DA6AA,Cheese strawberry,CHEESE STRAWBERRY|STRAWBERRY CHEESE,17,WRONG→SUPF-ONDA-53ED2DA6AA (Cheesecake berry)
+ONDA,SUPF-ONDA-D933CCC32E,Cheese pecan,CHEESE PECAN|PECAN,18,WRONG→SUPF-ONDA-D933CCC32E (Cheesecake pekan)
+ONDA,SUPF-ONDA-F2CD63F1D2,Tiramisu,Tiramisu|TIRAMISU,19,
+ONDA,SUPF-ONDA-842D118DFC,Eclair,ECLAIR CHOCOLATE|ECLAIR,20,
+ONDA,SUPF-ONDA-020DBB8931,Cheese croissant,CHEESE CROISSANT,21,
+ONDA,SUPF-ONDA-5EAD74E079,Zaatar croissant,ZAATAR CROISSANT,22,WRONG→SUPF-ONDA-5EAD74E079 (ZAATER CROISSANT)
+ONDA,SUPF-ONDA-FAE93E0BAB,Turkey croissant,TURKEY CROISSANT,23,
+RONALDOS,,العجين,عجين|Dough|DOUGH,1,MISSING — لا صنف عجين/دough في الإنتاج
+RONALDOS,,الدجاج,دجاج|Chicken|CHICKEN,2,MISSING — لا صنف دجاج في الإنتاج
+RONALDOS,,شرمب,شريمب|Shrimp|SHRIMP,3,MISSING — لا صنف شرمب في الإنتاج
+SHAWARMA,,سيخ دجاج,سيخ الدجاج|Chicken Skewer,1,MISSING — لا صنف سيخ في الإنتاج
+SHAWARMA,,سيخ لحم,سيخ اللحم|Meat Skewer|Beef Skewer,2,MISSING — لا صنف سيخ في الإنتاج

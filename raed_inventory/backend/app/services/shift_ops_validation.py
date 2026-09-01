@@ -48,6 +48,7 @@ def evaluate_count_line(
     damaged_qty: Optional[Decimal],
     closing_balance: Optional[Decimal],
     movement_exception_reason: Optional[str],
+    opening_count: bool = False,
 ) -> dict[str, Any]:
     received = _d(received_qty)
     returned = _d(returned_qty)
@@ -64,7 +65,11 @@ def evaluate_count_line(
         return {"row_status": "invalid", "movement_diff": None}
 
     movement_diff = compute_movement_diff(opening_balance, received, returned, damaged, closing)
-    if movement_diff < 0 and (not movement_exception_reason or len(movement_exception_reason.strip()) < 5):
+    if (
+        not opening_count
+        and movement_diff < 0
+        and (not movement_exception_reason or len(movement_exception_reason.strip()) < 5)
+    ):
         return {"row_status": "valid", "movement_diff": movement_diff, "error_code": "MOVEMENT_EXCEPTION_REASON_REQUIRED"}
 
     return {"row_status": "valid", "movement_diff": movement_diff}

@@ -293,23 +293,70 @@ def test_negative_movement_in_report_section(client, db):
     _seed(db)
     token = _login(client, "sa_branch")
     admin_token = _login(client, "sa_admin")
-    shift = client.post(
+
+    shift1 = client.post(
         "/api/v1/shift-ops/shifts",
         json={"shift_date": "2026-08-13", "shift_number": 1},
         headers=_auth(token),
     ).json()
+    count1 = client.post(f"/api/v1/shift-ops/shifts/{shift1['id']}/count", headers=_auth(token)).json()
+    line = count1["lines"][0]
+    client.patch(
+        f"/api/v1/shift-ops/shifts/{shift1['id']}/count/lines",
+        json={
+            "lines": [
+                {
+                    "item_id": ln["item_id"],
+                    "received_qty": 0,
+                    "returned_qty": 0,
+                    "damaged_qty": 0,
+                    "closing_balance": 10 if ln["item_id"] == line["item_id"] else float(ln["opening_balance"]),
+                }
+                for ln in count1["lines"]
+            ]
+        },
+        headers=_auth(token),
+    )
+    client.post(f"/api/v1/shift-ops/shifts/{shift1['id']}/count/submit", headers=_auth(token))
+    client.put(
+        f"/api/v1/shift-ops/shifts/{shift1['id']}/cash",
+        json={
+            "total_sale": 0,
+            "bill_count": 0,
+            "mada_sales": 0,
+            "cash_sales": 0,
+            "app_sales": 0,
+            "cash_expense": 0,
+            "cash_float_carried_forward": 0,
+            "cash_deposited": 0,
+        },
+        headers=_auth(token),
+    )
+    client.post(f"/api/v1/shift-ops/shifts/{shift1['id']}/cash/submit", headers=_auth(token))
+
+    opening_report = client.get("/api/v1/shift-ops/reports/shift-operations", headers=_auth(admin_token)).json()
+    opening_row = next(i for i in opening_report["items"] if i["id"] == shift1["id"])
+    assert opening_row["is_opening_count"] is True
+    assert opening_row["negative_movement_exceptions"] == []
+    assert len(opening_row["opening_balance_lines"]) >= 1
+
+    shift = client.post(
+        "/api/v1/shift-ops/shifts",
+        json={"shift_date": "2026-08-14", "shift_number": 1},
+        headers=_auth(token),
+    ).json()
     count = client.post(f"/api/v1/shift-ops/shifts/{shift['id']}/count", headers=_auth(token)).json()
-    line = count["lines"][0]
+    line2 = next(ln for ln in count["lines"] if ln["item_id"] == line["item_id"])
     client.patch(
         f"/api/v1/shift-ops/shifts/{shift['id']}/count/lines",
         json={
             "lines": [
                 {
-                    "item_id": line["item_id"],
+                    "item_id": line2["item_id"],
                     "received_qty": 0,
                     "returned_qty": 0,
                     "damaged_qty": 0,
-                    "closing_balance": float(line["opening_balance"]) + 5,
+                    "closing_balance": float(line2["opening_balance"]) + 5,
                     "movement_exception_reason": "Unregistered stock arrival",
                 }
             ]
@@ -335,5 +382,6 @@ def test_negative_movement_in_report_section(client, db):
 
     report = client.get("/api/v1/shift-ops/reports/shift-operations", headers=_auth(admin_token)).json()
     row = next(i for i in report["items"] if i["id"] == shift["id"])
+    assert row["is_opening_count"] is False
     assert row["negative_movement_exceptions"]
     assert Decimal(row["movement_diff_total"]) == Decimal("0")

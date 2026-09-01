@@ -11,6 +11,7 @@ import { useT, useLanguage } from '../../i18n'
 import ShiftManagerActions from './ShiftManagerActions'
 import { shiftOpsError } from './shiftOpsError'
 import { useNavigationBlocker } from './useNavigationBlocker'
+import { processQtyInput, formatQtyOnBlur } from './shiftQtyInput'
 
 const EDITABLE = ['received_qty', 'returned_qty', 'damaged_qty', 'closing_balance']
 const QTY_FIELDS = ['received_qty', 'returned_qty', 'damaged_qty']
@@ -162,6 +163,31 @@ export function ShiftCountPage() {
     )
   }
 
+  const applyQtyInput = (itemId, field, raw) => {
+    const next = processQtyInput(raw)
+    if (next === null) return
+    setField(itemId, field, next)
+  }
+
+  const handleQtyChange = (itemId, field) => (e) => {
+    applyQtyInput(itemId, field, e.target.value)
+  }
+
+  const handleQtyPaste = (itemId, field) => (e) => {
+    e.preventDefault()
+    const text = e.clipboardData?.getData('text/plain') ?? ''
+    applyQtyInput(itemId, field, text)
+  }
+
+  const handleQtyBlur = (itemId, field) => (e) => {
+    const formatted = formatQtyOnBlur(e.target.value)
+    if (formatted !== e.target.value) {
+      setField(itemId, field, formatted)
+    }
+  }
+
+  const qtyDisplay = (v) => (v === null || v === undefined || String(v).trim() === '' ? '' : String(v))
+
   const movementOf = (ln) => {
     const opening = toNum(ln.opening_balance) ?? 0
     const closing = toNum(ln.closing_balance)
@@ -175,7 +201,9 @@ export function ShiftCountPage() {
   const displayMovement = (ln) => (closingStored(ln) ? movementOf(ln) : null)
 
   const closingEntered = (ln) => closingStored(ln)
+  const isOpeningCount = Boolean(count?.is_opening_count)
   const rowNeedsReason = (ln) => {
+    if (isOpeningCount) return false
     const m = movementOf(ln)
     return m !== null && m < 0 && !String(ln.movement_exception_reason || '').trim()
   }
@@ -344,6 +372,16 @@ export function ShiftCountPage() {
         </p>
       </header>
 
+      {isOpeningCount && (
+        <div
+          data-testid="opening-count-banner"
+          className="shrink-0 border border-sky-300 bg-sky-50 rounded-lg px-3 py-2 mb-2 text-xs text-sky-900"
+        >
+          <p className="font-bold">{t('shift_ops.opening_count_banner_title')}</p>
+          <p className="mt-0.5">{t('shift_ops.opening_count_banner_body')}</p>
+        </div>
+      )}
+
       {lines.length > 0 && (
         <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 mb-2">
           <span className="font-semibold text-gray-800">
@@ -438,6 +476,7 @@ export function ShiftCountPage() {
                     const movement = displayMovement(ln)
                     const negative = movement !== null && movement < 0
                     const needsReason = rowNeedsReason(ln)
+                    const reasonField = negative && !isOpeningCount
                     const missingClosing = closingMissing(ln)
                     const rowBg = needsReason
                       ? 'bg-red-50 ring-2 ring-inset ring-red-400'
@@ -470,14 +509,15 @@ export function ShiftCountPage() {
                         <td className="border border-gray-300 p-1 bg-primary-50/30">
                           <input
                             ref={(el) => { closingRefs.current[ln.item_id] = el }}
-                            type="number"
-                            step="0.01"
-                            min="0"
+                            type="text"
                             inputMode="decimal"
+                            autoComplete="off"
                             disabled={locked || !canWrite}
-                            value={closingStored(ln) ? ln.closing_balance : ''}
+                            value={closingStored(ln) ? qtyDisplay(ln.closing_balance) : ''}
                             placeholder="0.00"
-                            onChange={(e) => setField(ln.item_id, 'closing_balance', e.target.value)}
+                            onChange={handleQtyChange(ln.item_id, 'closing_balance')}
+                            onPaste={handleQtyPaste(ln.item_id, 'closing_balance')}
+                            onBlur={handleQtyBlur(ln.item_id, 'closing_balance')}
                             onFocus={handleNumberFocus}
                             onKeyDown={(e) => {
                               preventEnterSubmit(e)
@@ -489,13 +529,14 @@ export function ShiftCountPage() {
                         {QTY_FIELDS.map((f) => (
                           <td key={f} className="border border-gray-300 p-1">
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
+                              type="text"
                               inputMode="decimal"
+                              autoComplete="off"
                               disabled={locked || !canWrite}
-                              value={ln[f] ?? ''}
-                              onChange={(e) => setField(ln.item_id, f, e.target.value)}
+                              value={qtyDisplay(ln[f])}
+                              onChange={handleQtyChange(ln.item_id, f)}
+                              onPaste={handleQtyPaste(ln.item_id, f)}
+                              onBlur={handleQtyBlur(ln.item_id, f)}
                               onFocus={handleNumberFocus}
                               onKeyDown={preventEnterSubmit}
                               className="w-20 border border-gray-300 rounded px-1.5 py-1 text-center tabular-nums disabled:bg-gray-100"
@@ -511,14 +552,14 @@ export function ShiftCountPage() {
                           <input
                             type="text"
                             disabled={locked || !canWrite}
-                            value={(negative ? ln.movement_exception_reason : ln.item_notes) || ''}
+                            value={(reasonField ? ln.movement_exception_reason : ln.item_notes) || ''}
                             onChange={(e) => setField(
                               ln.item_id,
-                              negative ? 'movement_exception_reason' : 'item_notes',
+                              reasonField ? 'movement_exception_reason' : 'item_notes',
                               e.target.value,
                             )}
                             onKeyDown={preventEnterSubmit}
-                            placeholder={negative ? t('shift_ops.movement_reason_placeholder') : ''}
+                            placeholder={reasonField ? t('shift_ops.movement_reason_placeholder') : ''}
                             className={`w-40 border rounded px-1.5 py-1 text-xs disabled:bg-gray-100 ${
                               needsReason ? 'border-red-400 bg-red-50' : 'border-gray-300'
                             }`}
@@ -529,6 +570,9 @@ export function ShiftCountPage() {
                   })}
                 </tbody>
               </table>
+              <p className="text-[11px] text-gray-500 mt-2 text-center sm:text-start">
+                {t('shift_ops.decimal_hint')}
+              </p>
             </div>
           </div>
         </div>

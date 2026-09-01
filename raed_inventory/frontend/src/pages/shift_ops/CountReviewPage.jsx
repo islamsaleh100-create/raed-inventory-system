@@ -10,6 +10,9 @@ import { PageLoader } from '../../components/common'
 import { useT } from '../../i18n'
 import { shiftOpsError } from './shiftOpsError'
 import { buildReviewSections } from './CountReviewDialog'
+import { allRowsHaveNoUserInput } from './countReviewSubmit'
+import { isUnusualQty } from './shiftQtyInput'
+import { UNUSUAL_QTY_WARNING_THRESHOLD } from './shiftCountConstants'
 
 const toNum = (v) => {
   if (v === '' || v === null || v === undefined) return null
@@ -41,7 +44,8 @@ export function deriveZeroFilledLines(lines = []) {
   })
 }
 
-function rowNeedsReason(ln) {
+function rowNeedsReason(ln, isOpeningCount = false) {
+  if (isOpeningCount) return false
   const d = ln.movement_diff
   return d != null && d !== '' && Number(d) < 0 && !String(ln.movement_exception_reason || '').trim()
 }
@@ -57,6 +61,34 @@ function branchLabel(shift, t) {
 function displayQty(v) {
   if (v === null || v === undefined || v === '') return '0'
   return String(v)
+}
+
+function QtyCell({ value, className = '' }) {
+  const t = useT()
+  const unusual = isUnusualQty(value)
+  if (!unusual) {
+    return <td className={`py-1.5 text-center tabular-nums ${className}`}>{displayQty(value)}</td>
+  }
+  return (
+    <td
+      className={`py-1.5 text-center tabular-nums bg-amber-50 border border-amber-300 ${className}`}
+      title={t('shift_ops.unusual_qty_warning')}
+      data-testid="unusual-qty-cell"
+    >
+      <span className="font-semibold text-amber-900">{displayQty(value)}</span>
+      <span className="block text-[10px] text-amber-800 leading-tight mt-0.5">
+        {t('shift_ops.unusual_qty_warning')}
+      </span>
+    </td>
+  )
+}
+
+function lineHasUnusualQty(ln) {
+  return isUnusualQty(ln.opening_balance)
+    || isUnusualQty(ln.received_qty)
+    || isUnusualQty(ln.returned_qty)
+    || isUnusualQty(ln.damaged_qty)
+    || isUnusualQty(ln.closing_balance)
 }
 
 function SummaryCard({ label, value, valueClassName = 'text-gray-900' }) {
@@ -99,6 +131,7 @@ export function CountReviewPage() {
   const [count, setCount] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [emptySubmitConfirmOpen, setEmptySubmitConfirmOpen] = useState(false)
   const submitInFlight = useRef(false)
 
   const load = useCallback(async () => {
@@ -126,18 +159,22 @@ export function CountReviewPage() {
 
   const locked = count?.status === 'submitted' || shift?.status === 'exception_locked'
   const lines = count?.lines || []
+  const isOpeningCount = Boolean(count?.is_opening_count)
   const { received, negative, receivedCount, negativeCount } = buildReviewSections(lines)
   const zeroFilled = deriveZeroFilledLines(lines)
   const topDiffs = buildTopDiffsByAbs(lines)
-  const blockedByReason = lines.some(rowNeedsReason)
-  const blockedCount = lines.filter(rowNeedsReason).length
+  const blockedByReason = lines.some((ln) => rowNeedsReason(ln, isOpeningCount))
+  const blockedCount = lines.filter((ln) => rowNeedsReason(ln, isOpeningCount)).length
   const damagedLines = lines.filter((ln) => qtyPositive(ln.damaged_qty))
   const notesLines = lines.filter((ln) => Boolean(String(ln.item_notes || '').trim()))
   const allClosingZero = lines.length > 0
     && lines.every((ln) => closingStored(ln) && Number(ln.closing_balance) === 0)
   const movementTotal = sumField(lines, 'movement_diff')
   const damagedTotal = sumField(lines, 'damaged_qty')
+  const unusualQtyLines = lines.filter(lineHasUnusualQty)
+  const hasUnusualQty = unusualQtyLines.length > 0
   const showConfirm = canWrite && !locked && !blockedByReason
+  const needsEmptySubmitConfirm = allRowsHaveNoUserInput(lines)
   const hasLargeDiffs = topDiffs.some((ln) => Math.abs(Number(ln.movement_diff)) > 0)
 
   const confirmSubmit = async () => {
@@ -154,6 +191,23 @@ export function CountReviewPage() {
       setSubmitting(false)
       submitInFlight.current = false
     }
+  }
+
+  const handleSubmitClick = () => {
+    if (needsEmptySubmitConfirm) {
+      setEmptySubmitConfirmOpen(true)
+      return
+    }
+    confirmSubmit()
+  }
+
+  const handleEmptySubmitCancel = () => {
+    setEmptySubmitConfirmOpen(false)
+  }
+
+  const handleEmptySubmitProceed = () => {
+    setEmptySubmitConfirmOpen(false)
+    confirmSubmit()
   }
 
   if (loading) return <PageLoader />
@@ -188,6 +242,16 @@ export function CountReviewPage() {
         </p>
       </header>
 
+      {isOpeningCount && (
+        <div
+          data-testid="opening-count-banner"
+          className="mb-4 border border-sky-300 bg-sky-50 rounded-lg px-3 py-2 text-xs text-sky-900"
+        >
+          <p className="font-bold">{t('shift_ops.opening_count_banner_title')}</p>
+          <p className="mt-0.5">{t('shift_ops.opening_count_banner_body')}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4" data-testid="review-summary-cards">
         <SummaryCard label={t('shift_ops.review_stat_items')} value={lines.length} />
         <SummaryCard label={t('shift_ops.review_stat_zero')} value={zeroFilled.length} />
@@ -200,6 +264,18 @@ export function CountReviewPage() {
         <SummaryCard label={t('shift_ops.damaged_total')} value={damagedTotal.toFixed(2)} />
         <SummaryCard label={t('shift_ops.review_received')} value={receivedCount} />
       </div>
+
+      {hasUnusualQty && (
+        <p
+          className="mb-4 text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2"
+          data-testid="review-unusual-qty-banner"
+        >
+          {t('shift_ops.review_unusual_qty_banner', {
+            count: unusualQtyLines.length,
+            threshold: UNUSUAL_QTY_WARNING_THRESHOLD,
+          })}
+        </p>
+      )}
 
       {allClosingZero && (
         <p className="mb-4 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -249,7 +325,7 @@ export function CountReviewPage() {
                   {received.map((ln) => (
                     <tr key={ln.item_id} className="border-t border-gray-50">
                       <td className="py-1.5 pe-2">{ln.item_name_snapshot}</td>
-                      <td className="py-1.5 text-center tabular-nums font-semibold text-blue-700">{ln.received_qty}</td>
+                      <QtyCell value={ln.received_qty} className="font-semibold text-blue-700" />
                       <td className="py-1.5 text-center text-gray-500 text-xs">{ln.unit_snapshot}</td>
                     </tr>
                   ))}
@@ -278,18 +354,23 @@ export function CountReviewPage() {
                 </thead>
                 <tbody>
                   {topDiffs.map((ln) => {
-                    const needsReason = rowNeedsReason(ln)
+                    const needsReason = rowNeedsReason(ln, isOpeningCount)
                     const rowClass = needsReason ? 'bg-red-50' : ''
                     return (
                       <tr key={ln.item_id} className={`border-t border-gray-50 ${rowClass}`}>
                         <td className="py-1.5 pe-2 font-medium">{ln.item_name_snapshot}</td>
-                        <td className="py-1.5 text-center tabular-nums">{displayQty(ln.opening_balance)}</td>
-                        <td className="py-1.5 text-center tabular-nums">{displayQty(ln.received_qty)}</td>
-                        <td className="py-1.5 text-center tabular-nums">{displayQty(ln.returned_qty)}</td>
-                        <td className="py-1.5 text-center tabular-nums">{displayQty(ln.damaged_qty)}</td>
-                        <td className="py-1.5 text-center tabular-nums">{displayQty(ln.closing_balance)}</td>
-                        <td className={`py-1.5 text-center tabular-nums font-bold ${needsReason ? 'text-red-700' : 'text-gray-800'}`}>
+                        <QtyCell value={ln.opening_balance} />
+                        <QtyCell value={ln.received_qty} />
+                        <QtyCell value={ln.returned_qty} />
+                        <QtyCell value={ln.damaged_qty} />
+                        <QtyCell value={ln.closing_balance} />
+                        <td className={`py-1.5 text-center tabular-nums font-bold ${needsReason ? 'text-red-700' : 'text-gray-800'} ${isUnusualQty(ln.movement_diff) ? 'bg-amber-50 border border-amber-300' : ''}`}>
                           {ln.movement_diff}
+                          {isUnusualQty(ln.movement_diff) && (
+                            <span className="block text-[10px] text-amber-800 font-normal leading-tight mt-0.5">
+                              {t('shift_ops.unusual_qty_warning')}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     )
@@ -347,7 +428,7 @@ export function CountReviewPage() {
                     {damagedLines.map((ln) => (
                       <tr key={ln.item_id} className="border-t border-gray-50">
                         <td className="py-1.5">{ln.item_name_snapshot}</td>
-                        <td className="py-1.5 text-center tabular-nums">{ln.damaged_qty}</td>
+                        <QtyCell value={ln.damaged_qty} />
                         <td className="py-1.5 text-center text-xs text-gray-500">{ln.unit_snapshot}</td>
                       </tr>
                     ))}
@@ -403,7 +484,7 @@ export function CountReviewPage() {
             <button
               type="button"
               data-testid="confirm-final-submit"
-              onClick={confirmSubmit}
+              onClick={handleSubmitClick}
               disabled={submitting}
               className="inline-flex items-center bg-primary-600 text-white rounded-lg px-5 py-2.5 text-sm font-bold disabled:bg-gray-300"
             >
@@ -412,6 +493,52 @@ export function CountReviewPage() {
           )}
         </div>
       </div>
+
+      {emptySubmitConfirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          role="presentation"
+          data-testid="empty-submit-confirm-dialog"
+          onClick={handleEmptySubmitCancel}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-xl shadow-xl p-5 text-right"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="empty-submit-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="empty-submit-confirm-title" className="text-base font-bold text-gray-900 mb-3">
+              {t('shift_ops.review_empty_submit_confirm_title')}
+            </h2>
+            <p className="text-sm text-gray-700 mb-5 leading-relaxed">
+              {t('shift_ops.review_empty_submit_confirm_message')}
+            </p>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                data-testid="empty-submit-confirm-cancel"
+                onClick={handleEmptySubmitCancel}
+                disabled={submitting}
+                className="inline-flex items-center border-2 border-gray-400 text-gray-700 rounded-lg px-4 py-2 text-sm font-bold bg-white"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                data-testid="empty-submit-confirm-proceed"
+                onClick={handleEmptySubmitProceed}
+                disabled={submitting}
+                className="inline-flex items-center bg-amber-600 text-white rounded-lg px-4 py-2 text-sm font-bold disabled:bg-gray-300"
+              >
+                {submitting
+                  ? t('shift_ops.review_submitting')
+                  : t('shift_ops.review_empty_submit_confirm_action')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

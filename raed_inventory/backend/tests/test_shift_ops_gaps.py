@@ -613,3 +613,78 @@ def test_branch_without_count_items_empty_count_submits(db, client):
     row = next(i for i in report["items"] if i["id"] == shift_id)
     assert row["count_lines_total"] == 0
     assert row["count_lines_filled"] == 0
+
+
+# ───────────────────── opening count (TG-OPENING-DAY P1) ─────────────────────
+
+def test_opening_count_no_reason_required_then_next_day_requires_reason(db, client):
+    """First submitted shift: negative diff OK without reason; day 2 requires reason again."""
+    seed = _seed(db, items=2, suffix="OP")
+    hdr = _login(client, seed["usernames"]["branch"])
+
+    shift1 = _open_shift(client, hdr, day="2026-08-01", number=1)
+    created = client.post(f"{API}/shifts/{shift1}/count", headers=hdr)
+    assert created.status_code in (200, 201), created.text
+    body = created.json()
+    assert body["is_opening_count"] is True
+
+    line = body["lines"][0]
+    all_lines = []
+    for ln in body["lines"]:
+        payload = {
+            "item_id": ln["item_id"],
+            "received_qty": 0,
+            "returned_qty": 0,
+            "damaged_qty": 0,
+            "closing_balance": 10 if ln["item_id"] == line["item_id"] else 0,
+        }
+        all_lines.append(payload)
+    patch = client.patch(
+        f"{API}/shifts/{shift1}/count/lines",
+        json={"lines": all_lines},
+        headers=hdr,
+    )
+    assert patch.status_code == 200, patch.text
+    saved = next(ln for ln in patch.json()["lines"] if ln["item_id"] == line["item_id"])
+    assert saved["movement_diff"] == "-10.00" or saved["movement_diff"] == "-10"
+    assert saved["movement_exception_reason"] in (None, "")
+
+    assert client.post(f"{API}/shifts/{shift1}/count/submit", headers=hdr).status_code == 200
+    _fill_and_submit_cash(client, hdr, shift1)
+
+    shift2 = _open_shift(client, hdr, day="2026-08-02", number=1)
+    created2 = client.post(f"{API}/shifts/{shift2}/count", headers=hdr)
+    assert created2.status_code in (200, 201), created2.text
+    body2 = created2.json()
+    assert body2["is_opening_count"] is False
+    line2 = next(ln for ln in body2["lines"] if ln["item_id"] == line["item_id"])
+    assert Decimal(str(line2["opening_balance"])) == Decimal("10")
+
+    no_reason = client.patch(
+        f"{API}/shifts/{shift2}/count/lines",
+        json={"lines": [{
+            "item_id": line2["item_id"],
+            "received_qty": 0,
+            "returned_qty": 0,
+            "damaged_qty": 0,
+            "closing_balance": 15,
+        }]},
+        headers=hdr,
+    )
+    assert no_reason.status_code == 422
+    assert no_reason.json()["error_code"] == "MOVEMENT_EXCEPTION_REASON_REQUIRED"
+
+    with_reason = client.patch(
+        f"{API}/shifts/{shift2}/count/lines",
+        json={"lines": [{
+            "item_id": line2["item_id"],
+            "received_qty": 0,
+            "returned_qty": 0,
+            "damaged_qty": 0,
+            "closing_balance": 15,
+            "movement_exception_reason": "Unregistered delivery",
+        }]},
+        headers=hdr,
+    )
+    assert with_reason.status_code == 200, with_reason.text
+    assert Decimal(str(with_reason.json()["lines"][0]["movement_diff"])) == Decimal("-5")

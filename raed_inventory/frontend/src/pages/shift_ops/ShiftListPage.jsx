@@ -121,9 +121,14 @@ export function ShiftListPage() {
       const code = err?.response?.data?.error_code
       const detail = err?.response?.data?.detail || {}
       if (code === 'PREVIOUS_SHIFT_NOT_CLOSED') {
-        setOpenError(null)
-        toast.error(shiftOpsError(err, t, 'shift_ops.open_shift_failed'))
-        setNeedsOverride(true)
+        setOpenError({
+          type: 'previous_not_closed',
+          shiftId: detail.previous_shift_id,
+          shiftDate: detail.previous_shift_date,
+          shiftNumber: detail.previous_shift_number,
+          message: shiftOpsError(err, t, 'shift_ops.open_shift_failed'),
+        })
+        setNeedsOverride(isManager)
         setOpenForm(true)
       } else if (code === 'shift_ops.already_exists') {
         setOpenError({
@@ -221,6 +226,16 @@ export function ShiftListPage() {
                   className="inline-flex items-center gap-1 rounded-lg border border-red-400 px-3 py-1.5 text-xs font-semibold text-red-900 hover:bg-red-100"
                 >
                   {t('shift_ops.open_shift_enter_existing')}
+                </Link>
+              )}
+              {openError.type === 'previous_not_closed' && openError.shiftId && (
+                <Link
+                  to={`/shift-ops/${openError.shiftId}/count`}
+                  data-testid="open-blocking-shift-link"
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-400 px-3 py-1.5 text-xs font-semibold text-red-900 hover:bg-red-100"
+                >
+                  {t('shift_ops.open_blocking_shift_link')}
+                  {openError.shiftDate ? ` (${openError.shiftDate})` : ''}
                 </Link>
               )}
             </div>

@@ -1,30 +1,21 @@
-// useNavigationBlocker.js — in-app leave guard for BrowserRouter (useBlocker needs data router).
-import { useContext, useEffect, useRef } from 'react'
-import { UNSAFE_NavigationContext as NavigationContext } from 'react-router-dom'
+// useNavigationBlocker.js — in-app leave guard via react-router useBlocker (data router).
+import { useEffect, useRef } from 'react'
+import { useBlocker } from 'react-router-dom'
 
 export function useNavigationBlocker(when, message) {
-  const { navigator } = useContext(NavigationContext)
-  const whenRef = useRef(when)
-  whenRef.current = when
+  const blocker = useBlocker(when)
+  const messageRef = useRef(message)
+  messageRef.current = message
 
   useEffect(() => {
-    const push = navigator.push
-    const replace = navigator.replace
-
-    navigator.push = (...args) => {
-      if (whenRef.current && !window.confirm(message)) return
-      push.apply(navigator, args)
+    if (blocker.state !== 'blocked') return
+    const ok = window.confirm(messageRef.current)
+    if (ok) {
+      blocker.proceed()
+    } else {
+      blocker.reset()
     }
-    navigator.replace = (...args) => {
-      if (whenRef.current && !window.confirm(message)) return
-      replace.apply(navigator, args)
-    }
-
-    return () => {
-      navigator.push = push
-      navigator.replace = replace
-    }
-  }, [navigator, message])
+  }, [blocker, blocker.state])
 }
 
 export default useNavigationBlocker

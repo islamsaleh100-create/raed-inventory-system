@@ -125,6 +125,10 @@ def test_previous_shift_blocks_open(client, db):
     )
     assert second.status_code == 409
     assert second.json()["error_code"] == "PREVIOUS_SHIFT_NOT_CLOSED"
+    detail = second.json()["detail"]
+    assert detail["previous_shift_id"] == first.json()["id"]
+    assert detail["previous_shift_date"] == "2026-08-01"
+    assert detail["previous_shift_number"] == 1
 
 
 def test_branch_manager_cannot_override(client, db):

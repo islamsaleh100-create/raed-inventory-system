@@ -68,3 +68,32 @@ def test_movement_diff_negative_allowed_with_reason():
     )
     assert result["row_status"] == "valid"
     assert result["movement_diff"] == Decimal("-5")
+
+
+def test_opening_count_skips_reason_but_keeps_negative_diff():
+    result = evaluate_count_line(
+        opening_balance=Decimal("0"),
+        received_qty=Decimal("0"),
+        returned_qty=Decimal("0"),
+        damaged_qty=Decimal("0"),
+        closing_balance=Decimal("10"),
+        movement_exception_reason=None,
+        opening_count=True,
+    )
+    assert result["row_status"] == "valid"
+    assert "error_code" not in result
+    assert result["movement_diff"] == Decimal("-10")
+
+
+def test_opening_count_false_still_requires_reason():
+    result = evaluate_count_line(
+        opening_balance=Decimal("0"),
+        received_qty=Decimal("0"),
+        returned_qty=Decimal("0"),
+        damaged_qty=Decimal("0"),
+        closing_balance=Decimal("10"),
+        movement_exception_reason=None,
+        opening_count=False,
+    )
+    assert result.get("error_code") == "MOVEMENT_EXCEPTION_REASON_REQUIRED"
+    assert result["movement_diff"] == Decimal("-10")

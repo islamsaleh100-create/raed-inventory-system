@@ -9,6 +9,13 @@ import { shiftOpsApi } from '../../services/shiftOpsApi'
 import { PageLoader } from '../../components/common'
 import { useT } from '../../i18n'
 import { selectUser } from '../../store'
+import {
+  buildReportParams,
+  exceptionReason,
+  exportFilename,
+  formatBranch,
+  rowsToCsvContent,
+} from './shiftOpsReportExport'
 
 const FILTERS = [
   { key: 'partial_only', icon: AlertTriangle },
@@ -39,89 +46,7 @@ export function defaultReportDateRange() {
   return { date_from: formatLocalDate(from), date_to: formatLocalDate(to) }
 }
 
-/** Same query params for table load and CSV export (single source of truth). */
-export function buildReportParams(dateFrom, dateTo, active) {
-  const params = {}
-  FILTER_KEYS.forEach((key) => {
-    if (active[key]) {
-      params[API_FILTER_MAP[key] || key] = true
-    }
-  })
-  if (dateFrom) params.date_from = dateFrom
-  if (dateTo) params.date_to = dateTo
-  return params
-}
-
-function rowsToCsvContent(rows, user, t) {
-  const headers = [
-    t('shift_ops.export_col_date'),
-    t('shift_ops.export_col_branch'),
-    t('shift_ops.export_col_shift'),
-    t('shift_ops.export_col_status'),
-    t('shift_ops.export_col_items'),
-    t('shift_ops.export_col_filled'),
-    t('shift_ops.movement_total'),
-    t('shift_ops.damaged_total'),
-    t('shift_ops.export_col_negative_count'),
-    t('shift_ops.export_col_reopened'),
-  ]
-  const lines = rows.map((row) => {
-    const statusKey = row.count_status || row.status || 'none'
-    const statusLabel = t(`shift_ops.section_status.${statusKey}`, statusKey)
-    const negativeCount = Array.isArray(row.negative_movement_exceptions)
-      ? row.negative_movement_exceptions.length
-      : 0
-    const reopenCount = Array.isArray(row.reopen_events) ? row.reopen_events.length : 0
-    return [
-      row.shift_date,
-      formatBranch(row, user, t),
-      row.shift_number,
-      statusLabel,
-      rawNumber(row.count_lines_total ?? 0),
-      rawNumber(row.count_lines_filled ?? 0),
-      rawNumber(row.movement_diff_total),
-      rawNumber(row.damaged_total),
-      rawNumber(negativeCount),
-      rawNumber(reopenCount),
-    ].map(csvEscape).join(',')
-  })
-  const bom = '\uFEFF'
-  return bom + [headers.map(csvEscape).join(','), ...lines].join('\r\n')
-}
-
-function csvEscape(value) {
-  if (value == null || value === '') return ''
-  const s = String(value)
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
-}
-
-function rawNumber(value) {
-  if (value == null || value === '') return ''
-  return String(value).replace(/,/g, '')
-}
-
-function exportFilename(dateFrom, dateTo) {
-  const from = dateFrom || 'all'
-  const to = dateTo || 'all'
-  return `shift-ops-${from}_to_${to}.csv`
-}
-
-function formatBranch(row, user, t) {
-  const name = row.branch_name_ar || row.branch_name
-  if (name) return name
-  if (user?.branch_id === row.branch_id) {
-    const userName = user.branch_name_ar || user.branch_name
-    if (userName) return userName
-  }
-  return t('shift_ops.branch_fallback', { id: row.branch_id })
-}
-
-function exceptionReason(ex, t) {
-  const reason = ex.reason || ex.movement_exception_reason
-  if (reason && String(reason).trim()) return reason
-  return t('shift_ops.no_reason')
-}
+export { buildReportParams, rowsToCsvContent } from './shiftOpsReportExport'
 
 export function ShiftOpsReportPage() {
   const t = useT()
@@ -328,6 +253,14 @@ export function ShiftOpsReportPage() {
                   {t('shift_ops.partial')}
                 </span>
               )}
+              {row.is_opening_count && (
+                <span
+                  data-testid="opening-count-report-badge"
+                  className="bg-sky-100 text-sky-900 px-2 py-0.5 rounded text-xs font-bold"
+                >
+                  {t('shift_ops.opening_count_report_badge')}
+                </span>
+              )}
               {row.exception_type && (
                 <span className="bg-gray-800 text-white px-2 py-0.5 rounded text-xs">
                   {t(`shift_ops.exception_type.${row.exception_type}`)}
@@ -373,7 +306,22 @@ export function ShiftOpsReportPage() {
             </div>
           </div>
 
-          {Array.isArray(row.negative_movement_exceptions) && row.negative_movement_exceptions.length > 0 && (
+          {row.is_opening_count && Array.isArray(row.opening_balance_lines) && row.opening_balance_lines.length > 0 && (
+            <div
+              data-testid="opening-count-report-box"
+              className="border border-sky-300 bg-sky-50 rounded-lg p-2 space-y-1"
+            >
+              <p className="text-xs font-bold text-sky-900">{t('shift_ops.opening_balance_report_title')}</p>
+              <p className="text-xs text-sky-800">{t('shift_ops.opening_balance_report_body')}</p>
+              {row.opening_balance_lines.map((ln, i) => (
+                <p key={i} className="text-xs text-sky-900">
+                  {ln.item_name_snapshot || ln.item_id}: {ln.movement_diff}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {!row.is_opening_count && Array.isArray(row.negative_movement_exceptions) && row.negative_movement_exceptions.length > 0 && (
             <div className="border border-amber-300 bg-amber-50 rounded-lg p-2 space-y-1">
               <p className="text-xs font-bold text-amber-800">{t('shift_ops.negative_exceptions')}</p>
               {row.negative_movement_exceptions.map((ex, i) => (

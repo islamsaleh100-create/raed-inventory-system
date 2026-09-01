@@ -46,6 +46,9 @@ owner grants a fresh, written exception.
 
 ## Red lines
 
-- Never connect to or reference production/staging servers.
+- Production access follows the **Production Access Protocol** in `AGENTS.md`. A gate with no
+  `Production Access:` line means `NONE` — behave exactly as under the old blanket ban.
 - Never run seed/reset scripts or delete `.db` files.
+- Never handle a password. If a step needs one, the owner performs that step and hands over the
+  resulting token.
 - If in doubt → `BLOCKED` and ask the human.
