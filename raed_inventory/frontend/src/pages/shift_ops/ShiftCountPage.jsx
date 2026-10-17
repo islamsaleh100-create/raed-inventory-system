@@ -12,38 +12,18 @@ import ShiftManagerActions from './ShiftManagerActions'
 import { shiftOpsError } from './shiftOpsError'
 import { useNavigationBlocker } from './useNavigationBlocker'
 import { processQtyInput, formatQtyOnBlur } from './shiftQtyInput'
+import {
+  buildPayloadFromLines,
+  closingStored,
+  countMissingClosing,
+  toNum,
+} from './shiftCountPayload.js'
 
-const EDITABLE = ['received_qty', 'returned_qty', 'damaged_qty', 'closing_balance']
 const QTY_FIELDS = ['received_qty', 'returned_qty', 'damaged_qty']
 const QUICK_FILTERS = ['all', 'incomplete', 'negative', 'notes']
 
-const toNum = (v) => {
-  if (v === '' || v === null || v === undefined) return null
-  const n = Number(v)
-  return Number.isFinite(n) ? n : null
-}
-
-/** DB/UI: closing_balance absent — not the same as stored zero. */
-const closingStored = (ln) =>
-  ln.closing_balance !== null
-  && ln.closing_balance !== undefined
-  && String(ln.closing_balance).trim() !== ''
-
 function cloneLines(arr) {
   return arr.map((ln) => ({ ...ln }))
-}
-
-function buildPayloadFromLines(lineArr) {
-  return lineArr.map((ln) => {
-    const item = { item_id: ln.item_id }
-    EDITABLE.forEach((f) => {
-      const v = toNum(ln[f])
-      if (v !== null) item[f] = v
-    })
-    if (ln.movement_exception_reason) item.movement_exception_reason = ln.movement_exception_reason
-    if (ln.item_notes) item.item_notes = ln.item_notes
-    return item
-  })
 }
 
 function normalizeLinesForCompare(lineArr) {
@@ -200,7 +180,6 @@ export function ShiftCountPage() {
 
   const displayMovement = (ln) => (closingStored(ln) ? movementOf(ln) : null)
 
-  const closingEntered = (ln) => closingStored(ln)
   const isOpeningCount = Boolean(count?.is_opening_count)
   const rowNeedsReason = (ln) => {
     if (isOpeningCount) return false
@@ -211,13 +190,7 @@ export function ShiftCountPage() {
     Boolean(String(ln.item_notes || '').trim())
     || Boolean(String(ln.movement_exception_reason || '').trim())
 
-  const rowHasActivity = (ln) =>
-    (toNum(ln.received_qty) ?? 0) > 0
-    || (toNum(ln.returned_qty) ?? 0) > 0
-    || (toNum(ln.damaged_qty) ?? 0) > 0
-    || hasNotes(ln)
-
-  const closingMissing = (ln) => rowHasActivity(ln) && !closingStored(ln)
+  const closingMissing = (ln) => !closingStored(ln)
 
   const displayedLines = useMemo(() => lines.filter((ln) => {
     if (quickFilter === 'all') return true
@@ -230,12 +203,13 @@ export function ShiftCountPage() {
     return true
   }), [lines, quickFilter])
 
-  const entered = lines.filter(closingEntered).length
+  const missingClosing = countMissingClosing(lines)
+  const closingsEntered = lines.length - missingClosing
   const receivedInShift = lines.filter((ln) => (toNum(ln.received_qty) ?? 0) > 0).length
   const notesCount = lines.filter((ln) => Boolean(String(ln.item_notes || '').trim())).length
   const blockedByReason = lines.some(rowNeedsReason)
   const blockedCount = lines.filter(rowNeedsReason).length
-  const readyToSubmit = lines.length > 0 && !blockedByReason
+  const readyToSubmit = lines.length > 0 && !blockedByReason && missingClosing === 0
 
   const branchDisplay = shift?.branch_name_ar || shift?.branch_name
     || (shift?.branch_id != null ? t('shift_ops.branch_fallback', { id: shift.branch_id }) : '—')
@@ -244,22 +218,6 @@ export function ShiftCountPage() {
     hour: '2-digit',
     minute: '2-digit',
   })
-
-  const buildSubmitPayload = () =>
-    lines.map((ln) => {
-      const item = { item_id: ln.item_id }
-      EDITABLE.forEach((f) => {
-        const v = toNum(ln[f])
-        if (f === 'closing_balance') {
-          item[f] = v !== null ? v : 0
-        } else if (v !== null) {
-          item[f] = v
-        }
-      })
-      if (ln.movement_exception_reason) item.movement_exception_reason = ln.movement_exception_reason
-      if (ln.item_notes) item.item_notes = ln.item_notes
-      return item
-    })
 
   const applySavedResponse = (data, beforeLines) => {
     setCount(data)
@@ -329,7 +287,7 @@ export function ShiftCountPage() {
     setSaving(true)
     const beforeLines = cloneLines(lines)
     try {
-      const r = await shiftOpsApi.patchCountLines(shiftId, buildSubmitPayload())
+      const r = await shiftOpsApi.patchCountLines(shiftId, buildPayloadFromLines(lines))
       applySavedResponse(r.data, beforeLines)
       setSessionLastSaved(new Date())
       navigate(`/shift-ops/${shiftId}/count/review`)
@@ -385,7 +343,7 @@ export function ShiftCountPage() {
       {lines.length > 0 && (
         <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 mb-2">
           <span className="font-semibold text-gray-800">
-            {t('shift_ops.entered_of', { done: entered, total: lines.length })}
+            {t('shift_ops.entered_of', { done: closingsEntered, total: lines.length })}
           </span>
           <span className="text-gray-400">·</span>
           <span>{t('shift_ops.summary_received_in_shift', { count: receivedInShift })}</span>
@@ -477,7 +435,7 @@ export function ShiftCountPage() {
                     const negative = movement !== null && movement < 0
                     const needsReason = rowNeedsReason(ln)
                     const reasonField = negative && !isOpeningCount
-                    const missingClosing = closingMissing(ln)
+                    const rowClosingMissing = closingMissing(ln)
                     const rowBg = needsReason
                       ? 'bg-red-50 ring-2 ring-inset ring-red-400'
                       : negative
@@ -494,7 +452,7 @@ export function ShiftCountPage() {
                               {t('shift_ops.reason_missing')}
                             </span>
                           )}
-                          {missingClosing && (
+                          {rowClosingMissing && (
                             <span className="block text-[10px] text-sky-700 mt-0.5">
                               {t('shift_ops.closing_missing')}
                             </span>
@@ -583,7 +541,12 @@ export function ShiftCountPage() {
           <p className="text-[10px] text-gray-500 w-full text-center sm:text-start sm:w-auto sm:me-auto">
             {t('shift_ops.draft_vs_submit_hint')}
           </p>
-          {blockedByReason && (
+          {missingClosing > 0 && (
+            <span className="text-xs text-sky-800 font-semibold me-auto flex items-center gap-1">
+              <AlertTriangle size={14} /> {t('shift_ops.missing_closing_count', { count: missingClosing })}
+            </span>
+          )}
+          {blockedByReason && missingClosing === 0 && (
             <span className="text-xs text-red-600 font-semibold me-auto flex items-center gap-1">
               <AlertTriangle size={14} /> {t('shift_ops.reason_missing')}
             </span>

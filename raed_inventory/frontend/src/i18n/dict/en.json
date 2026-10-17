@@ -1712,6 +1712,7 @@
     "review_unusual_qty_banner": "{count} item(s) with a value ≥ {threshold} — verify before submit",
     "review_col_reason": "Reason",
     "reason_missing": "Movement exception reason required",
+    "missing_closing_count": "{count} item(s) still need a closing balance",
     "save_draft": "Save draft",
     "submit_count_final": "Final count submit",
     "submit_count": "Submit count",

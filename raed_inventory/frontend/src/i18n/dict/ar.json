@@ -1712,6 +1712,7 @@
     "review_unusual_qty_banner": "{count} صنف(ًا) فيه قيمة ≥ {threshold} — تأكّد قبل الترحيل",
     "review_col_reason": "السبب",
     "reason_missing": "سبب فرق الحركة مطلوب",
+    "missing_closing_count": "ينقص إقفال {count} صنفًا",
     "save_draft": "حفظ مسودة",
     "submit_count_final": "ترحيل نهائي للجرد",
     "submit_count": "ترحيل الجرد",
