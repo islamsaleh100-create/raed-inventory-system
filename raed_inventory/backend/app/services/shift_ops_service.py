@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
-from app.core.auth import can_access_branch, get_user_roles
+from app.core.auth import GLOBAL_BRANCH_ACCESS_ROLES, can_access_branch, get_user_roles
 from app.core.errors import AppError
 from app.core.timezone import now_tz, utcnow_aware
 from app.models import Branch, BranchBrand, Brand, Item, User
@@ -826,17 +826,26 @@ def list_shifts(
             raise AppError(status_code=403, error_code="shift_ops.forbidden", message="Access denied", detail={})
         q = q.filter(BranchShift.branch_id == branch_id)
     else:
-        if _roles(user) & {"branch_manager"}:
+        roles = _roles(user)
+        if roles & {"branch_manager"}:
             if not user.branch_id:
                 return []
             q = q.filter(BranchShift.branch_id == user.branch_id)
-        elif "area_manager" in _roles(user):
+        elif "area_manager" in roles:
             from app.core.area_manager_scope import get_area_manager_branch_ids
 
             ids = get_area_manager_branch_ids(user, db)
             if not ids:
                 return []
             q = q.filter(BranchShift.branch_id.in_(ids))
+        elif roles & GLOBAL_BRANCH_ACCESS_ROLES:
+            pass
+        elif "branch_user" in roles:
+            if not user.branch_id:
+                return []
+            q = q.filter(BranchShift.branch_id == user.branch_id)
+        else:
+            return []
 
     if date_from:
         q = q.filter(BranchShift.shift_date >= date_from)

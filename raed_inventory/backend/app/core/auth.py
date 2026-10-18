@@ -103,6 +103,12 @@ def is_read_only_auditor(user: User) -> bool:
     return "internal_auditor" in get_user_roles(user)
 
 
+# Roles with unrestricted branch access (list + can_access_branch).
+GLOBAL_BRANCH_ACCESS_ROLES = frozenset(
+    {"super_admin", "admin", "operations_manager", "internal_auditor"}
+)
+
+
 def can_access_branch(
     user: User,
     branch_id: int,
@@ -116,9 +122,7 @@ def can_access_branch(
     Callers MUST pass `db` for area_manager checks; without `db` access is denied.
     """
     user_roles = get_user_roles(user)
-    if any(role in user_roles for role in ["super_admin", "admin", "operations_manager"]):
-        return True
-    if "internal_auditor" in user_roles:
+    if any(role in user_roles for role in GLOBAL_BRANCH_ACCESS_ROLES):
         return True
     if "area_manager" in user_roles:
         if db is None:
