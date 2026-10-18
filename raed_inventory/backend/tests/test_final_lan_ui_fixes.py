@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +26,9 @@ pytestmark = [
 
 PASSWORD = os.environ.get("PHASE2_DEMO_PASSWORD", "Raed@Demo2026")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@2025")
+AUDITOR_PASSWORD = os.environ.get("INTERNAL_AUDITOR_PASSWORD") or os.environ.get("AUDIT_PASSWORD") or (
+    "Aa1!" + secrets.token_urlsafe(12)
+)
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
 APP_JS = FRONTEND_DIR / "src" / "App.jsx"
@@ -111,14 +115,14 @@ class TestNotificationTranslations:
 
 class TestInternalAuditorSupplyChainReadOnly:
     def test_auditor_can_read_kitchen_warehouse_delivery(self, client: TestClient):
-        token = _login(client, "audit.officer", os.environ.get("AUDIT_PASSWORD", "Raed@2025"))
+        token = _login(client, "audit.officer", AUDITOR_PASSWORD)
         h = _headers(token)
         for path in ("/production-orders", "/warehouse-lines", "/delivery-orders"):
             r = client.get(f"/api/v1{path}", headers=h)
             assert r.status_code == 200, f"{path}: {r.text}"
 
     def test_auditor_cannot_execute_warehouse_write(self, client: TestClient):
-        token = _login(client, "audit.officer", os.environ.get("AUDIT_PASSWORD", "Raed@2025"))
+        token = _login(client, "audit.officer", AUDITOR_PASSWORD)
         db = SessionLocal()
         try:
             line = db.query(WarehouseLine).first()

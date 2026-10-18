@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
 from pathlib import Path
 
 import pytest
@@ -37,7 +38,7 @@ AR_DICT = FRONTEND_DIR / "src" / "i18n" / "dict" / "ar.json"
 
 TRIAL_PASSWORD = os.environ.get("PHASE2_DEMO_PASSWORD", "LanTrial@2026Temp")
 ADMIN_PASSWORD = os.environ.get("LAN_TRIAL_ADMIN_PASSWORD", "Admin@2025")
-AUDITOR_PASSWORD = os.environ.get("INTERNAL_AUDITOR_PASSWORD", "Raed@2025")
+AUDITOR_PASSWORD = os.environ.get("INTERNAL_AUDITOR_PASSWORD") or ("Aa1!" + secrets.token_urlsafe(12))
 
 REQUIRED_USERNAMES = [
     "super.admin",

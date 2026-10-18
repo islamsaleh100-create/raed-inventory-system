@@ -1,5 +1,9 @@
+import secrets
+
 from app.core.security import get_password_hash
 from app.models import AuditFinding, Role, RoleName, User, UserRole, UserStatus
+
+_AUDITOR_TEST_PASSWORD = "Aa1!" + secrets.token_urlsafe(12)
 
 
 def _role(db, name: RoleName, display_name: str | None = None):
@@ -13,24 +17,37 @@ def _role(db, name: RoleName, display_name: str | None = None):
 
 
 def _user(db, username: str, roles: list[RoleName]):
-    user = User(
-        username=username,
-        email=f"{username}@example.com",
-        full_name=username,
-        hashed_password=get_password_hash("Raed@2025"),
-        status=UserStatus.active,
-        is_deleted=False,
-    )
-    db.add(user)
-    db.flush()
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        user = User(
+            username=username,
+            email=f"{username}@example.com",
+            full_name=username,
+            hashed_password=get_password_hash(_AUDITOR_TEST_PASSWORD),
+            status=UserStatus.active,
+            is_deleted=False,
+        )
+        db.add(user)
+        db.flush()
+    else:
+        user.hashed_password = get_password_hash(_AUDITOR_TEST_PASSWORD)
+        user.status = UserStatus.active
+        user.is_deleted = False
+        db.flush()
     for role_name in roles:
         role = _role(db, role_name)
-        db.add(UserRole(user_id=user.id, role_id=role.id))
+        link = (
+            db.query(UserRole)
+            .filter(UserRole.user_id == user.id, UserRole.role_id == role.id)
+            .first()
+        )
+        if not link:
+            db.add(UserRole(user_id=user.id, role_id=role.id))
     db.flush()
     return user
 
 
-def _login(client, username: str, password: str = "Raed@2025") -> str:
+def _login(client, username: str, password: str = _AUDITOR_TEST_PASSWORD) -> str:
     res = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert res.status_code == 200, res.text
     return res.json()["access_token"]

@@ -2,7 +2,7 @@ import os
 import secrets
 import warnings
 
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     ADMIN_USERNAME: str = "admin"
     ADMIN_EMAIL: str = "admin@raed.com"
     ADMIN_PASSWORD: str = _INSECURE_DEFAULT_ADMIN_PW
+
+    # Deployment bootstrap — internal auditor (no default; unset disables account)
+    DEPLOYMENT_INTERNAL_AUDITOR_PASSWORD: Optional[str] = None
 
     @property
     def allowed_origins_list(self) -> List[str]:

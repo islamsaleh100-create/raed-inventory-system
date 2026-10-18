@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import secrets
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,7 @@ pytestmark = [
 
 PASSWORD = os.environ.get("PHASE2_DEMO_PASSWORD", "Raed@Demo2026")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@2025")
-AUDITOR_PASSWORD = os.environ.get("INTERNAL_AUDITOR_PASSWORD", "Raed@2025")
+AUDITOR_PASSWORD = os.environ.get("INTERNAL_AUDITOR_PASSWORD") or ("Aa1!" + secrets.token_urlsafe(12))
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 APP_LAYOUT = FRONTEND_DIR / "src" / "components" / "layout" / "AppLayoutV2.jsx"

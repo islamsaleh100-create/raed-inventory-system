@@ -1,6 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
 
-async function login(page: Page, username: string, password = 'Raed@2025') {
+async function login(page: Page, username: string, password?: string) {
+  const resolvedPassword = password ?? process.env.INTERNAL_AUDITOR_PASSWORD ?? ''
+  if (!resolvedPassword) {
+    throw new Error('INTERNAL_AUDITOR_PASSWORD env required for auditor E2E')
+  }
   await page.goto('/login')
   await page.evaluate(() => {
     localStorage.removeItem('access_token')
@@ -14,7 +18,7 @@ async function login(page: Page, username: string, password = 'Raed@2025') {
   await expect(page.locator('input').nth(0)).toBeVisible({ timeout: 15000 })
   await expect(page.locator('input').nth(1)).toBeVisible({ timeout: 15000 })
   await page.locator('input').nth(0).fill(username)
-  await page.locator('input').nth(1).fill(password)
+  await page.locator('input').nth(1).fill(resolvedPassword)
   const submitButton = page.locator('button[type="submit"]').first()
   await expect(submitButton).toBeVisible()
   for (let attempt = 0; attempt < 3; attempt += 1) {

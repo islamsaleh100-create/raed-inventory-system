@@ -77,7 +77,7 @@ export function resolveLanTrialPassword(passwordKind = 'trial') {
     return import.meta.env.VITE_LAN_TRIAL_ADMIN_PASSWORD || 'Admin@2025'
   }
   if (passwordKind === 'auditor') {
-    return import.meta.env.VITE_INTERNAL_AUDITOR_PASSWORD || 'Raed@2025'
+    return import.meta.env.VITE_INTERNAL_AUDITOR_PASSWORD || ''
   }
   return import.meta.env.VITE_LAN_TRIAL_DEMO_PASSWORD || 'LanTrial@2026Temp'
 }
