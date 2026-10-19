@@ -342,6 +342,21 @@ def close_no_activity(
     if not can_access_branch(user, shift.branch_id, db):
         raise AppError(status_code=403, error_code="shift_ops.cross_branch_forbidden", message="Access denied", detail={})
 
+    if shift.status == BranchShiftStatus.submitted.value:
+        raise AppError(
+            status_code=409,
+            error_code="shift_ops.shift_already_submitted",
+            message="Cannot close a shift that is already submitted",
+            detail={},
+        )
+    if shift.count and shift.count.status == ShiftSectionStatus.submitted.value:
+        raise AppError(
+            status_code=409,
+            error_code="shift_ops.count_already_submitted",
+            message="Count already submitted",
+            detail={},
+        )
+
     if exception_type not in (
         BranchShiftExceptionType.branch_closed.value,
         BranchShiftExceptionType.manual_gap.value,
@@ -698,6 +713,45 @@ def _serialize_cash(cash: BranchShiftCash) -> dict[str, Any]:
     }
 
 
+def _qty_snapshot(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return str(value)
+
+
+def _build_reopen_audit_snapshot(shift: BranchShift) -> dict[str, Any]:
+    """Pre-mutation snapshot for reopen audit old_values; raises if it cannot be built."""
+    if not shift.count:
+        raise AppError(
+            status_code=409,
+            error_code="shift_ops.reopen_snapshot_unavailable",
+            message="Cannot build reopen audit snapshot without count",
+            detail={"shift_id": shift.id},
+        )
+    count = shift.count
+    lines = sorted(count.lines, key=lambda ln: ln.id)
+    return {
+        "shift_status": shift.status,
+        "shift_submitted_at": shift.submitted_at.isoformat() if shift.submitted_at else None,
+        "count_id": count.id,
+        "count_status": count.status,
+        "submitted_by": count.submitted_by,
+        "submitted_at": count.submitted_at.isoformat() if count.submitted_at else None,
+        "lines": [
+            {
+                "item_id": line.item_id,
+                "received_qty": _qty_snapshot(line.received_qty),
+                "returned_qty": _qty_snapshot(line.returned_qty),
+                "damaged_qty": _qty_snapshot(line.damaged_qty),
+                "closing_balance": _qty_snapshot(line.closing_balance),
+                "movement_exception_reason": line.movement_exception_reason,
+                "item_notes": line.item_notes,
+            }
+            for line in lines
+        ],
+    }
+
+
 def _serialize_count(count: BranchShiftCount, db: Optional[Session] = None) -> dict[str, Any]:
     # Membership is frozen at count creation; order must stay at creation order (line.id),
     # not the live brand_shift_count_items display_order map.
@@ -774,6 +828,8 @@ def reopen_shift(
             raise AppError(status_code=409, error_code="REOPEN_LIMIT_REACHED", message="Reopen limit reached", detail={})
         raise AppError(status_code=409, error_code="REOPEN_WINDOW_EXPIRED", message="Reopen window expired", detail={})
 
+    old_values = _build_reopen_audit_snapshot(shift)
+
     if target in (ShiftReopenTarget.count.value, ShiftReopenTarget.both.value):
         if not shift.count or shift.count.status != ShiftSectionStatus.submitted.value:
             raise AppError(status_code=409, error_code="NOT_SUBMITTED", message="Count is not submitted", detail={})
@@ -803,6 +859,7 @@ def reopen_shift(
         module="shift_ops",
         entity_type="branch_shift",
         entity_id=shift.id,
+        old_values=old_values,
         new_values={"target": target, "reason": cleaned[:300]},
         ip_address=ip_address,
     )
