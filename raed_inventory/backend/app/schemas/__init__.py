@@ -2389,6 +2389,7 @@ class ShiftOpenPayload(BaseModel):
     shift_number: int = Field(..., ge=1, le=3)
     override: bool = False
     override_reason: Optional[str] = Field(None, max_length=300)
+    backdate_reason: Optional[str] = Field(None, max_length=300)
 
 
 class ShiftReopenPayload(BaseModel):

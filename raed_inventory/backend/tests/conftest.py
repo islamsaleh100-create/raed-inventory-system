@@ -238,3 +238,43 @@ def client_session(create_tables):
         yield c
     session.close()
     app.dependency_overrides.clear()
+
+
+_LEGACY_SHIFT_DATE_TEST_MODULE_SUFFIXES = (
+    ".test_shift_ops_api",
+    ".test_shift_ops_sequencing",
+    ".test_shift_ops_gaps",
+    ".test_shift_ops_opening_refresh",
+    ".test_shift_ops_defer_cash",
+    ".test_shift_ops_reopen_audit_fix",
+    ".test_shift_ops_read_roles",
+    ".test_shift_ops_isolation",
+    ".test_shift_ops_list_scope",
+    ".test_brand_count_items_admin",
+    ".test_t1b_closing_clear",
+)
+
+
+@pytest.fixture(autouse=True)
+def _legacy_shift_date_validation_opt_out(request, monkeypatch):
+    """Disable D1/D2/D3 only for legacy modules with fixed historic shift_date values."""
+    mod = getattr(request.node, "module", None)
+    name = getattr(mod, "__name__", "")
+    if not name.endswith(_LEGACY_SHIFT_DATE_TEST_MODULE_SUFFIXES):
+        return
+
+    prior_enabled = settings.SHIFT_DATE_VALIDATION_ENABLED
+    settings.SHIFT_DATE_VALIDATION_ENABLED = False
+
+    def _restore_shift_date_validation_flag() -> None:
+        settings.SHIFT_DATE_VALIDATION_ENABLED = prior_enabled
+
+    request.addfinalizer(_restore_shift_date_validation_flag)
+
+    original_undo = monkeypatch.undo
+
+    def undo_preserve_legacy_shift_date_opt_out() -> None:
+        original_undo()
+        settings.SHIFT_DATE_VALIDATION_ENABLED = False
+
+    monkeypatch.undo = undo_preserve_legacy_shift_date_opt_out

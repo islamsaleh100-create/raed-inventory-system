@@ -30,6 +30,7 @@ from app.models.branch_shift_ops import (
     ShiftSectionStatus,
 )
 from app.services import audit_service
+from app.services import shift_ops_date_validation as shift_date_val
 from app.services.shift_ops_validation import evaluate_count_line, validate_cash_payload
 
 OVERRIDE_ROLES = {"area_manager", "operations_manager", "admin", "super_admin"}
@@ -280,6 +281,7 @@ def open_shift(
     shift_number: int,
     override: bool = False,
     override_reason: Optional[str] = None,
+    backdate_reason: Optional[str] = None,
 ) -> BranchShift:
     effective_branch = branch_id or user.branch_id
     if not effective_branch:
@@ -289,6 +291,23 @@ def open_shift(
     else:
         _require_branch_write(user, effective_branch, db)
 
+    backdate_audit = shift_date_val.validate_shift_open_date(user, shift_date, backdate_reason)
+
+    configured_numbers = available_shift_numbers(db, effective_branch, shift_date)
+    if configured_numbers and shift_number not in configured_numbers:
+        today = shift_date_val.shift_open_today()
+        raise AppError(
+            status_code=422,
+            error_code="shift_ops.shift_number_not_configured",
+            message="Shift number is not configured for this branch on this date",
+            detail={
+                "server_today": today.isoformat(),
+                "shift_date": shift_date.isoformat(),
+                "shift_number": shift_number,
+                "available_shift_numbers": configured_numbers,
+            },
+        )
+
     existing = (
         db.query(BranchShift)
         .filter_by(branch_id=effective_branch, shift_date=shift_date, shift_number=shift_number)
@@ -296,6 +315,8 @@ def open_shift(
     )
     if existing:
         raise AppError(status_code=409, error_code="shift_ops.already_exists", message="Shift already exists", detail={"shift_id": existing.id})
+
+    shift_date_val.validate_shift_chronology(db, effective_branch, shift_date, shift_number)
 
     previous = _find_open_previous(db, effective_branch, shift_date, shift_number)
     if previous:
@@ -314,7 +335,26 @@ def open_shift(
         reason = (override_reason or "").strip()
         if len(reason) < 5:
             raise AppError(status_code=422, error_code="shift_ops.override_reason_required", message="Override reason required (5-300 chars)", detail={})
+        previous_status_before_lock = previous.status
         _lock_previous_as_stuck(db, previous, user, reason)
+        audit_service.log(
+            db,
+            user_id=user.id,
+            action="shift_open_override_lock_previous",
+            module="shift_ops",
+            entity_type="branch_shift",
+            entity_id=previous.id,
+            old_values={"status": previous_status_before_lock},
+            new_values={
+                "reason": reason[:300],
+                "previous_shift_id": previous.id,
+                "previous_shift_date": previous.shift_date.isoformat(),
+                "previous_shift_number": previous.shift_number,
+                "previous_status": previous_status_before_lock,
+                "new_status": BranchShiftStatus.exception_locked.value,
+                "branch_id": effective_branch,
+            },
+        )
 
     shift = BranchShift(
         branch_id=effective_branch,
@@ -326,6 +366,21 @@ def open_shift(
     )
     db.add(shift)
     db.flush()
+    if backdate_audit:
+        audit_service.log(
+            db,
+            user_id=user.id,
+            action="shift_open_backdated",
+            module="shift_ops",
+            entity_type="branch_shift",
+            entity_id=shift.id,
+            new_values={
+                "reason": backdate_audit["reason"],
+                "age_days": backdate_audit["age_days"],
+                "shift_date": backdate_audit["shift_date"],
+                "branch_id": effective_branch,
+            },
+        )
     return shift
 
 

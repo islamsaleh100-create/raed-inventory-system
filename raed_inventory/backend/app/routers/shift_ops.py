@@ -56,6 +56,7 @@ def open_shift(
         shift_number=payload.shift_number,
         override=payload.override,
         override_reason=payload.override_reason,
+        backdate_reason=payload.backdate_reason,
     )
     db.commit()
     return svc._serialize_shift_summary(shift, db)

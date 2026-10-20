@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     REPLENISHMENT_SCHEDULE_MINUTE: int = 0
 
     # ─── Shift Operations ────────────────────────────────────────────────────
+    # When False: skip D1/D2/D3 date checks at open only (operational rollback).
+    SHIFT_DATE_VALIDATION_ENABLED: bool = True
     CASH_VARIANCE_TOLERANCE: float = 5.0
     # Shift cash screen deferred by owner 2026-08-18, not removed. While False, a shift
     # completes on count submit alone. Re-enable via env without code changes.
