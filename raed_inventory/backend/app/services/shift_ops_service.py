@@ -461,6 +461,196 @@ def _opening_for_item(db: Session, branch_id: int, item_id: int, current_shift: 
     return Decimal("0")
 
 
+def _empty_opening_refresh_summary(source_shift_id: int) -> dict[str, Any]:
+    return {"source_shift_id": source_shift_id, "items_changed": []}
+
+
+def _has_later_submitted_count(db: Session, branch_id: int, ref_shift: BranchShift) -> bool:
+    q = (
+        db.query(BranchShiftCount.id)
+        .join(BranchShift, BranchShift.id == BranchShiftCount.shift_id)
+        .filter(
+            BranchShift.branch_id == branch_id,
+            BranchShiftCount.status == ShiftSectionStatus.submitted.value,
+            or_(
+                BranchShift.shift_date > ref_shift.shift_date,
+                and_(
+                    BranchShift.shift_date == ref_shift.shift_date,
+                    BranchShift.shift_number > ref_shift.shift_number,
+                ),
+            ),
+        )
+        .first()
+    )
+    return q is not None
+
+
+def _assert_earlier_counts_submitted(db: Session, shift: BranchShift) -> None:
+    blocked = (
+        db.query(BranchShiftCount.id)
+        .join(BranchShift, BranchShift.id == BranchShiftCount.shift_id)
+        .filter(
+            BranchShift.branch_id == shift.branch_id,
+            BranchShift.status != BranchShiftStatus.exception_locked.value,
+            or_(
+                BranchShift.shift_date < shift.shift_date,
+                and_(
+                    BranchShift.shift_date == shift.shift_date,
+                    BranchShift.shift_number < shift.shift_number,
+                ),
+            ),
+            BranchShiftCount.status != ShiftSectionStatus.submitted.value,
+        )
+        .with_for_update(of=BranchShiftCount)
+        .first()
+    )
+    if blocked:
+        raise AppError(
+            status_code=409,
+            error_code="PREVIOUS_COUNT_NOT_SUBMITTED",
+            message="An earlier shift count is not submitted",
+            detail={},
+        )
+
+
+def _later_draft_counts_for_update(db: Session, ref_shift: BranchShift) -> list[BranchShiftCount]:
+    return (
+        db.query(BranchShiftCount)
+        .join(BranchShift, BranchShift.id == BranchShiftCount.shift_id)
+        .options(joinedload(BranchShiftCount.lines), joinedload(BranchShiftCount.shift))
+        .filter(
+            BranchShift.branch_id == ref_shift.branch_id,
+            BranchShift.status != BranchShiftStatus.exception_locked.value,
+            BranchShiftCount.status == ShiftSectionStatus.draft.value,
+            or_(
+                BranchShift.shift_date > ref_shift.shift_date,
+                and_(
+                    BranchShift.shift_date == ref_shift.shift_date,
+                    BranchShift.shift_number > ref_shift.shift_number,
+                ),
+            ),
+        )
+        .order_by(BranchShift.shift_date, BranchShift.shift_number)
+        .with_for_update(of=BranchShiftCount)
+        .all()
+    )
+
+
+def _row_status_after_opening_change(
+    db: Session,
+    *,
+    later_shift: BranchShift,
+    line: BranchShiftCountLine,
+    new_opening: Decimal,
+    from_opening_refresh: bool = False,
+) -> tuple[Optional[Decimal], str, str]:
+    """Returns (movement_diff or None, row_status_before, row_status_after)."""
+    row_before = line.row_status
+    if line.closing_balance is None:
+        return None, row_before, row_before
+
+    opening_count_flag = _is_opening_count(db, later_shift.branch_id, later_shift)
+    if from_opening_refresh:
+        # Later-draft chain refresh: movement reason rules always apply (see opening refresh tests T6).
+        opening_count_flag = False
+    eval_result = evaluate_count_line(
+        opening_balance=new_opening,
+        received_qty=line.received_qty,
+        returned_qty=line.returned_qty,
+        damaged_qty=line.damaged_qty,
+        closing_balance=line.closing_balance,
+        movement_exception_reason=line.movement_exception_reason,
+        opening_count=opening_count_flag,
+    )
+    row_after = eval_result["row_status"]
+    if eval_result.get("error_code") == "MOVEMENT_EXCEPTION_REASON_REQUIRED":
+        row_after = ShiftCountRowStatus.incomplete.value
+    return eval_result.get("movement_diff"), row_before, row_after
+
+
+def _apply_opening_refresh(
+    db: Session,
+    user: User,
+    source_shift: BranchShift,
+    later_counts: list[BranchShiftCount],
+) -> list[dict[str, Any]]:
+    """Compute and apply later-draft opening refresh (call only after source count is submitted + flushed)."""
+    work: list[tuple[BranchShiftCount, BranchShift, list[tuple[BranchShiftCountLine, Decimal, Any, str, dict[str, Any]]]]] = []
+    for count in later_counts:
+        later_shift = count.shift or db.get(BranchShift, count.shift_id)
+        if later_shift is None:
+            continue
+        line_work: list[tuple[BranchShiftCountLine, Decimal, Any, str, dict[str, Any]]] = []
+        for line in count.lines:
+            new_open = _opening_for_item(db, later_shift.branch_id, line.item_id, later_shift)
+            old_open = Decimal(str(line.opening_balance))
+            if new_open == old_open:
+                continue
+            movement_diff, row_before, row_after = _row_status_after_opening_change(
+                db,
+                later_shift=later_shift,
+                line=line,
+                new_opening=new_open,
+                from_opening_refresh=True,
+            )
+            entry = {
+                "item_id": line.item_id,
+                "old_opening": f"{old_open:.2f}",
+                "new_opening": f"{new_open:.2f}",
+                "row_status_before": row_before,
+                "row_status_after": row_after,
+            }
+            line_work.append((line, new_open, movement_diff, row_after, entry))
+        if line_work:
+            work.append((count, later_shift, line_work))
+
+    if work and not audit_service.audit_writes_enabled():
+        would_change = sum(len(lw) for _, _, lw in work)
+        raise AppError(
+            status_code=409,
+            error_code="AUDIT_REQUIRED_FOR_OPENING_REFRESH",
+            message="Audit logging must be enabled to refresh later draft openings",
+            detail={"items_would_change": would_change},
+        )
+
+    items_changed: list[dict[str, Any]] = []
+    for count, _later_shift, line_work in work:
+        audit_old: dict[str, str] = {}
+        audit_new: dict[str, str] = {}
+        count_changes: list[dict[str, Any]] = []
+        for line, new_open, movement_diff, row_after, entry in line_work:
+            old_open = Decimal(str(entry["old_opening"]))
+            line.opening_balance = new_open
+            if movement_diff is not None:
+                line.movement_diff = movement_diff
+                line.row_status = row_after
+            audit_old[str(line.item_id)] = f"{old_open:.2f}"
+            audit_new[str(line.item_id)] = f"{new_open:.2f}"
+            count_changes.append(entry)
+        if count_changes:
+            try:
+                audit_service.log_strict(
+                    db,
+                    user_id=user.id,
+                    action="count_openings_refreshed",
+                    module="shift_ops",
+                    entity_type="branch_shift_count",
+                    entity_id=count.id,
+                    old_values={"source_shift_id": source_shift.id, "openings": audit_old},
+                    new_values={"source_shift_id": source_shift.id, "openings": audit_new},
+                )
+            except Exception as exc:
+                raise AppError(
+                    status_code=500,
+                    error_code="OPENING_REFRESH_AUDIT_FAILED",
+                    message="Failed to write opening refresh audit",
+                    detail={},
+                ) from exc
+            count.updated_by = user.id
+            items_changed.extend(count_changes)
+    return items_changed
+
+
 def create_or_get_count(db: Session, user: User, shift_id: int) -> tuple[BranchShiftCount, bool]:
     shift = _get_shift(db, shift_id)
     _require_branch_write(user, shift.branch_id, db)
@@ -559,26 +749,36 @@ def patch_count_lines(db: Session, user: User, shift_id: int, lines: list[dict[s
     return count
 
 
-def submit_count(db: Session, user: User, shift_id: int) -> BranchShiftCount:
+def submit_count(db: Session, user: User, shift_id: int) -> tuple[BranchShiftCount, dict[str, Any]]:
     shift = _get_shift(db, shift_id)
     _require_branch_write(user, shift.branch_id, db)
     count = shift.count
     if not count:
         raise AppError(status_code=404, error_code="shift_ops.count_not_found", message="Count not created yet", detail={})
     if count.status == ShiftSectionStatus.submitted.value:
-        return count
+        return count, _empty_opening_refresh_summary(shift.id)
 
     invalid = [l for l in count.lines if l.row_status != ShiftCountRowStatus.valid.value]
     if invalid:
         raise AppError(status_code=409, error_code="SHIFT_COUNT_INCOMPLETE", message="All count lines must be valid before submit", detail={"invalid_lines": len(invalid)})
 
+    _assert_earlier_counts_submitted(db, shift)
+    later_drafts = _later_draft_counts_for_update(db, shift)
+
     now = utcnow_aware().replace(tzinfo=None)
-    count.status = ShiftSectionStatus.submitted.value
-    count.submitted_by = user.id
-    count.submitted_at = now
-    _maybe_complete_shift(db, shift)
-    db.flush()
-    return count
+    try:
+        with db.begin_nested():
+            count.status = ShiftSectionStatus.submitted.value
+            count.submitted_by = user.id
+            count.submitted_at = now
+            _maybe_complete_shift(db, shift)
+            db.flush()
+            items_changed = _apply_opening_refresh(db, user, shift, later_drafts)
+    except Exception:
+        db.expire_all()
+        raise
+    summary = {"source_shift_id": shift.id, "items_changed": items_changed}
+    return count, summary
 
 
 def get_or_create_cash_draft(db: Session, user: User, shift_id: int) -> BranchShiftCash:
@@ -831,6 +1031,13 @@ def reopen_shift(
     old_values = _build_reopen_audit_snapshot(shift)
 
     if target in (ShiftReopenTarget.count.value, ShiftReopenTarget.both.value):
+        if _has_later_submitted_count(db, shift.branch_id, shift):
+            raise AppError(
+                status_code=409,
+                error_code="REOPEN_BLOCKED_LATER_COUNT_SUBMITTED",
+                message="Cannot reopen: a later shift count is already submitted",
+                detail={},
+            )
         if not shift.count or shift.count.status != ShiftSectionStatus.submitted.value:
             raise AppError(status_code=409, error_code="NOT_SUBMITTED", message="Count is not submitted", detail={})
         shift.count.status = ShiftSectionStatus.draft.value

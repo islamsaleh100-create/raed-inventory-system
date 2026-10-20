@@ -203,9 +203,11 @@ def submit_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("branch_manager")),
 ):
-    count = svc.submit_count(db, current_user, shift_id)
+    count, opening_refresh_summary = svc.submit_count(db, current_user, shift_id)
     db.commit()
-    return svc._serialize_count(count, db)
+    out = svc._serialize_count(count, db)
+    out["opening_refresh_summary"] = opening_refresh_summary
+    return out
 
 
 @router.get("/shifts/{shift_id}/cash")

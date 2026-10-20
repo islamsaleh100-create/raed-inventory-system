@@ -35,6 +35,11 @@ def _audit_writes_enabled() -> bool:
     return os.getenv("AUDIT_LOG_ENABLED", "true").lower() not in ("false", "0", "no")
 
 
+def audit_writes_enabled() -> bool:
+    """True when audit rows are persisted (same rule as ``log``)."""
+    return _audit_writes_enabled()
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # WRITE
 # ──────────────────────────────────────────────────────────────────────────────
@@ -85,6 +90,48 @@ def log(
     except Exception:
         # Savepoint was already rolled back; caller's transaction is intact.
         return None
+
+
+def log_strict(
+    db: Session,
+    *,
+    user_id: Optional[int],
+    action: str,
+    module: str,
+    entity_type: str,
+    entity_id: Optional[int] = None,
+    old_values: Optional[dict] = None,
+    new_values: Optional[dict] = None,
+    ip_address: Optional[str] = None,
+) -> AuditLog:
+    """
+    Write one audit entry in the caller's transaction. Raises on failure.
+    Caller must ensure audit is enabled before calling.
+    """
+    if not _audit_writes_enabled():
+        raise RuntimeError("audit log writes are disabled")
+
+    def _serialise(v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        try:
+            return json.dumps(v, default=_json_default, ensure_ascii=False)
+        except Exception:
+            return str(v)
+
+    entry = AuditLog(
+        user_id=user_id,
+        action=action,
+        module=module,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        old_values=_serialise(old_values),
+        new_values=_serialise(new_values),
+        ip_address=ip_address,
+    )
+    db.add(entry)
+    db.flush()
+    return entry
 
 
 def _json_default(obj: Any) -> Any:

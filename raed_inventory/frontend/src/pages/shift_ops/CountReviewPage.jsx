@@ -132,6 +132,7 @@ export function CountReviewPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [emptySubmitConfirmOpen, setEmptySubmitConfirmOpen] = useState(false)
+  const [openingRefreshSummary, setOpeningRefreshSummary] = useState(null)
   const submitInFlight = useRef(false)
 
   const load = useCallback(async () => {
@@ -182,9 +183,15 @@ export function CountReviewPage() {
     submitInFlight.current = true
     setSubmitting(true)
     try {
-      await shiftOpsApi.submitCount(shiftId)
+      const resp = await shiftOpsApi.submitCount(shiftId)
       toast.success(t('shift_ops.count_submitted'))
-      navigate(`/shift-ops/${shiftId}/count`)
+      const summary = resp.data?.opening_refresh_summary
+      const changed = summary?.items_changed?.length > 0
+      if (changed) {
+        setOpeningRefreshSummary(summary)
+      } else {
+        navigate(`/shift-ops/${shiftId}/count`)
+      }
     } catch (err) {
       toast.error(shiftOpsError(err, t, 'common.save_failed'))
     } finally {
@@ -249,6 +256,27 @@ export function CountReviewPage() {
         >
           <p className="font-bold">{t('shift_ops.opening_count_banner_title')}</p>
           <p className="mt-0.5">{t('shift_ops.opening_count_banner_body')}</p>
+        </div>
+      )}
+
+      {openingRefreshSummary?.items_changed?.length > 0 && (
+        <div
+          data-testid="opening-refresh-banner"
+          className="mb-4 border border-amber-300 bg-amber-50 rounded-lg px-3 py-2 text-xs text-amber-950"
+        >
+          <p className="font-bold">{t('shift_ops.opening_refresh_banner_title')}</p>
+          <p className="mt-0.5">
+            {t('shift_ops.opening_refresh_banner_body', {
+              count: openingRefreshSummary.items_changed.length,
+            })}
+          </p>
+          <button
+            type="button"
+            className="mt-2 text-xs font-semibold text-amber-900 underline"
+            onClick={() => navigate(`/shift-ops/${shiftId}/count`)}
+          >
+            {t('shift_ops.opening_refresh_continue')}
+          </button>
         </div>
       )}
 
