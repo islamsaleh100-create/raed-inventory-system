@@ -380,7 +380,15 @@ def test_t10_stuck_override_and_backdate_both_audit(client, db, monkeypatch):
 
 
 def test_open_override_lock_rolls_back_when_open_fails_after_audit(client, db, monkeypatch):
-    """Open must not complete when flush fails after override lock + audit (no new shift row)."""
+    """Service-level: failed open_shift must propagate and must not flush a new BranchShift row.
+
+    Scope: direct open_shift() on the test db session with a forced flush failure after
+    override lock + audit writes. Verifies no persisted new shift via ORM count with
+    no_autoflush so the monkeypatched flush is not re-triggered by autoflush.
+
+    Does NOT prove full HTTP/get_db transaction rollback (previous shift still locked,
+    override audit absent) — that is covered by the R-1 HTTP probe / completion-gate test.
+    """
     from app.services.shift_ops_service import open_shift
 
     monkeypatch.setenv("AUDIT_LOG_ENABLED", "true")
@@ -410,15 +418,16 @@ def test_open_override_lock_rolls_back_when_open_fails_after_audit(client, db, m
             override_reason="Lock previous shift",
         )
 
-    second_rows = (
-        db.query(BranchShift)
-        .filter(
-            BranchShift.branch_id == seed["branch_id"],
-            BranchShift.shift_date == date(2026, 8, 15),
-            BranchShift.shift_number == 2,
+    with db.no_autoflush:
+        second_rows = (
+            db.query(BranchShift)
+            .filter(
+                BranchShift.branch_id == seed["branch_id"],
+                BranchShift.shift_date == date(2026, 8, 15),
+                BranchShift.shift_number == 2,
+            )
+            .count()
         )
-        .count()
-    )
     assert second_rows == 0
 
 
