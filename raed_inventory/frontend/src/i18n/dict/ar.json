@@ -1887,6 +1887,10 @@
       "shift_number_not_configured": "رقم الشفت غير مُعدّ للتاريخ المختار"
     },
     "server_today_label": "تاريخ العمل على الخادم (الرياض): {server_today}",
+    "server_today_missing_error": "تعذّر تحميل تاريخ العمل من الخادم. فتح الشفت متوقف حتى يستجيب الخادم.",
+    "server_today_retry": "إعادة تحميل تاريخ الخادم",
+    "browser_server_date_mismatch": "تاريخ جهازك ({browser_date}) يختلف عن تاريخ العمل على الخادم ({server_today}). سيُستخدم تاريخ الخادم لهذا الشفت.",
+    "server_today_changed_review": "تغيّر تاريخ العمل على الخادم أثناء فتح النموذج. راجع خيارات التاريخ ثم احفظ مرة أخرى.",
     "open_date_today": "اليوم ({date})",
     "open_date_yesterday": "أمس ({date})",
     "backdate_reason_prompt": "سبب التأريخ مطلوب لهذا التاريخ",

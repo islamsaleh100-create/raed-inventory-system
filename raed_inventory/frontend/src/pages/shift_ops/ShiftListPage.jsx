@@ -7,8 +7,11 @@ import toast from 'react-hot-toast'
 import { shiftOpsApi } from '../../services/shiftOpsApi'
 import { selectUser, selectUserRoles } from '../../store'
 import { PageLoader } from '../../components/common'
-import { format, subDays } from 'date-fns'
-import { todayString } from '../../utils/helpers'
+import {
+  browserCalendarDateString,
+  isValidServerDate,
+  subtractDays,
+} from '../../utils/serverDate'
 import { useT } from '../../i18n'
 import { shiftOpsError } from './shiftOpsError'
 
@@ -30,6 +33,18 @@ function SectionBadge({ label, status, t }) {
   )
 }
 
+function applyServerTodayFromResponse(data, setServerToday, setServerTodayError) {
+  const st = data?.server_today
+  if (isValidServerDate(st)) {
+    setServerToday(st)
+    setServerTodayError(false)
+    return st
+  }
+  setServerToday(null)
+  setServerTodayError(true)
+  return null
+}
+
 export function ShiftListPage() {
   const t = useT()
   const navigate = useNavigate()
@@ -49,8 +64,13 @@ export function ShiftListPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
+  const [serverToday, setServerToday] = useState(null)
+  const [serverTodayError, setServerTodayError] = useState(false)
+  const [openOptionsBasis, setOpenOptionsBasis] = useState(null)
+  const [dateRefreshNotice, setDateRefreshNotice] = useState(null)
+
   const [openForm, setOpenForm] = useState(() => searchParams.get('open') === '1')
-  const [shiftDate, setShiftDate] = useState(todayString())
+  const [shiftDate, setShiftDate] = useState('')
   const [branchDayChoice, setBranchDayChoice] = useState('today')
   const [backdateReason, setBackdateReason] = useState('')
   const [shiftNumber, setShiftNumber] = useState(1)
@@ -60,6 +80,10 @@ export function ShiftListPage() {
   const [needsOverride, setNeedsOverride] = useState(false)
   const [saving, setSaving] = useState(false)
   const [openError, setOpenError] = useState(null)
+
+  const browserCalendarDate = browserCalendarDateString()
+  const showClockMismatch =
+    serverToday && isValidServerDate(serverToday) && browserCalendarDate !== serverToday
 
   const load = useCallback(() => {
     setLoading(true)
@@ -73,6 +97,7 @@ export function ShiftListPage() {
       .then((r) => {
         const items = r.data?.items || []
         setRows(items)
+        applyServerTodayFromResponse(r.data, setServerToday, setServerTodayError)
         const top = r.data?.available_shift_numbers
         if (Array.isArray(top)) {
           setAvailableShiftNumbers(top)
@@ -90,33 +115,81 @@ export function ShiftListPage() {
       .finally(() => setLoading(false))
   }, [partialOnly, dateFrom, dateTo, t])
 
+  const fetchFreshServerToday = useCallback(async () => {
+    const r = await shiftOpsApi.listShifts({})
+    return applyServerTodayFromResponse(r.data, setServerToday, setServerTodayError)
+  }, [])
+
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
     if (searchParams.get('open') === '1') setOpenForm(true)
   }, [searchParams])
 
+  useEffect(() => {
+    if (openForm && serverToday && !openOptionsBasis) {
+      setOpenOptionsBasis(serverToday)
+    }
+  }, [openForm, serverToday, openOptionsBasis])
+
   const singleShiftBranch = Array.isArray(availableShiftNumbers) && availableShiftNumbers.length === 1
   useEffect(() => {
     if (singleShiftBranch) setShiftNumber(availableShiftNumbers[0])
   }, [singleShiftBranch, availableShiftNumbers])
 
-  const browserToday = todayString()
-  const browserYesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
-  const minManagerDate = format(subDays(new Date(), 7), 'yyyy-MM-dd')
+  useEffect(() => {
+    if (!serverToday || !isBranchManagerOnly) return
+    setShiftDate(branchDayChoice === 'today' ? serverToday : subtractDays(serverToday, 1))
+  }, [branchDayChoice, isBranchManagerOnly, serverToday])
 
   useEffect(() => {
-    if (!isBranchManagerOnly) return
-    setShiftDate(branchDayChoice === 'today' ? browserToday : browserYesterday)
-  }, [branchDayChoice, isBranchManagerOnly, browserToday, browserYesterday])
+    if (!serverToday || isBranchManagerOnly) return
+    const minD = subtractDays(serverToday, 7)
+    if (!shiftDate || shiftDate > serverToday || shiftDate < minD) {
+      setShiftDate(serverToday)
+    }
+  }, [serverToday, isBranchManagerOnly, shiftDate])
 
-  const needsBackdateReason =
-    isManager && shiftDate && shiftDate < browserToday
+  const needsBackdateReason = isManager && serverToday && shiftDate && shiftDate < serverToday
+
+  const syncOptionsFromServerToday = (st) => {
+    setOpenOptionsBasis(st)
+    setDateRefreshNotice(t('shift_ops.server_today_changed_review'))
+    if (isBranchManagerOnly) {
+      setShiftDate(branchDayChoice === 'today' ? st : subtractDays(st, 1))
+    } else {
+      setShiftDate(st)
+    }
+  }
 
   const submitOpen = async (withOverride = false) => {
+    if (!serverToday || serverTodayError) {
+      setOpenError({ type: 'server_today', message: t('shift_ops.server_today_missing_error') })
+      return
+    }
     setSaving(true)
     setOpenError(null)
+    setDateRefreshNotice(null)
+    const basisBeforeRefresh = openOptionsBasis || serverToday
     try {
+      let fresh
+      try {
+        fresh = await fetchFreshServerToday()
+      } catch {
+        setServerTodayError(true)
+        setServerToday(null)
+        setOpenError({ type: 'server_today', message: t('shift_ops.server_today_missing_error') })
+        return
+      }
+      if (!fresh) {
+        setOpenError({ type: 'server_today', message: t('shift_ops.server_today_missing_error') })
+        return
+      }
+      if (fresh !== basisBeforeRefresh) {
+        syncOptionsFromServerToday(fresh)
+        return
+      }
+
       const payload = { shift_date: shiftDate, shift_number: Number(shiftNumber) }
       if (needsBackdateReason && backdateReason.trim().length >= 5) {
         payload.backdate_reason = backdateReason.trim()
@@ -132,6 +205,7 @@ export function ShiftListPage() {
       setOverrideReason('')
       setBackdateReason('')
       setOpenError(null)
+      setOpenOptionsBasis(null)
       const newId = res.data?.id
       if (redirectReason === 'no_shift_today' && newId) {
         navigate(`/shift-ops/${newId}/count`, { replace: true })
@@ -141,6 +215,12 @@ export function ShiftListPage() {
     } catch (err) {
       const code = err?.response?.data?.error_code
       const detail = err?.response?.data?.detail || {}
+      if (detail.server_today && isValidServerDate(detail.server_today)) {
+        setServerToday(detail.server_today)
+        if (openOptionsBasis && detail.server_today !== openOptionsBasis) {
+          syncOptionsFromServerToday(detail.server_today)
+        }
+      }
       if (code === 'PREVIOUS_SHIFT_NOT_CLOSED') {
         setOpenError({
           type: 'previous_not_closed',
@@ -189,8 +269,13 @@ export function ShiftListPage() {
     )
   }
 
-  const hasTodayShift = rows.some((r) => String(r.shift_date).slice(0, 10) === browserToday)
+  const hasTodayShift =
+    serverToday && rows.some((r) => String(r.shift_date).slice(0, 10) === serverToday)
   const showNoShiftBanner = redirectReason === 'no_shift_today' && !hasTodayShift
+
+  const serverYesterday = serverToday ? subtractDays(serverToday, 1) : ''
+  const minManagerDate = serverToday ? subtractDays(serverToday, 7) : ''
+  const openBlockedByServerDate = serverTodayError || !serverToday
 
   return (
     <div className="p-4 space-y-4">
@@ -204,9 +289,12 @@ export function ShiftListPage() {
         <h1 className="text-xl font-bold">{t('shift_ops.title')}</h1>
         <button
           type="button"
+          data-testid="shift-open-toggle"
           onClick={() => {
             setOpenForm((v) => !v)
             setOpenError(null)
+            setDateRefreshNotice(null)
+            if (!openForm && serverToday) setOpenOptionsBasis(serverToday)
           }}
           className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-semibold"
         >
@@ -235,6 +323,37 @@ export function ShiftListPage() {
       {/* ── open shift form ── */}
       {openForm && (
         <div className="bg-white border rounded-xl p-4 space-y-3">
+          {openBlockedByServerDate && (
+            <div className="border border-red-300 bg-red-50 rounded-lg p-3 space-y-2 text-sm text-red-800">
+              <p>{t('shift_ops.server_today_missing_error')}</p>
+              <button
+                type="button"
+                className="text-primary-600 font-semibold"
+                onClick={() => load().then(() => serverToday && setOpenOptionsBasis(serverToday))}
+              >
+                {t('shift_ops.server_today_retry')}
+              </button>
+            </div>
+          )}
+
+          {showClockMismatch && !openBlockedByServerDate && (
+            <div
+              className="border border-amber-300 bg-amber-50 rounded-lg p-3 text-sm text-amber-900"
+              data-testid="browser-server-date-mismatch"
+            >
+              {t('shift_ops.browser_server_date_mismatch', {
+                browser_date: browserCalendarDate,
+                server_today: serverToday,
+              })}
+            </div>
+          )}
+
+          {dateRefreshNotice && (
+            <div className="border border-blue-300 bg-blue-50 rounded-lg p-3 text-sm text-blue-900">
+              {dateRefreshNotice}
+            </div>
+          )}
+
           {openError && (
             <div className="border border-red-300 bg-red-50 rounded-lg p-3 space-y-2 text-sm text-red-800">
               <p className="font-semibold flex items-center gap-2">
@@ -267,63 +386,65 @@ export function ShiftListPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-gray-500 text-xs">{t('shift_ops.shift_date')}</span>
-              {isBranchManagerOnly ? (
-                <div className="flex flex-col gap-2 border rounded-lg px-3 py-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="branchDayChoice"
-                      checked={branchDayChoice === 'today'}
-                      onChange={() => setBranchDayChoice('today')}
-                    />
-                    <span>{t('shift_ops.open_date_today', { date: browserToday })}</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="branchDayChoice"
-                      checked={branchDayChoice === 'yesterday'}
-                      onChange={() => setBranchDayChoice('yesterday')}
-                    />
-                    <span>{t('shift_ops.open_date_yesterday', { date: browserYesterday })}</span>
-                  </label>
-                </div>
-              ) : (
-                <input
-                  type="date"
-                  value={shiftDate}
-                  min={minManagerDate}
-                  max={browserToday}
-                  onChange={(e) => setShiftDate(e.target.value)}
-                  className="border rounded-lg px-3 py-2"
-                />
-              )}
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-gray-500 text-xs">{t('shift_ops.shift_number')}</span>
-              {availableShiftNumbers === null || availableShiftNumbers.length === 0 ? (
-                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  {availableShiftNumbers === null
-                    ? t('shift_ops.shift_config_unavailable')
-                    : t('shift_ops.no_shift_config_admin')}
-                </span>
-              ) : (
-                <select
-                  value={shiftNumber}
-                  disabled={singleShiftBranch}
-                  onChange={(e) => setShiftNumber(e.target.value)}
-                  className="border rounded-lg px-3 py-2 disabled:bg-gray-100"
-                >
-                  {availableShiftNumbers.map((n) => (
-                    <option key={n} value={n}>{t('shift_ops.shift_n', { n })}</option>
-                  ))}
-                </select>
-              )}
-            </label>
-          </div>
+          {!openBlockedByServerDate && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-gray-500 text-xs">{t('shift_ops.shift_date')}</span>
+                {isBranchManagerOnly ? (
+                  <div className="flex flex-col gap-2 border rounded-lg px-3 py-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="branchDayChoice"
+                        checked={branchDayChoice === 'today'}
+                        onChange={() => setBranchDayChoice('today')}
+                      />
+                      <span>{t('shift_ops.open_date_today', { date: serverToday })}</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="branchDayChoice"
+                        checked={branchDayChoice === 'yesterday'}
+                        onChange={() => setBranchDayChoice('yesterday')}
+                      />
+                      <span>{t('shift_ops.open_date_yesterday', { date: serverYesterday })}</span>
+                    </label>
+                  </div>
+                ) : (
+                  <input
+                    type="date"
+                    value={shiftDate}
+                    min={minManagerDate}
+                    max={serverToday}
+                    onChange={(e) => setShiftDate(e.target.value)}
+                    className="border rounded-lg px-3 py-2"
+                  />
+                )}
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-gray-500 text-xs">{t('shift_ops.shift_number')}</span>
+                {availableShiftNumbers === null || availableShiftNumbers.length === 0 ? (
+                  <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    {availableShiftNumbers === null
+                      ? t('shift_ops.shift_config_unavailable')
+                      : t('shift_ops.no_shift_config_admin')}
+                  </span>
+                ) : (
+                  <select
+                    value={shiftNumber}
+                    disabled={singleShiftBranch}
+                    onChange={(e) => setShiftNumber(e.target.value)}
+                    className="border rounded-lg px-3 py-2 disabled:bg-gray-100"
+                  >
+                    {availableShiftNumbers.map((n) => (
+                      <option key={n} value={n}>{t('shift_ops.shift_n', { n })}</option>
+                    ))}
+                  </select>
+                )}
+              </label>
+            </div>
+          )}
 
           {needsBackdateReason && !needsOverride && (
             <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 space-y-2">
@@ -352,7 +473,7 @@ export function ShiftListPage() {
               />
               <button
                 type="button"
-                disabled={saving || overrideReason.trim().length < 5}
+                disabled={saving || overrideReason.trim().length < 5 || openBlockedByServerDate}
                 onClick={() => submitOpen(true)}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:bg-gray-300"
               >
@@ -364,8 +485,10 @@ export function ShiftListPage() {
           {!needsOverride && (
             <button
               type="button"
+              data-testid="shift-open-save"
               disabled={
                 saving
+                || openBlockedByServerDate
                 || !availableShiftNumbers?.length
                 || (needsBackdateReason && backdateReason.trim().length < 5)
               }
@@ -378,7 +501,6 @@ export function ShiftListPage() {
         </div>
       )}
 
-      {/* ── list ── */}
       <div className="space-y-2">
         {rows.length === 0 && (
           <p className="text-sm text-gray-500 bg-white border rounded-xl p-6 text-center">
@@ -405,7 +527,6 @@ export function ShiftListPage() {
               )}
             </div>
 
-            {/* count and cash are never merged into one status */}
             <div className="flex flex-wrap gap-2">
               <SectionBadge label={t('shift_ops.count')} status={row.count_status} t={t} />
               {SHIFT_CASH_ENABLED && (

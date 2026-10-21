@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { shiftOpsApi } from '../../services/shiftOpsApi'
 import { PageLoader } from '../../components/common'
-import { todayString } from '../../utils/helpers'
+import { isValidServerDate } from '../../utils/serverDate'
 import { useT } from '../../i18n'
 
 export function ShiftTodayRedirect({ target }) {
@@ -13,14 +13,20 @@ export function ShiftTodayRedirect({ target }) {
 
   useEffect(() => {
     let cancelled = false
-    const today = todayString()
     shiftOpsApi
-      .listShifts({ date_from: today, date_to: today })
+      .listShifts({})
       .then((r) => {
         if (cancelled) return
+        const serverToday = r.data?.server_today
+        if (!isValidServerDate(serverToday)) {
+          toast.error(t('shift_ops.server_today_missing_error'))
+          navigate('/shift-ops', { replace: true })
+          return
+        }
         const items = r.data?.items || []
-        if (items.length > 0) {
-          navigate(`/shift-ops/${items[0].id}/${target}`, { replace: true })
+        const todayShift = items.find((i) => String(i.shift_date).slice(0, 10) === serverToday)
+        if (todayShift) {
+          navigate(`/shift-ops/${todayShift.id}/${target}`, { replace: true })
         } else {
           navigate('/shift-ops?open=1&reason=no_shift_today', { replace: true })
         }

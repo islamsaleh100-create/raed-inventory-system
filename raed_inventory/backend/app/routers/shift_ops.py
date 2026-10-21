@@ -91,10 +91,13 @@ def list_shifts(
         available = svc.available_shift_numbers(db, scope_branch, date_to or date.today())
     else:
         available = []
+    from app.services import shift_ops_date_validation as shift_date_val
+
     return {
         "total": len(items),
         "items": items,
         "available_shift_numbers": available,
+        "server_today": shift_date_val.shift_open_today().isoformat(),
     }
 
 

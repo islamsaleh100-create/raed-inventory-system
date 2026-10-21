@@ -1887,6 +1887,10 @@
       "shift_number_not_configured": "This shift number is not configured for the selected date"
     },
     "server_today_label": "Server business date (Riyadh): {server_today}",
+    "server_today_missing_error": "Could not load the server business date. Shift open is blocked until the server responds.",
+    "server_today_retry": "Retry loading server date",
+    "browser_server_date_mismatch": "Your device date ({browser_date}) differs from the server business date ({server_today}). The server date will be used for this shift.",
+    "server_today_changed_review": "The server business date changed while this form was open. Review the date options, then save again.",
     "open_date_today": "Today ({date})",
     "open_date_yesterday": "Yesterday ({date})",
     "backdate_reason_prompt": "Backdate reason required for this date",
