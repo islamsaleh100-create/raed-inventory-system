@@ -409,6 +409,7 @@ export function AuditFindingsPage() {
     { value: 'quality_visit', label: 'زيارة جودة' },
     { value: 'training_assessment', label: 'تقييم تدريب' },
     { value: 'document', label: 'وثيقة' },
+    { value: 'shift_count', label: 'جرد الشفت' },
   ]
   const canCreate = roles.includes('internal_auditor') || roles.includes('admin') || roles.includes('super_admin')
   const canAcknowledge = roles.some((role) => ['area_manager', 'operations_manager', 'admin', 'super_admin'].includes(role))

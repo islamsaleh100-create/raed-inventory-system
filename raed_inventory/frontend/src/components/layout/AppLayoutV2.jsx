@@ -24,7 +24,7 @@ const NAVIGATION = [
   },
   {
     sectionKey: 'nav.section_branch',
-    roles: ['branch_user', 'branch_manager'],
+    roles: ['branch_user', 'branch_manager', 'area_manager', 'operations_manager'],
     items: [
       {
         to: '/shift-ops',
@@ -39,6 +39,13 @@ const NAVIGATION = [
         labelKey: 'nav.shift_count',
         roles: ['branch_manager', 'admin', 'super_admin'],
         activeMatch: /^\/shift-ops\/[^/]+\/count(\/review)?$/,
+      },
+      {
+        to: '/audit/count-audit',
+        icon: ClipboardList,
+        labelKey: 'nav.count_audit',
+        roles: ['branch_manager', 'area_manager', 'operations_manager', 'admin', 'super_admin'],
+        activeMatch: '/audit/count-audit',
       },
       // TG-DEFER-CASH / SHIFT_CASH_ENABLED=false — cash nav deferred, not deleted. Restore by uncommenting.
       // { to: '/shift-ops/today/cash', icon: Wallet, labelKey: 'nav.shift_cash', roles: ['branch_manager', 'admin', 'super_admin'], activeMatch: /^\/shift-ops\/[^/]+\/cash$/ },
@@ -116,6 +123,7 @@ const NAVIGATION = [
       { to: '/audit/warehouse-stock', icon: Warehouse, labelKey: 'nav.audit_warehouse_stock', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/item-change-requests', icon: Package, label: 'طلبات تغييرات الأصناف', labelKey: 'nav.item_change_requests', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/findings', icon: Flag, labelKey: 'nav.audit_findings', roles: ['internal_auditor', 'admin', 'super_admin'] },
+      { to: '/audit/count-audit', icon: ClipboardList, labelKey: 'nav.count_audit', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/trail', icon: History, labelKey: 'nav.audit_trail', roles: ['internal_auditor', 'admin', 'super_admin'] },
     ]
   },

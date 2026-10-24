@@ -1259,10 +1259,15 @@ class AuditFinding(Base):
     acknowledged_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     acknowledged_at = Column(DateTime, nullable=True)
     response_text = Column(Text, nullable=True)
-    status = Column(String(20), nullable=False, default="open")
+    status = Column(String(30), nullable=False, default="open")
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
+    client_request_id = Column(String(64), nullable=True, unique=True)
+    last_event_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
         Index("idx_audit_findings_entity", "entity_type", "entity_id"),
+        Index("idx_audit_findings_type_branch_status", "entity_type", "branch_id", "status"),
         Index("idx_audit_findings_severity", "severity"),
         Index("idx_audit_findings_status", "status"),
         Index("idx_audit_findings_created_by", "created_by"),
@@ -1748,6 +1753,8 @@ from app.models.branch_shift_ops import (  # noqa: E402,F401
     ShiftReopenTarget,
     ShiftExpenseType,
 )
+
+from app.models.count_audit import AuditFindingEvent, AuditFindingItem  # noqa: E402,F401
 
 # ─────────────────────────────────────────────
 # AI Assistant — User Suggestions

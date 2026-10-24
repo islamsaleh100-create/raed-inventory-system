@@ -37,6 +37,7 @@ import { QualityVisitListPage, QualityVisitFormPage, QualityVisitDetailPage, Qua
 import { DocumentsListPage, DocumentsExpiringPage, DocumentFormPage } from './pages/documents/DocumentsPages'
 import { TrainingAssessmentListPage, TrainingAssessmentFormPage, TrainingAssessmentDetailPage, TrainingAnalyticsPage } from './pages/training/TrainingPages'
 import { AuditDashboardPage, AuditFindingsPage, AuditTrailPage } from './pages/audit/AuditPages'
+import { CountAuditPage } from './pages/audit/CountAuditPages'
 import {
   SupplyChainControlDashboard,
   SupplyChainBranchRequestsPage,
@@ -2062,6 +2063,7 @@ function AppRoutes() {
           <Route path="/audit/item-change-requests" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><ItemChangeRequestsPage /></RouteRoleGuard>} />
           <Route path="/audit/findings" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin', 'area_manager', 'operations_manager']}><AuditFindingsPage /></RouteRoleGuard>} />
           <Route path="/audit/trail" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><AuditTrailPage /></RouteRoleGuard>} />
+          <Route path="/audit/count-audit" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin', 'operations_manager', 'area_manager', 'branch_manager']}><CountAuditPage /></RouteRoleGuard>} />
 
           {/* Supply Chain V1 demo screens */}
           <Route path="/supply-chain" element={<Navigate to="/dashboard" replace />} />

@@ -38,7 +38,7 @@ from app.database import Base, get_db  # noqa: E402
 import app.database as app_database  # noqa: E402
 from app.main import app  # noqa: E402
 
-EXPECTED_ALEMBIC = "a9b8c7d6e5f4"
+EXPECTED_ALEMBIC = "e7f8a9b0c1d2"
 EXPECTED_DB = "raed_inventory_test"
 EXPECTED_USER = "raed_inventory_test_runner"
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})

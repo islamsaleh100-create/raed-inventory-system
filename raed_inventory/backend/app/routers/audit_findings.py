@@ -10,11 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.core.audit_permissions import can_acknowledge_audit_finding, can_create_audit_finding
 from app.core.auth import (
+    GLOBAL_BRANCH_ACCESS_ROLES,
     can_access_branch,
     can_access_warehouse,
     get_user_roles,
     require_roles,
 )
+from app.models.branch_shift_ops import BranchShift
 from app.database import get_db
 from app.models import (
     AuditFinding,
@@ -77,8 +79,28 @@ def _base_query(db: Session):
     return db.query(AuditFinding)
 
 
+def _legacy_hide_shift_count(q, user: User):
+    roles = get_user_roles(user)
+    if "area_manager" in roles and not any(r in GLOBAL_BRANCH_ACCESS_ROLES for r in roles):
+        q = q.filter(AuditFinding.entity_type != "shift_count")
+    return q
+
+
 def _ensure_entity_findings_read_access(db: Session, current_user: User, entity_type: str, entity_id: int) -> None:
     roles = get_user_roles(current_user)
+
+    if entity_type == "shift_count":
+        shift = db.query(BranchShift).filter(BranchShift.id == entity_id).first()
+        if not shift:
+            raise HTTPException(status_code=404, detail="Audit finding not found")
+        if any(role in GLOBAL_BRANCH_ACCESS_ROLES for role in roles):
+            return
+        if any(role in roles for role in ("area_manager", "branch_manager")):
+            if can_access_branch(current_user, shift.branch_id, db):
+                return
+            raise HTTPException(status_code=404, detail="Audit finding not found")
+        raise HTTPException(status_code=404, detail="Audit finding not found")
+
     if any(role in roles for role in _READ_ROLES):
         return
 
@@ -113,9 +135,9 @@ def list_findings(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(*_READ_ROLES)),
+    current_user: User = Depends(require_roles(*_READ_ROLES)),
 ):
-    q = _base_query(db)
+    q = _legacy_hide_shift_count(_base_query(db), current_user)
     if severity:
         q = q.filter(AuditFinding.severity == severity)
     if status:
@@ -155,7 +177,7 @@ def export_findings_csv(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*_READ_ROLES)),
 ):
-    q = _base_query(db)
+    q = _legacy_hide_shift_count(_base_query(db), current_user)
     if severity:
         q = q.filter(AuditFinding.severity == severity)
     if status:
@@ -234,10 +256,15 @@ def export_findings_csv(
 def get_finding(
     finding_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(*_READ_ROLES)),
+    current_user: User = Depends(require_roles(*_READ_ROLES)),
 ):
     row = db.query(AuditFinding).filter(AuditFinding.id == finding_id).first()
     if not row:
+        raise HTTPException(status_code=404, detail="Audit finding not found")
+    roles = get_user_roles(current_user)
+    if row.entity_type == "shift_count" and "area_manager" in roles and not any(
+        r in GLOBAL_BRANCH_ACCESS_ROLES for r in roles
+    ):
         raise HTTPException(status_code=404, detail="Audit finding not found")
     return _finding_to_dict(db, row)
 
@@ -290,6 +317,11 @@ def update_finding(
     row = db.query(AuditFinding).filter(AuditFinding.id == finding_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Audit finding not found")
+    if row.entity_type == "shift_count":
+        raise HTTPException(
+            status_code=409,
+            detail={"error_code": "COUNT_AUDIT_USE_EVENTS", "message": "Use count audit events API"},
+        )
     if row.created_by != current_user.id and "super_admin" not in get_user_roles(current_user):
         raise HTTPException(status_code=403, detail="You can only edit your own finding")
     changes = payload.model_dump(exclude_unset=True)
@@ -328,6 +360,11 @@ def acknowledge_finding(
     row = db.query(AuditFinding).filter(AuditFinding.id == finding_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Audit finding not found")
+    if row.entity_type == "shift_count":
+        raise HTTPException(
+            status_code=409,
+            detail={"error_code": "COUNT_AUDIT_USE_EVENTS", "message": "Use count audit events API"},
+        )
     _ensure_entity_findings_read_access(db, current_user, row.entity_type, row.entity_id)
     row.acknowledged_by = current_user.id
     row.acknowledged_at = datetime.utcnow()
@@ -368,17 +405,19 @@ def findings_by_entity(
 @router.get("/dashboard/summary")
 def audit_dashboard_summary(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(*_READ_ROLES)),
+    current_user: User = Depends(require_roles(*_READ_ROLES)),
 ):
     now = datetime.utcnow()
     recent_threshold = now - timedelta(days=30)
     week_threshold = now - timedelta(days=7)
-    open_findings_total = db.query(AuditFinding).filter(AuditFinding.status == "open").count()
-    violations_open = db.query(AuditFinding).filter(AuditFinding.status == "open", AuditFinding.severity == "violation").count()
-    warnings_open = db.query(AuditFinding).filter(AuditFinding.status == "open", AuditFinding.severity == "warning").count()
-    info_open = db.query(AuditFinding).filter(AuditFinding.status == "open", AuditFinding.severity == "info").count()
-    findings_created_last_7_days = db.query(AuditFinding).filter(AuditFinding.created_at >= week_threshold).count()
-    unacknowledged_findings_older_than_7_days = db.query(AuditFinding).filter(
+    base_open = _legacy_hide_shift_count(db.query(AuditFinding), current_user)
+    open_findings_total = base_open.filter(AuditFinding.status == "open").count()
+    violations_open = base_open.filter(AuditFinding.status == "open", AuditFinding.severity == "violation").count()
+    warnings_open = base_open.filter(AuditFinding.status == "open", AuditFinding.severity == "warning").count()
+    info_open = base_open.filter(AuditFinding.status == "open", AuditFinding.severity == "info").count()
+    base_all = _legacy_hide_shift_count(db.query(AuditFinding), current_user)
+    findings_created_last_7_days = base_all.filter(AuditFinding.created_at >= week_threshold).count()
+    unacknowledged_findings_older_than_7_days = base_all.filter(
         AuditFinding.status == "open",
         AuditFinding.created_at < week_threshold,
     ).count()
@@ -435,7 +474,8 @@ def audit_dashboard_summary(
     )
 
     findings_by_entity_type = (
-        db.query(
+        _legacy_hide_shift_count(db.query(AuditFinding), current_user)
+        .with_entities(
             AuditFinding.entity_type.label("entity_type"),
             func.count(AuditFinding.id).label("count"),
         )
@@ -446,7 +486,7 @@ def audit_dashboard_summary(
     )
 
     oldest_open_findings = (
-        db.query(AuditFinding)
+        _legacy_hide_shift_count(db.query(AuditFinding), current_user)
         .filter(AuditFinding.status == "open")
         .order_by(AuditFinding.created_at.asc(), AuditFinding.id.asc())
         .limit(10)
