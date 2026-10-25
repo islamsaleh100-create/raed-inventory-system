@@ -19,7 +19,7 @@ from app.core.request_context import RequestIdMiddleware
 from app.core.sentry_init import init_sentry
 from app.database import SessionLocal, get_db
 from app.models import Role, RoleName, User, UserRole
-from app.routers import auth, users, master, inventory, orders, dashboard, stock, ledger, reports, alerts, export, audit, audit_findings, count_audit, import_data, quality, training, delivery_analytics, notifications, documents, settings as settings_router, sales_channels, branch_requests, production_orders, warehouse_lines, delivery_orders, supply_chain, evaluations, procurement, branch_employees, assistant, item_change_requests, shift_ops
+from app.routers import auth, users, master, inventory, orders, dashboard, stock, ledger, reports, alerts, export, audit, audit_findings, count_audit, pos_terminals, import_data, quality, training, delivery_analytics, notifications, documents, settings as settings_router, sales_channels, branch_requests, production_orders, warehouse_lines, delivery_orders, supply_chain, evaluations, procurement, branch_employees, assistant, item_change_requests, shift_ops
 from app.core.tenant import TenantMiddleware
 from app.services.idempotency_service import cleanup_expired_idempotency_requests
 from app.services.scheduler_service import start_scheduler, stop_scheduler
@@ -115,6 +115,8 @@ async def block_writes_for_internal_auditor(request: Request, call_next):
     if path in {"/api/v1/auth/login", "/api/v1/auth/change-password"}:
         return await call_next(request)
     if path.startswith("/api/v1/audit/findings"):
+        return await call_next(request)
+    if path.startswith("/api/v1/audit/pos-terminals"):
         return await call_next(request)
     if path.startswith("/api/v1/item-change-requests"):
         return await call_next(request)
@@ -368,6 +370,7 @@ app.include_router(export.router)
 app.include_router(audit.router)
 app.include_router(audit_findings.router)
 app.include_router(count_audit.router)
+app.include_router(pos_terminals.router)
 app.include_router(import_data.router)
 app.include_router(quality.router)
 app.include_router(training.router)

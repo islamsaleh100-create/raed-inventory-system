@@ -1223,6 +1223,7 @@
     "audit_warehouse_stock": "مخزون المستودعات",
     "audit_findings": "ملاحظات المراجعة",
     "count_audit": "مراجعة الجرد",
+    "pos_terminals": "ماكينات الصراف",
     "audit_trail": "سجل العمليات",
     "audit_finding_severity_info": "للعلم",
     "audit_finding_severity_warning": "تحذير",
@@ -2053,6 +2054,41 @@
       "COUNT_AUDIT_IDEMPOTENCY_KEY_REUSED": "تم إرسال هذا الطلب مسبقًا ببيانات مختلفة.",
       "COUNT_AUDIT_INVALID_TRANSITION": "هذا الإجراء غير مسموح في الحالة الحالية.",
       "COUNT_AUDIT_OPENING_COUNT_NO_VARIANCE": "جرد الافتتاح خط أساس وليس فرق حركة. لا تُرفَق بنود السطور إلا في الجرد اللاحق."
+    }
+  },
+  "pos_terminals": {
+    "title": "ماكينات الصراف",
+    "subtitle": "تسجيل الماكينات حسب المزوّد والرقم لمعرفة الفرع عند العطل.",
+    "search_label": "بحث",
+    "search_placeholder": "رقم الماكينة أو الرقم التسلسلي أو اسم الفرع (أرقام عربية أو إنجليزية)",
+    "filter_all_providers": "كل المزوّدين",
+    "filter_all_statuses": "كل الحالات",
+    "provider_hala": "هلا",
+    "provider_nami": "نامي",
+    "provider_riyad_bank": "بنك الرياض",
+    "status_active": "نشطة",
+    "status_disabled": "معطّلة",
+    "status_withdrawn": "مسحوبة",
+    "col_provider": "المزوّد",
+    "col_terminal_number": "رقم الماكينة",
+    "col_serial": "الرقم التسلسلي",
+    "col_branch": "الفرع",
+    "col_city": "المدينة",
+    "col_brand": "البراند",
+    "col_status": "الحالة",
+    "col_notes": "ملاحظات",
+    "add": "إضافة ماكينة",
+    "add_title": "ماكينة جديدة",
+    "edit_title": "تعديل ماكينة",
+    "choose_branch": "اختر الفرع",
+    "empty": "لا توجد نتائج.",
+    "total_rows": "{n} ماكينة",
+    "created": "تم تسجيل الماكينة.",
+    "saved": "تم تحديث الماكينة.",
+    "load_error": "تعذّر تحميل الماكينات.",
+    "save_error": "تعذّر الحفظ.",
+    "errors": {
+      "POS_TERMINAL_DUPLICATE_NUMBER": "رقم الماكينة مسجّل مسبقًا لنفس المزوّد في فرع: {branch}."
     }
   }
 }

@@ -124,6 +124,7 @@ const NAVIGATION = [
       { to: '/audit/item-change-requests', icon: Package, label: 'طلبات تغييرات الأصناف', labelKey: 'nav.item_change_requests', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/findings', icon: Flag, labelKey: 'nav.audit_findings', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/count-audit', icon: ClipboardList, labelKey: 'nav.count_audit', roles: ['internal_auditor', 'admin', 'super_admin'] },
+      { to: '/audit/pos-terminals', icon: ClipboardList, labelKey: 'nav.pos_terminals', roles: ['internal_auditor', 'admin', 'super_admin'] },
       { to: '/audit/trail', icon: History, labelKey: 'nav.audit_trail', roles: ['internal_auditor', 'admin', 'super_admin'] },
     ]
   },

@@ -1830,3 +1830,6 @@ class UserSuggestion(Base):
     __table_args__ = (
         Index("idx_user_suggestions_status_created", "status", "created_at"),
     )
+
+
+from app.models.pos_terminal import PosTerminal, PosTerminalProvider, PosTerminalStatus  # noqa: E402,F401

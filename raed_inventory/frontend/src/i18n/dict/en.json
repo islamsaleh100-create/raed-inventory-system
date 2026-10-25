@@ -1223,6 +1223,7 @@
     "audit_warehouse_stock": "Warehouse stock",
     "audit_findings": "Audit findings",
     "count_audit": "Count audit review",
+    "pos_terminals": "POS terminals",
     "audit_trail": "Audit trail",
     "audit_finding_severity_info": "Info",
     "audit_finding_severity_warning": "Warning",
@@ -2053,6 +2054,41 @@
       "COUNT_AUDIT_IDEMPOTENCY_KEY_REUSED": "This request was already submitted with different data.",
       "COUNT_AUDIT_INVALID_TRANSITION": "This action is not allowed in the current state.",
       "COUNT_AUDIT_OPENING_COUNT_NO_VARIANCE": "Opening count lines are baseline stock, not a variance. Attach line items only on later counts."
+    }
+  },
+  "pos_terminals": {
+    "title": "POS terminals",
+    "subtitle": "Register terminals by provider and number to locate the branch when a device fails.",
+    "search_label": "Search",
+    "search_placeholder": "Terminal number, serial number, or branch name (Arabic or Western digits)",
+    "filter_all_providers": "All providers",
+    "filter_all_statuses": "All statuses",
+    "provider_hala": "Hala",
+    "provider_nami": "Nami",
+    "provider_riyad_bank": "Riyad Bank",
+    "status_active": "Active",
+    "status_disabled": "Disabled",
+    "status_withdrawn": "Withdrawn",
+    "col_provider": "Provider",
+    "col_terminal_number": "Terminal number",
+    "col_serial": "Serial number",
+    "col_branch": "Branch",
+    "col_city": "City",
+    "col_brand": "Brand",
+    "col_status": "Status",
+    "col_notes": "Notes",
+    "add": "Add terminal",
+    "add_title": "New POS terminal",
+    "edit_title": "Edit POS terminal",
+    "choose_branch": "Select branch",
+    "empty": "No terminals match your search.",
+    "total_rows": "{n} terminals",
+    "created": "Terminal registered.",
+    "saved": "Terminal updated.",
+    "load_error": "Could not load terminals.",
+    "save_error": "Could not save terminal.",
+    "errors": {
+      "POS_TERMINAL_DUPLICATE_NUMBER": "This terminal number is already registered for this provider at branch: {branch}."
     }
   }
 }

@@ -38,6 +38,7 @@ import { DocumentsListPage, DocumentsExpiringPage, DocumentFormPage } from './pa
 import { TrainingAssessmentListPage, TrainingAssessmentFormPage, TrainingAssessmentDetailPage, TrainingAnalyticsPage } from './pages/training/TrainingPages'
 import { AuditDashboardPage, AuditFindingsPage, AuditTrailPage } from './pages/audit/AuditPages'
 import { CountAuditPage } from './pages/audit/CountAuditPages'
+import { PosTerminalsPage } from './pages/audit/PosTerminalsPage'
 import {
   SupplyChainControlDashboard,
   SupplyChainBranchRequestsPage,
@@ -2064,6 +2065,7 @@ function AppRoutes() {
           <Route path="/audit/findings" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin', 'area_manager', 'operations_manager']}><AuditFindingsPage /></RouteRoleGuard>} />
           <Route path="/audit/trail" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><AuditTrailPage /></RouteRoleGuard>} />
           <Route path="/audit/count-audit" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin', 'operations_manager', 'area_manager', 'branch_manager']}><CountAuditPage /></RouteRoleGuard>} />
+          <Route path="/audit/pos-terminals" element={<RouteRoleGuard allowed={['internal_auditor', 'admin', 'super_admin']}><PosTerminalsPage /></RouteRoleGuard>} />
 
           {/* Supply Chain V1 demo screens */}
           <Route path="/supply-chain" element={<Navigate to="/dashboard" replace />} />
