@@ -13,9 +13,27 @@ function emptyForm() {
     terminal_number: '',
     serial_number: '',
     branch_id: '',
+    branch_label: '',
     status: 'active',
     notes: '',
   }
+}
+
+function renderBranchCell(row, t) {
+  if (row.branch_name) {
+    return row.branch_name
+  }
+  if (row.branch_label) {
+    return (
+      <span className="text-gray-500">
+        {row.branch_label}
+        <span className="mr-2 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+          {t('pos_terminals.unlinked_badge')}
+        </span>
+      </span>
+    )
+  }
+  return t('pos_terminals.branch_dash')
 }
 
 export function PosTerminalsPage() {
@@ -70,7 +88,8 @@ export function PosTerminalsPage() {
       provider: row.provider,
       terminal_number: row.terminal_number,
       serial_number: row.serial_number || '',
-      branch_id: String(row.branch_id),
+      branch_id: row.branch_id != null ? String(row.branch_id) : '',
+      branch_label: row.branch_label || '',
       status: row.status,
       notes: row.notes || '',
     })
@@ -84,7 +103,8 @@ export function PosTerminalsPage() {
       provider: form.provider,
       terminal_number: form.terminal_number.trim(),
       serial_number: form.serial_number.trim() || null,
-      branch_id: parseInt(form.branch_id, 10),
+      branch_id: form.branch_id ? parseInt(form.branch_id, 10) : null,
+      branch_label: form.branch_label.trim() || null,
       status: form.status,
       notes: form.notes.trim() || null,
     }
@@ -182,7 +202,7 @@ export function PosTerminalsPage() {
                   <td className="p-3">{t(`pos_terminals.provider_${row.provider}`)}</td>
                   <td className="p-3 font-mono" dir="ltr">{row.terminal_number}</td>
                   <td className="p-3 font-mono" dir="ltr">{row.serial_number || '—'}</td>
-                  <td className="p-3">{row.branch_name}</td>
+                  <td className="p-3">{renderBranchCell(row, t)}</td>
                   <td className="p-3">{row.city || '—'}</td>
                   <td className="p-3">{(row.brand_names || []).join('، ') || '—'}</td>
                   <td className="p-3">{t(`pos_terminals.status_${row.status}`)}</td>
@@ -223,12 +243,22 @@ export function PosTerminalsPage() {
             </label>
             <label className="block space-y-1">
               <span className="text-xs font-medium">{t('pos_terminals.col_branch')}</span>
-              <select className="input-field w-full" value={form.branch_id} onChange={(e) => setForm((p) => ({ ...p, branch_id: e.target.value }))} required>
-                <option value="">{t('pos_terminals.choose_branch')}</option>
+              <select className="input-field w-full" value={form.branch_id} onChange={(e) => setForm((p) => ({ ...p, branch_id: e.target.value }))}>
+                <option value="">{t('pos_terminals.no_branch')}</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.branch_name} — {b.city}</option>
                 ))}
               </select>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium">{t('pos_terminals.branch_label')}</span>
+              <input
+                className="input-field w-full"
+                value={form.branch_label}
+                onChange={(e) => setForm((p) => ({ ...p, branch_label: e.target.value }))}
+                placeholder={t('pos_terminals.branch_label_placeholder')}
+                maxLength={128}
+              />
             </label>
             <label className="block space-y-1">
               <span className="text-xs font-medium">{t('pos_terminals.col_status')}</span>

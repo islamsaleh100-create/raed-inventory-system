@@ -10,15 +10,27 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.models import Branch, BranchBrand, Brand
 from app.models.pos_terminal import PosTerminal
-from app.models.pos_terminal import PosTerminalProvider, PosTerminalStatus
 from app.schemas.pos_terminal import PosTerminalCreate, PosTerminalUpdate
 from app.services import audit_service
 from app.services.pos_terminal_utils import normalize_terminal_text
 
-_AUDIT_FIELDS = ("provider", "terminal_number", "serial_number", "branch_id", "status", "notes")
+_AUDIT_FIELDS = ("provider", "terminal_number", "serial_number", "branch_id", "branch_label", "status", "notes")
 
 
-def _brand_names(db: Session, branch_id: int) -> list[str]:
+def _clean_branch_label(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    if len(trimmed) > 128:
+        trimmed = trimmed[:128]
+    return trimmed
+
+
+def _brand_names(db: Session, branch_id: Optional[int]) -> list[str]:
+    if branch_id is None:
+        return []
     rows = (
         db.query(Brand.name)
         .join(BranchBrand, BranchBrand.brand_id == Brand.id)
@@ -34,7 +46,7 @@ def _snapshot(row: PosTerminal) -> dict[str, Any]:
 
 
 def serialize_terminal(db: Session, row: PosTerminal) -> dict[str, Any]:
-    branch = db.query(Branch).filter(Branch.id == row.branch_id).first()
+    branch = db.query(Branch).filter(Branch.id == row.branch_id).first() if row.branch_id else None
     return {
         "id": row.id,
         "provider": row.provider,
@@ -42,6 +54,7 @@ def serialize_terminal(db: Session, row: PosTerminal) -> dict[str, Any]:
         "serial_number": row.serial_number,
         "branch_id": row.branch_id,
         "branch_name": branch.branch_name if branch else None,
+        "branch_label": row.branch_label,
         "city": branch.city if branch else None,
         "brand_names": _brand_names(db, row.branch_id),
         "status": row.status,
@@ -107,9 +120,9 @@ def _duplicate_error(db: Session, provider: str, terminal_number: str) -> AppErr
     )
     detail: dict[str, Any] = {"provider": provider, "terminal_number": terminal_number}
     if existing:
-        branch = db.query(Branch).filter(Branch.id == existing.branch_id).first()
+        branch = db.query(Branch).filter(Branch.id == existing.branch_id).first() if existing.branch_id else None
         detail["existing_branch_id"] = existing.branch_id
-        detail["existing_branch_name"] = branch.branch_name if branch else None
+        detail["existing_branch_name"] = branch.branch_name if branch else existing.branch_label
         detail["existing_terminal_id"] = existing.id
     return AppError(
         status_code=409,
@@ -128,7 +141,7 @@ def list_terminals(
     page: int = 1,
     page_size: int = 50,
 ) -> dict[str, Any]:
-    q = db.query(PosTerminal).join(Branch, Branch.id == PosTerminal.branch_id)
+    q = db.query(PosTerminal).outerjoin(Branch, Branch.id == PosTerminal.branch_id)
     if provider:
         q = q.filter(PosTerminal.provider == provider)
     if status:
@@ -136,11 +149,14 @@ def list_terminals(
     if search:
         norm = normalize_terminal_text(search) or search.strip()
         like = f"%{norm}%"
+        raw_like = f"%{search.strip()}%"
         q = q.filter(
             or_(
                 PosTerminal.terminal_number.ilike(like),
                 PosTerminal.serial_number.ilike(like),
-                Branch.branch_name.ilike(f"%{search.strip()}%"),
+                PosTerminal.branch_label.ilike(raw_like),
+                PosTerminal.notes.ilike(raw_like),
+                Branch.branch_name.ilike(raw_like),
             )
         )
     total = q.count()
@@ -158,14 +174,15 @@ def list_terminals(
     }
 
 
-def create_terminal(
+def _persist_new_terminal(
     db: Session,
     *,
     user_id: int,
     payload: PosTerminalCreate,
     ip_address: Optional[str],
-) -> dict[str, Any]:
-    _get_branch(db, payload.branch_id)
+) -> PosTerminal:
+    if payload.branch_id is not None:
+        _get_branch(db, payload.branch_id)
     terminal_number = normalize_terminal_text(payload.terminal_number)
     if not terminal_number:
         raise AppError(
@@ -181,6 +198,7 @@ def create_terminal(
         terminal_number=terminal_number,
         serial_number=serial,
         branch_id=payload.branch_id,
+        branch_label=_clean_branch_label(payload.branch_label),
         status=payload.status,
         notes=(payload.notes or "").strip() or None,
     )
@@ -196,8 +214,21 @@ def create_terminal(
         new_values=_snapshot(row),
         ip_address=ip_address,
     )
-    db.commit()
-    db.refresh(row)
+    return row
+
+
+def create_terminal(
+    db: Session,
+    *,
+    user_id: int,
+    payload: PosTerminalCreate,
+    ip_address: Optional[str],
+    commit: bool = True,
+) -> dict[str, Any]:
+    row = _persist_new_terminal(db, user_id=user_id, payload=payload, ip_address=ip_address)
+    if commit:
+        db.commit()
+        db.refresh(row)
     return serialize_terminal(db, row)
 
 
@@ -220,7 +251,7 @@ def update_terminal(
     old = _snapshot(row)
     data = payload.model_dump(exclude_unset=True)
     _reject_null_patch_fields(data)
-    if "branch_id" in data:
+    if "branch_id" in data and data["branch_id"] is not None:
         _get_branch(db, data["branch_id"])
     if "terminal_number" in data:
         data["terminal_number"] = normalize_terminal_text(data["terminal_number"])
@@ -235,6 +266,8 @@ def update_terminal(
         data["serial_number"] = normalize_terminal_text(data["serial_number"]) if data["serial_number"] else None
     if "notes" in data:
         data["notes"] = (data["notes"] or "").strip() or None
+    if "branch_label" in data:
+        data["branch_label"] = _clean_branch_label(data["branch_label"])
     for key, val in data.items():
         setattr(row, key, val)
     _assert_unique(db, row.provider, row.terminal_number, exclude_id=row.id)

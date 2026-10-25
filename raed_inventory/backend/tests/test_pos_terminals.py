@@ -323,12 +323,222 @@ def test_integrity_error_on_patch_returns_409_preserves_row(client, db, monkeypa
     assert listed.json()["items"][0]["id"] == second_id
 
 
+def test_create_without_branch_and_list(client, db):
+    _user(db, "pos9.aud", RoleName.internal_auditor)
+    db.commit()
+    ah = _login(client, "pos9.aud")
+    create = client.post(
+        API,
+        headers=ah,
+        json={
+            "provider": "nami",
+            "terminal_number": "NO-BR-1",
+            "branch_label": "Sheet Branch Name",
+            "status": "active",
+            "notes": "import note",
+        },
+    )
+    assert create.status_code == 201, create.text
+    body = create.json()
+    assert body["branch_id"] is None
+    assert body["branch_name"] is None
+    assert body["branch_label"] == "Sheet Branch Name"
+    listed = client.get(API, headers=ah)
+    assert listed.status_code == 200
+    ids = {x["id"] for x in listed.json()["items"]}
+    assert body["id"] in ids
+    by_label = client.get(f"{API}?search=Sheet Branch", headers=ah)
+    assert by_label.json()["total"] >= 1
+    by_notes = client.get(f"{API}?search=import note", headers=ah)
+    assert by_notes.json()["total"] >= 1
+
+
+def test_patch_unlink_and_relink_branch(client, db):
+    b1, b2 = _seed_branches(db, "POS9B")
+    _user(db, "pos9b.aud", RoleName.internal_auditor)
+    db.commit()
+    ah = _login(client, "pos9b.aud")
+    tid = client.post(
+        API,
+        headers=ah,
+        json={"provider": "hala", "terminal_number": "LINK-1", "branch_id": b1.id},
+    ).json()["id"]
+    unlinked = client.patch(f"{API}/{tid}", headers=ah, json={"branch_id": None, "branch_label": "Unlinked label"})
+    assert unlinked.status_code == 200, unlinked.text
+    assert unlinked.json()["branch_id"] is None
+    assert unlinked.json()["branch_label"] == "Unlinked label"
+    relink = client.patch(f"{API}/{tid}", headers=ah, json={"branch_id": b2.id})
+    assert relink.status_code == 200
+    assert relink.json()["branch_id"] == b2.id
+    assert relink.json()["branch_name"] == b2.branch_name
+
+
+NAMI_IMPORT_BRANCHES = [
+    "Onda 1 - ARKAN",
+    "Onda 13 - Al Malqa",
+    "Onda 14 - HASSA",
+    "Onda 16 - Namjah",
+    "Onda 4 - SEFARAT",
+    "Onda 5 - MUOWASAT",
+    "Pizza 4 - Riyadh Takhasosy",
+    "Pizza 9 - Al Azizia",
+    "SHAWERMA - 1 - Khobar",
+    "SHAWERMA - 4 - ARKAN",
+    "SHAWERMA - OLAYA",
+]
+
+
+def _seed_nami_import_branches(db) -> None:
+    wh = db.query(Warehouse).first()
+    if not wh:
+        wh = Warehouse(warehouse_code="NAMI-IMP-WH", warehouse_name="WH", location="Riyadh", active=True)
+        db.add(wh)
+        db.flush()
+    for i, name in enumerate(NAMI_IMPORT_BRANCHES):
+        exists = (
+            db.query(Branch)
+            .filter(Branch.is_deleted == False, Branch.branch_name == name)  # noqa: E712
+            .first()
+        )
+        if exists:
+            continue
+        db.add(
+            Branch(
+                branch_code=f"NAMI-IMP-{i+1:02d}",
+                branch_name=name,
+                city="Riyadh",
+                area="T",
+                warehouse_id=wh.id,
+                active=True,
+                is_deleted=False,
+            )
+        )
+    db.flush()
+
+
+def _ensure_audit_officer(db) -> User:
+    row = db.query(User).filter(User.username == "audit.officer").first()
+    if row:
+        return row
+    role = _role(db, RoleName.internal_auditor)
+    row = User(
+        username="audit.officer",
+        email="audit@example.com",
+        full_name="Internal Auditor",
+        hashed_password=get_password_hash(PASSWORD),
+        status="active",
+        is_deleted=False,
+    )
+    db.add(row)
+    db.flush()
+    db.add(UserRole(user_id=row.id, role_id=role.id))
+    db.flush()
+    return row
+
+
+def test_import_nami_script_dry_run_apply_and_idempotent(db):
+    wb = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".ai-workflow", "POS_Nami_import_v2.xlsx")
+    wb = os.path.normpath(wb)
+    if not os.path.isfile(wb):
+        pytest.skip("POS_Nami_import_v2.xlsx not present")
+    env = {**os.environ}
+    if not env.get("DATABASE_URL") and env.get("TEST_DATABASE_URL"):
+        env["DATABASE_URL"] = env["TEST_DATABASE_URL"]
+    backend = os.path.join(os.path.dirname(__file__), "..")
+    seed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os, sys; sys.path.insert(0, '.'); "
+            "from sqlalchemy import create_engine; from sqlalchemy.orm import sessionmaker; "
+            "from tests.test_pos_terminals import _seed_nami_import_branches, _ensure_audit_officer; "
+            "from app.models.pos_terminal import PosTerminal; "
+            "e=create_engine(os.environ['DATABASE_URL']); S=sessionmaker(bind=e); db=S(); "
+            "_seed_nami_import_branches(db); _ensure_audit_officer(db); "
+            "db.query(PosTerminal).filter(PosTerminal.provider=='nami').delete(); "
+            "db.commit(); db.close(); e.dispose()",
+        ],
+        cwd=backend,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert seed.returncode == 0, seed.stderr + seed.stdout
+    script = os.path.join(backend, "scripts", "import_pos_terminals_nami.py")
+    dry = subprocess.run(
+        [sys.executable, script, wb],
+        cwd=os.path.join(os.path.dirname(__file__), ".."),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert dry.returncode == 0, dry.stderr + dry.stdout
+    assert "would_create=37" in dry.stdout
+    assert "rejected=0" in dry.stdout
+    assert "with_branch=11" in dry.stdout
+    assert "without_branch=26" in dry.stdout
+    apply = subprocess.run(
+        [sys.executable, script, wb, "--apply"],
+        cwd=os.path.join(os.path.dirname(__file__), ".."),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert apply.returncode == 0, apply.stderr + apply.stdout
+    assert "created=37" in apply.stdout
+    verify = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os, sys; sys.path.insert(0, '.'); "
+            "from sqlalchemy import create_engine; from sqlalchemy.orm import sessionmaker; "
+            "from app.models.pos_terminal import PosTerminal; "
+            "e=create_engine(os.environ['DATABASE_URL']); S=sessionmaker(bind=e); db=S(); "
+            "total=db.query(PosTerminal).filter(PosTerminal.provider=='nami').count(); "
+            "linked=db.query(PosTerminal).filter(PosTerminal.provider=='nami', PosTerminal.branch_id.isnot(None)).count(); "
+            "unlinked=db.query(PosTerminal).filter(PosTerminal.provider=='nami', PosTerminal.branch_id.is_(None)).count(); "
+            "print(f'total={total} linked={linked} unlinked={unlinked}'); "
+            "db.close(); e.dispose(); "
+            "assert total==37 and linked==11 and unlinked==26",
+        ],
+        cwd=backend,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert verify.returncode == 0, verify.stderr + verify.stdout
+    again = subprocess.run(
+        [sys.executable, script, wb, "--apply"],
+        cwd=os.path.join(os.path.dirname(__file__), ".."),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert again.returncode == 2
+    assert "rejected=37" in again.stdout
+
+
 def test_migration_upgrade_downgrade_cycle():
     url = os.environ.get("TEST_DATABASE_URL")
     if not url:
         pytest.skip("TEST_DATABASE_URL required")
     env = {**os.environ, "DATABASE_URL": url}
     cwd = os.path.join(os.path.dirname(__file__), "..")
+    preclean = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os; from sqlalchemy import create_engine, text; "
+            "e=create_engine(os.environ['DATABASE_URL']); "
+            "c=e.connect(); t=c.begin(); "
+            "c.execute(text('DELETE FROM pos_terminals WHERE branch_id IS NULL')); "
+            "t.commit(); c.close(); e.dispose()",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert preclean.returncode == 0, preclean.stderr
     down = subprocess.run(
         [sys.executable, "-m", "alembic", "downgrade", "-1"],
         cwd=cwd,
@@ -344,15 +554,17 @@ def test_migration_upgrade_downgrade_cycle():
             "import os; from sqlalchemy import create_engine, text; "
             "e=create_engine(os.environ['DATABASE_URL']); "
             "c=e.connect(); "
-            "print(c.execute(text(\"SELECT to_regclass('public.pos_terminals')\")).scalar()); "
-            "c.close(); e.dispose()",
+            "tbl=c.execute(text(\"SELECT to_regclass('public.pos_terminals')\")).scalar(); "
+            "col=c.execute(text(\"SELECT count(*) FROM information_schema.columns "
+            "WHERE table_name='pos_terminals' AND column_name='branch_label'\")).scalar(); "
+            "print(tbl, col); c.close(); e.dispose(); "
+            "assert tbl and int(col)==0",
         ],
         env=env,
         capture_output=True,
         text=True,
     )
-    assert check.returncode == 0
-    assert check.stdout.strip() in ("None", "null", "")
+    assert check.returncode == 0, check.stderr + check.stdout
     up = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         cwd=cwd,
