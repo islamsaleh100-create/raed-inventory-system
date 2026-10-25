@@ -1959,6 +1959,8 @@
     "lines_table_title": "Count lines",
     "line_select": "Select",
     "shift_title_number": "Shift #{n}",
+    "opening_count_badge": "Opening count",
+    "opening_count_lines_hint": "Opening count is a stock baseline, not a variance. Line selection is disabled; you can still add a general finding without line items.",
     "reopen_target_count": "Count",
     "reopen_target_cash": "Cash",
     "pick_shift_title": "Choose shift",
@@ -2049,7 +2051,8 @@
       "COUNT_AUDIT_INVALID_SHIFT_ID": "Use the shift id, not the count id.",
       "COUNT_AUDIT_DUPLICATE_OPEN_FINDING": "An open finding already exists for this item.",
       "COUNT_AUDIT_IDEMPOTENCY_KEY_REUSED": "This request was already submitted with different data.",
-      "COUNT_AUDIT_INVALID_TRANSITION": "This action is not allowed in the current state."
+      "COUNT_AUDIT_INVALID_TRANSITION": "This action is not allowed in the current state.",
+      "COUNT_AUDIT_OPENING_COUNT_NO_VARIANCE": "Opening count lines are baseline stock, not a variance. Attach line items only on later counts."
     }
   }
 }

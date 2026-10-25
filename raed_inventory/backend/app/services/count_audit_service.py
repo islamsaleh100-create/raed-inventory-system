@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from fastapi import HTTPException
 from sqlalchemy import and_, case, func, or_
@@ -23,7 +23,7 @@ from app.models.branch_shift_ops import (
 from app.models.count_audit import AuditFindingEvent, AuditFindingItem
 from app.schemas.count_audit import CountAuditEventCreate, CountAuditFindingCreate, CountAuditEventAction
 from app.services import audit_service
-from app.services.shift_ops_service import _serialize_count
+from app.services.shift_ops_service import _is_opening_count, _serialize_count
 
 ENTITY_TYPE = "shift_count"
 COUNT_AUDIT_ROLES = frozenset(
@@ -117,6 +117,89 @@ def get_filters(db: Session, user: User) -> dict[str, Any]:
         "cities": cities,
         "branches": [{"branch_id": b.id, "branch_name": b.branch_name, "city": b.city} for b in branches],
     }
+
+
+def _is_opening_count_shift(db: Session, shift: BranchShift) -> bool:
+    return _is_opening_count(db, shift.branch_id, shift)
+
+
+def _opening_shift_ids_for_branches(db: Session, branch_ids: Iterable[int]) -> set[int]:
+    """First submitted count shift per branch (matches shift_ops _is_opening_count)."""
+    ids = list(branch_ids)
+    if not ids:
+        return set()
+    rows = (
+        db.query(BranchShift.branch_id, BranchShift.id)
+        .join(BranchShiftCount, BranchShiftCount.shift_id == BranchShift.id)
+        .filter(
+            BranchShift.branch_id.in_(ids),
+            BranchShiftCount.status == ShiftSectionStatus.submitted.value,
+        )
+        .order_by(
+            BranchShift.branch_id,
+            BranchShift.shift_date,
+            BranchShift.shift_number,
+            BranchShift.id,
+        )
+        .all()
+    )
+    opening: set[int] = set()
+    seen_branch: set[int] = set()
+    for br_id, shift_id in rows:
+        if br_id in seen_branch:
+            continue
+        seen_branch.add(br_id)
+        opening.add(shift_id)
+    return opening
+
+
+def _opening_shift_ids_for_variance_scope(
+    db: Session,
+    *,
+    scope: Optional[set[int]],
+    branch_id: Optional[int],
+    brand_id: Optional[int],
+    city: Optional[str],
+) -> set[int]:
+    """First submitted count shift id per branch visible under the same filters as list_variances."""
+    bq = db.query(Branch.id).filter(Branch.is_deleted == False)  # noqa: E712
+    if scope is not None:
+        bq = bq.filter(Branch.id.in_(scope) if scope else Branch.id == -1)
+    if branch_id is not None:
+        bq = bq.filter(Branch.id == branch_id)
+    if city:
+        bq = bq.filter(Branch.city == city)
+    if brand_id is not None:
+        bq = bq.join(BranchBrand, BranchBrand.branch_id == Branch.id).filter(BranchBrand.brand_id == brand_id)
+    branch_ids = [r[0] for r in bq.all()]
+    return _opening_shift_ids_for_branches(db, branch_ids)
+
+
+def _exclude_opening_shifts_from_variance_query(
+    q,
+    db: Session,
+    *,
+    include_opening: bool,
+    scope: Optional[set[int]],
+    branch_id: Optional[int],
+    brand_id: Optional[int],
+    city: Optional[str],
+):
+    if include_opening:
+        return q
+    opening_ids = _opening_shift_ids_for_variance_scope(
+        db, scope=scope, branch_id=branch_id, brand_id=brand_id, city=city
+    )
+    if opening_ids:
+        q = q.filter(BranchShift.id.notin_(opening_ids))
+    return q
+
+
+def _zero_opening_variance_fields(item: dict[str, Any]) -> None:
+    item["shortage_lines"] = 0
+    item["surplus_lines"] = 0
+    item["shortage_qty_total"] = 0.0
+    item["surplus_qty_total"] = 0.0
 
 
 def _line_agg_subquery(db: Session):
@@ -224,29 +307,37 @@ def list_shifts(
         q = q.filter(or_(agg.c.shortage_lines == 0, agg.c.shortage_lines.is_(None)), or_(agg.c.surplus_lines == 0, agg.c.surplus_lines.is_(None)))
     total = q.count()
     rows = q.order_by(BranchShift.shift_date.desc(), BranchShift.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    opening_ids = _opening_shift_ids_for_branches(db, {branch.id for _, _, branch, *_ in rows})
     items = []
     for shift, count, branch, lt, lf, sl, surl, sq, suq, of, rc in rows:
-        items.append(
-            {
-                "shift_id": shift.id,
-                "branch_id": branch.id,
-                "branch_name": branch.branch_name,
-                "shift_date": shift.shift_date.isoformat(),
-                "shift_number": shift.shift_number,
-                "shift_status": shift.status,
-                "count_status": count.status if count else None,
-                "is_partial": bool(count and lt and lf and int(lf or 0) < int(lt or 0)),
-                "exception_type": shift.exception_type,
-                "lines_total": int(lt or 0),
-                "lines_filled": int(lf or 0),
-                "shortage_lines": int(sl or 0),
-                "surplus_lines": int(surl or 0),
-                "shortage_qty_total": float(sq or 0),
-                "surplus_qty_total": float(suq or 0),
-                "reopen_count": int(rc or 0),
-                "open_findings": int(of or 0),
-            }
+        opening = bool(
+            count
+            and count.status == ShiftSectionStatus.submitted.value
+            and shift.id in opening_ids
         )
+        item = {
+            "shift_id": shift.id,
+            "branch_id": branch.id,
+            "branch_name": branch.branch_name,
+            "shift_date": shift.shift_date.isoformat(),
+            "shift_number": shift.shift_number,
+            "shift_status": shift.status,
+            "count_status": count.status if count else None,
+            "is_partial": bool(count and lt and lf and int(lf or 0) < int(lt or 0)),
+            "is_opening_count": opening,
+            "exception_type": shift.exception_type,
+            "lines_total": int(lt or 0),
+            "lines_filled": int(lf or 0),
+            "shortage_lines": int(sl or 0),
+            "surplus_lines": int(surl or 0),
+            "shortage_qty_total": float(sq or 0),
+            "surplus_qty_total": float(suq or 0),
+            "reopen_count": int(rc or 0),
+            "open_findings": int(of or 0),
+        }
+        if opening:
+            _zero_opening_variance_fields(item)
+        items.append(item)
     return {"total": total, "page": page, "page_size": page_size, "items": items}
 
 
@@ -269,9 +360,17 @@ def get_shift_detail(db: Session, user: User, shift_id: int) -> dict[str, Any]:
         .order_by(BranchShiftReopenEvent.reopened_at.asc())
         .all()
     )
+    opening = bool(
+        count and count.status == ShiftSectionStatus.submitted.value and _is_opening_count_shift(db, shift)
+    )
+    count_payload = _serialize_count(count, db) if count else None
+    if opening and count_payload:
+        for line in count_payload.get("lines") or []:
+            line["movement_diff"] = "0"
     payload: dict[str, Any] = {
         "shift_id": shift.id,
         "count_id": count.id if count else None,
+        "is_opening_count": opening,
         "shift": {
             "id": shift.id,
             "branch_id": shift.branch_id,
@@ -279,7 +378,7 @@ def get_shift_detail(db: Session, user: User, shift_id: int) -> dict[str, Any]:
             "shift_number": shift.shift_number,
             "status": shift.status,
         },
-        "count": _serialize_count(count, db) if count else None,
+        "count": count_payload,
         "reopen_events": [
             {
                 "id": e.id,
@@ -493,13 +592,22 @@ def create_finding(
     count = db.query(BranchShiftCount).filter(BranchShiftCount.shift_id == shift.id).first()
     if not count or count.status != ShiftSectionStatus.submitted.value:
         _err(422, "COUNT_AUDIT_COUNT_NOT_SUBMITTED", "Count not submitted")
-    line_rows = (
-        db.query(BranchShiftCountLine)
-        .filter(BranchShiftCountLine.count_id == count.id, BranchShiftCountLine.item_id.in_(payload.item_ids))
-        .all()
-    )
-    if len(line_rows) != len(set(payload.item_ids)):
-        _err(422, "COUNT_AUDIT_ITEM_NOT_IN_COUNT", "Item not in count")
+    if payload.item_ids:
+        line_rows = (
+            db.query(BranchShiftCountLine)
+            .filter(BranchShiftCountLine.count_id == count.id, BranchShiftCountLine.item_id.in_(payload.item_ids))
+            .all()
+        )
+        if len(line_rows) != len(set(payload.item_ids)):
+            _err(422, "COUNT_AUDIT_ITEM_NOT_IN_COUNT", "Item not in count")
+    else:
+        line_rows = []
+    if payload.item_ids and _is_opening_count_shift(db, shift):
+        _err(
+            422,
+            "COUNT_AUDIT_OPENING_COUNT_NO_VARIANCE",
+            "Opening count lines cannot be attached to a variance finding.",
+        )
     for item_id in payload.item_ids:
         dup = (
             db.query(AuditFinding)
@@ -919,7 +1027,11 @@ def get_coverage(
     if branch_id is not None:
         shift_rows = shift_rows.filter(BranchShift.branch_id == branch_id)
     shift_map: dict[tuple[int, str], dict] = {}
-    for br_id, sdate, sid, sst, cst, sl, surl in shift_rows.all():
+    raw_shift_rows = shift_rows.all()
+    shift_ids = [r[2] for r in raw_shift_rows if r[2]]
+    branch_ids_cov = {r[0] for r in raw_shift_rows}
+    opening_ids = _opening_shift_ids_for_branches(db, branch_ids_cov)
+    for br_id, sdate, sid, sst, cst, sl, surl in raw_shift_rows:
         key = (br_id, sdate.isoformat())
         state = "no_record"
         if sid:
@@ -930,6 +1042,8 @@ def get_coverage(
             else:
                 state = "exception"
         has_diff = bool((sl or 0) > 0 or (surl or 0) > 0)
+        if sid and cst == ShiftSectionStatus.submitted.value and sid in opening_ids:
+            has_diff = False
         prev = shift_map.get(key)
         if not prev or _state_rank(state) > _state_rank(prev["state"]):
             shift_map[key] = {"state": state, "shift_id": sid, "has_diff": has_diff}
@@ -962,6 +1076,7 @@ def list_variances(
     min_abs_diff: Optional[float] = None,
     group: str = "line",
     min_occurrences: int = 2,
+    include_opening: bool = False,
     page: int = 1,
     page_size: int = 50,
 ) -> dict[str, Any]:
@@ -1005,8 +1120,17 @@ def list_variances(
         q = q.filter(BranchShiftCountLine.movement_diff != 0)
     if min_abs_diff is not None:
         q = q.filter(func.abs(BranchShiftCountLine.movement_diff) >= min_abs_diff)
+    q = _exclude_opening_shifts_from_variance_query(
+        q,
+        db,
+        include_opening=include_opening,
+        scope=scope,
+        branch_id=branch_id,
+        brand_id=brand_id,
+        city=city,
+    )
     if group == "repeat":
-        # aggregate in Python for SQLite compatibility in tests
+        # aggregate in Python for SQLite compatibility in tests; pagination stays in Python
         rows = q.all()
         buckets: dict[tuple[int, int], list] = {}
         for line, shift, branch, item in rows:
@@ -1038,7 +1162,12 @@ def list_variances(
         page_items = items[(page - 1) * page_size : page * page_size]
         return {"total": total, "page": page, "page_size": page_size, "group": "repeat", "items": page_items}
     total = q.count()
-    rows = q.order_by(BranchShift.shift_date.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    rows = (
+        q.order_by(BranchShift.shift_date.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
     items = []
     for line, shift, branch, item in rows:
         diff = float(line.movement_diff or 0)

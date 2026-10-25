@@ -33,6 +33,7 @@ from tests.test_count_audit import (
     CA,
     PASSWORD,
     SHIFT_OPS,
+    _add_prior_opening_shift,
     _login,
     _seed_branch_with_shift,
     _shift_tables_hash,
@@ -107,6 +108,7 @@ def _seed_scope_branches(db, suffix="SC"):
             )
         )
         bm = _user(db, f"{suffix}.bm{b.id}", RoleName.branch_manager, branch_id=b.id)
+        _add_prior_opening_shift(db, branch_id=b.id, opener_id=bm.id, item_id=item.id)
         shift = BranchShift(
             branch_id=b.id,
             shift_date=date(2026, 6, 1),
@@ -148,8 +150,12 @@ def _seed_scope_branches(db, suffix="SC"):
         "item": item,
         "branch_in": branch_in,
         "branch_out": branch_out,
-        "shift_in": db.query(BranchShift).filter(BranchShift.branch_id == branch_in.id).one(),
-        "shift_out": db.query(BranchShift).filter(BranchShift.branch_id == branch_out.id).one(),
+        "shift_in": db.query(BranchShift)
+        .filter(BranchShift.branch_id == branch_in.id, BranchShift.shift_date == date(2026, 6, 1))
+        .one(),
+        "shift_out": db.query(BranchShift)
+        .filter(BranchShift.branch_id == branch_out.id, BranchShift.shift_date == date(2026, 6, 1))
+        .one(),
         "auditor": auditor,
         "am": am,
         "ops": ops,
@@ -296,7 +302,12 @@ CA_ENDPOINTS = [
     [RoleName.branch_user, RoleName.warehouse_user, RoleName.quality_visitor],
 )
 def test_T04_forbidden_roles_403(client, db, role_name):
-    data = _seed_branch_with_shift(db, suffix=f"T04-{role_name.value}")
+    short = {
+        RoleName.branch_user: "bu",
+        RoleName.warehouse_user: "whu",
+        RoleName.quality_visitor: "qv",
+    }[role_name]
+    data = _seed_branch_with_shift(db, suffix=f"T04-{short}")
     _user(db, f"t04.{role_name.value}", role_name, branch_id=data["branch"].id)
     db.commit()
     hdr = _login(client, f"t04.{role_name.value}")
@@ -540,7 +551,8 @@ def test_T14_read_endpoint_aggregates(client, db):
     var = client.get(f"{CA}/variances", headers=ah, params={**DATE_RANGE, "direction": "shortage"}).json()
     assert var["total"] >= 1
     cov = client.get(f"{CA}/coverage", headers=ah, params=DATE_RANGE).json()
-    cell = cov["branches"][0]["days"]["2026-06-01"]
+    branch_row = next(b for b in cov["branches"] if b["branch_id"] == data["branch"].id)
+    cell = branch_row["days"]["2026-06-01"]
     assert cell["state"] == "submitted"
     big = client.get(f"{CA}/shifts", headers=ah, params={"date_from": "2026-01-01", "date_to": "2026-12-31"})
     assert big.status_code == 422

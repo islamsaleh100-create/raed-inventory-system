@@ -1959,6 +1959,8 @@
     "lines_table_title": "أسطر الجرد",
     "line_select": "اختيار",
     "shift_title_number": "شفت رقم {n}",
+    "opening_count_badge": "جرد افتتاحي",
+    "opening_count_lines_hint": "الجرد الافتتاحي خط أساس للمخزون وليس فرق حركة. اختيار الأسطر معطّل؛ يمكنك إضافة ملاحظة عامة بدون بنود.",
     "reopen_target_count": "الجرد",
     "reopen_target_cash": "النقد",
     "pick_shift_title": "اختر الشفت",
@@ -2049,7 +2051,8 @@
       "COUNT_AUDIT_INVALID_SHIFT_ID": "استخدم معرّف الشفت وليس معرّف الجرد.",
       "COUNT_AUDIT_DUPLICATE_OPEN_FINDING": "توجد ملاحظة مفتوحة لهذا الصنف.",
       "COUNT_AUDIT_IDEMPOTENCY_KEY_REUSED": "تم إرسال هذا الطلب مسبقًا ببيانات مختلفة.",
-      "COUNT_AUDIT_INVALID_TRANSITION": "هذا الإجراء غير مسموح في الحالة الحالية."
+      "COUNT_AUDIT_INVALID_TRANSITION": "هذا الإجراء غير مسموح في الحالة الحالية.",
+      "COUNT_AUDIT_OPENING_COUNT_NO_VARIANCE": "جرد الافتتاح خط أساس وليس فرق حركة. لا تُرفَق بنود السطور إلا في الجرد اللاحق."
     }
   }
 }

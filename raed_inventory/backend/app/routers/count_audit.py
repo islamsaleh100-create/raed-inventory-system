@@ -97,6 +97,7 @@ def variances(
     min_abs_diff: Optional[float] = None,
     group: str = Query("line"),
     min_occurrences: int = Query(2, ge=2),
+    include_opening: bool = Query(False),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -115,6 +116,7 @@ def variances(
         min_abs_diff=min_abs_diff,
         group=group,
         min_occurrences=min_occurrences,
+        include_opening=include_opening,
         page=page,
         page_size=page_size,
     )

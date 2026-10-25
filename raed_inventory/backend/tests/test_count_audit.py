@@ -71,6 +71,49 @@ def _login(client, username: str) -> dict:
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
+def _add_prior_opening_shift(
+    db,
+    *,
+    branch_id: int,
+    opener_id: int,
+    item_id: int,
+    shift_date: date = date(2026, 5, 31),
+) -> BranchShift:
+    prior = BranchShift(
+        branch_id=branch_id,
+        shift_date=shift_date,
+        shift_number=1,
+        status=BranchShiftStatus.submitted.value,
+        opened_by=opener_id,
+        submitted_at=datetime.utcnow(),
+    )
+    db.add(prior)
+    db.flush()
+    prior_count = BranchShiftCount(
+        shift_id=prior.id,
+        status=ShiftSectionStatus.submitted.value,
+        items_frozen_at=datetime.utcnow(),
+        created_by=opener_id,
+        submitted_at=datetime.utcnow(),
+    )
+    db.add(prior_count)
+    db.flush()
+    db.add(
+        BranchShiftCountLine(
+            count_id=prior_count.id,
+            item_id=item_id,
+            item_name_snapshot="item",
+            unit_snapshot="u",
+            opening_balance=Decimal("0"),
+            closing_balance=Decimal("10"),
+            movement_diff=Decimal("-10"),
+            row_status=ShiftCountRowStatus.valid.value,
+        )
+    )
+    db.flush()
+    return prior
+
+
 def _seed_branch_with_shift(db, suffix: str = "CA", *, movement_diff=Decimal("2.00"), submitted=True) -> dict:
     wh = Warehouse(warehouse_code=f"{suffix}-WH", warehouse_name="WH", location="Riyadh", active=True)
     db.add(wh)
@@ -117,6 +160,7 @@ def _seed_branch_with_shift(db, suffix: str = "CA", *, movement_diff=Decimal("2.
         )
     )
     opener = _user(db, f"{suffix}.opener", RoleName.branch_manager, branch_id=branch.id)
+    _add_prior_opening_shift(db, branch_id=branch.id, opener_id=opener.id, item_id=item.id)
     shift = BranchShift(
         branch_id=branch.id,
         shift_date=date(2026, 6, 1),

@@ -16,14 +16,20 @@ import {
   renderI18nLtr,
 } from './helpers'
 
-function LineTable({ lines, selectedIds, onToggle, highlightItemIds, t }) {
+function LineTable({ lines, selectedIds, onToggle, highlightItemIds, openingBaseline, t }) {
   if (!lines?.length) {
     return <p className="text-sm text-gray-400 py-4">{t('count_audit.empty_lines')}</p>
   }
   return (
     <div>
       <h3 className="font-semibold text-sm mb-1">{t('count_audit.lines_table_title')}</h3>
-      <p className="text-xs text-gray-500 mb-2">{t('count_audit.diff_legend')}</p>
+      {openingBaseline ? (
+        <p className="text-xs text-sky-800 bg-sky-50 border border-sky-100 rounded px-2 py-1.5 mb-2">
+          {t('count_audit.opening_count_lines_hint')}
+        </p>
+      ) : (
+        <p className="text-xs text-gray-500 mb-2">{t('count_audit.diff_legend')}</p>
+      )}
       <div className="overflow-x-auto max-h-[40vh] overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-white shadow-sm">
@@ -49,6 +55,7 @@ function LineTable({ lines, selectedIds, onToggle, highlightItemIds, t }) {
                     <input
                       type="checkbox"
                       checked={checked}
+                      disabled={openingBaseline}
                       onChange={() => onToggle(line.item_id)}
                       aria-label={line.item_name_snapshot}
                     />
@@ -59,7 +66,9 @@ function LineTable({ lines, selectedIds, onToggle, highlightItemIds, t }) {
                   <td className="p-2"><QtySpan value={line.returned_qty} /></td>
                   <td className="p-2"><QtySpan value={line.damaged_qty} /></td>
                   <td className="p-2"><QtySpan value={line.closing_balance} /></td>
-                  <td className="p-2"><DiffCell value={line.movement_diff} t={t} /></td>
+                  <td className="p-2">
+                    {openingBaseline ? <span className="text-gray-400">—</span> : <DiffCell value={line.movement_diff} t={t} />}
+                  </td>
                   <td className="p-2 text-xs">{line.movement_exception_reason || '—'}</td>
                 </tr>
               )
@@ -169,6 +178,11 @@ export default function ShiftDrawer({
               <TLtr>{detail.shift.shift_date}</TLtr>
               <span aria-hidden="true">—</span>
               <span>{renderI18nLtr(t, 'count_audit.shift_title_number', { n: detail.shift.shift_number })}</span>
+              {detail.is_opening_count ? (
+                <span className="bg-sky-100 text-sky-900 px-2 py-0.5 rounded text-xs font-bold">
+                  {t('count_audit.opening_count_badge')}
+                </span>
+              ) : null}
             </p>
           ) : null}
         </div>
@@ -210,6 +224,7 @@ export default function ShiftDrawer({
             selectedIds={selectedIds}
             onToggle={toggleItem}
             highlightItemIds={highlightItemIds}
+            openingBaseline={Boolean(detail?.is_opening_count)}
             t={t}
           />
         ) : null}

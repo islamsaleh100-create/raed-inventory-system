@@ -227,7 +227,16 @@ export default function DailyTab({
                 >
                   <td className="p-2 text-right font-medium">{row.branch_name}</td>
                   <td className="p-2 whitespace-nowrap" dir="ltr">{row.shift_date}</td>
-                  <td className="p-2">{row.shift_number}</td>
+                  <td className="p-2">
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      <span>{row.shift_number}</span>
+                      {row.is_opening_count ? (
+                        <span className="bg-sky-100 text-sky-900 px-2 py-0.5 rounded text-xs font-bold">
+                          {t('count_audit.opening_count_badge')}
+                        </span>
+                      ) : null}
+                    </span>
+                  </td>
                   <td className="p-2">
                     <CountBadge value={row.shortage_lines} variant={row.shortage_lines ? 'shortage' : 'neutral'} />
                   </td>
