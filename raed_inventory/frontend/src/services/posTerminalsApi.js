@@ -1,6 +1,6 @@
 import api from './api'
 
-const BASE = '/api/v1/audit/pos-terminals'
+const BASE = '/audit/pos-terminals'
 
 export const posTerminalsApi = {
   list(params) {
